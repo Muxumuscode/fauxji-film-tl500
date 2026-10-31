@@ -19,6 +19,54 @@ Open question: the files are listed for the EX1, and the owner's camera says TL5
 ## How to see the camera's current version (safe, no flashing)
 Per Samsung's guide: put a card containing the firmware files in the camera and power it on. A blue "FW Version" screen shows `DSC: FULL <current> -> <new>`. Do not press the shutter; just turn the camera off. (Be careful: the shutter button starts the update.) This is only a view of the version, but use a fully charged battery anyway.
 
+## Firmware dump-method research (31 Oct 2026)
+
+Question: can we read the firmware out of the camera (to get a genuine TL500 copy,
+and to understand recovery)?
+
+**Honest answer: there is no known software or USB method to dump these cameras.**
+- The Samsung camera-hacking community (ge0rg/samsung-nx-hacks) worked almost
+  entirely on the *later, Linux-based* NX models (NX300/NX500, a newer "DRIMe4"
+  chip). Even there, getting a serial console or a flash dump was never achieved
+  (their UART issue is still open: resistor tricks on the USB port produced no
+  serial output).
+- The older **DRIMe III, VxWorks** compact cameras — EX1, TL500, WB2000, WB850F,
+  EX2F — have essentially no public hacking work and no documented USB/service
+  dump mode.
+- Getting firmware *onto* the camera is the easy, understood path (the SD-card
+  updater we fully analysed). Getting it *off* would require **hardware work**:
+  finding UART test pads (location unknown for this model; needs a 3.3 V serial
+  adapter and soldering) or reading the NAND flash chip directly. Both mean opening
+  the camera and are unproven on this exact model — an advanced, later-stage task.
+
+**Big win from this research:** a community tool, `drime3-firmware.py` (written for
+the WB850F and EX2F, our camera's DRIMe III siblings), parses our firmware format
+**exactly**. Verified against our file: header is a 7-byte version string + 1-byte
+count, then per part a 32-byte path, 4-byte size, 4-byte offset, 20-byte name. Our
+5 parts decode cleanly:
+
+| part file | role | size | offset |
+|---|---|---|---|
+| FW_UP/ONBL1.bin | boot loader 1 | 520 | 0x800 |
+| FW_UP/ONBL2.bin | boot loader 2 | 65,924 | 0xa08 |
+| [EX1]DSC_5KEY_EX1 | **main program** | 10,678,220 | 0x10b8c |
+| RomFS/SPID.Rom | resource data | 69,218,304 | 0xa3fb58 |
+| FW_UP/EX1.HEX | OIS (lens stabiliser) firmware | 17,046 | 0x4c42b58 |
+
+The tool confirms (again) there is no checksum/signature in the format, and gives
+us a ready reference for the Phase 0 rebuild tool (it is Linux-only as written, but
+trivial to port to Windows).
+
+**What this means for the plan (important):** we do **not** need to dump the camera
+to move forward. The lowest-risk route is:
+1. Do Phase 0 (PC-only unpack/repack tooling) now, using the EX1 files we have and
+   the reference parser — zero risk, no camera.
+2. Plan the first real flash on a spare **EX1** body (our files match it directly) —
+   no dump needed at all.
+3. Dumping a TL500 is only necessary if you specifically want to modify a TL500
+   body instead of an EX1, and that is the advanced hardware route (UART/NAND),
+   best deferred until the EX1 path is proven to work.
+
 ## Sourcing the TL500 firmware (hunt results, 31 Oct 2026)
 
 Tried to find a trustworthy copy of the TL500 firmware (ideally 008264, the version
