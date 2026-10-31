@@ -53,6 +53,45 @@ Per Samsung's guide: put a card containing the firmware files in the camera and 
 
 ## Debug-access research (31 Oct 2026) — all confirmed in the real TL500 008264 file
 
+## regset.txt + Production Mode findings (31 Oct 2026)
+
+**`regset.txt` = image-quality tuning override (not an AE-debug hook).** Its parser
+uses the format `%d, %d, %d, %d, %x ×14` and lives in the image **post-processing**
+module (CCpoLdc = lens-distortion correction, CCpoNr = noise reduction, CCpoWdr =
+wide dynamic range, CCpoHdr = HDR, CCpoIMixer = image mixer). So dropping a
+`regset.txt` on the card overrides post-processing parameters — a genuine
+**no-hardware, no-patch image-tuning** avenue (bonus feature idea), but it does not
+enable exposure logging.
+
+**The real no-hardware avenue = Production / Factory Mode.** The flag files
+`check_ev.txt` (exposure-value check) and `check_afstep.txt` (AF check) belong to the
+camera's factory test system (`CProductionMode`, `runProductionMode`,
+`CProductionModeAdjustFunc.cpp`). This mode:
+- reads a command-list XML (`EX1_CMD_LIST.XML`) — checked at `/int/rom`, `/int/nand`,
+  and **`/ext/sd0/`** (the SD card), which hints the command list can be supplied from
+  the card;
+- runs checks/adjustments: Battery, EEPROM, OB, Lens Shading, Defective Pixel, DSP
+  version, Ext Flash, MCP, OIS, and an **EV (exposure) check** (`check_ev.txt`);
+- writes results to CSV/log files on the card (`E2PR.CSV`, `BATTERY.CSV`,
+  `E2P_DATA_SYSTEM.CSV`, "Save Log File") — readable with no hardware.
+
+Recall the command list (found earlier) indexes `iso`, `shutter_speed`, `f_number`,
+`metering`, `evc` as first-class commands. If the SD-card `EX1_CMD_LIST.XML` is
+honoured, Production Mode could let us read/set exposure parameters and dump results
+to CSV — a powerful no-hardware observe/control path.
+
+**IMPORTANT CAUTION:** Production Mode is the *factory calibration* system. Some of
+its commands only *read/check* (safe), but others *write calibration data* (OB, lens
+shading, defective-pixel, EEPROM adjustments). Running the wrong command could
+mis-calibrate the camera. This avenue must be used read-only first, with the exact
+command set understood before anything that writes.
+
+**Still to determine (next desk steps):** how Production Mode is triggered (likely a
+key combo at power-on, or the presence of the command XML / flag files); and the
+`EX1_CMD_LIST.XML` format, to know which commands are safe read-only EV checks.
+
+
+
 Three ways the camera's debug facilities can be reached, easiest first:
 
 **1. SD-card flag files — NO hardware, just put a file on the card.**
