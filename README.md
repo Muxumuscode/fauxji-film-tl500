@@ -1,5 +1,42 @@
 # Samsung TL500 / EX1 firmware research
 
+## 🔑 BREAKTHROUGH: exposure encoding cracked via EXIF MakerNote (31 Oct 2026)
+
+Recovered the camera's internal exposure encoding with **zero flashing and zero
+hardware** — just by reading the MakerNote of a controlled set of photos (fixed ISO
++ aperture, shutter stepped 1" -> 1/500). The MakerNote tag 0x0060 is a ~7000-byte
+dump of live internal state; two fields decode cleanly:
+
+**Shutter = APEX Tv x 16** (MakerNote offset 0x0072, perfect r2=1.000 fit):
+| shutter | 1" | 1/8 | 1/15 | 1/30 | 1/60 | 1/125 | 1/250 | 1/500 |
+|---|---|---|---|---|---|---|---|---|
+| value | 0 | 48 | 64 | 80 | **96** | 112 | 128 | 144 |
+So **1/60 = Tv 6 = value 96 (0x60)**; each full stop = 16; slower shutter = lower value.
+
+**ISO = APEX Sv x 16** (MakerNote offset 0x0076): ISO100=80, ISO400=112, ISO800=128;
+each ISO stop = +16 (ISO200=96, ISO1600=144, ...).
+
+**APEX identity:** Ev = Av + Tv = Bv + Sv. So raising the shutter by delta (in Tvx16
+units) and raising ISO by the *same* delta keeps exposure constant — a clean 1:1
+transfer, because both are the same x16 scale.
+
+**This matches the AE struct fields we already located** (SHR/shutter at +0x38,
+SVR/ISO at +0x30 — "SHR"=Tv, "SVR"=Sv), so the minimum-shutter clamp is now fully
+specified in code terms:
+
+    if (shutter_Tv < 96) {        // slower than 1/60
+        delta = 96 - shutter_Tv;
+        shutter_Tv = 96;          // clamp to 1/60  (write +0x38)
+        iso_Sv   += delta;        // raise ISO to compensate (write +0x30)
+    }
+
+The only remaining engineering piece for the patch is locating the AE write-site that
+finalizes these fields (now searchable: look for the value 96 / 1/60 handling). The
+exposure math itself is fully understood. Same understanding directly enables the
+Auto-ISO-in-Manual idea (compute Sv = Av + Tv - Bv from the metered scene).
+
+
+
 ## 🎯 MILESTONE: camera accepts MODIFIED firmware (31 Oct 2026)
 
 ## Honest status / effort assessment (31 Oct 2026)
