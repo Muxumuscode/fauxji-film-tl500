@@ -82,6 +82,40 @@ of doing that. The one thing still unconfirmed is whether a simple **checksum**
 is verified somewhere before the camera commits the new data to flash; if so it
 would need to be recomputed, which is routine once located.
 
+## Checksum hunt results (31 Oct 2026)
+
+Question: before the camera writes new firmware to its flash memory, does it
+verify a checksum that a modified file would have to match?
+
+**At the container (archive) level: no checksum and no signature. Confirmed
+exhaustively.**
+- The table of contents stores only a path, a size, and an offset for each of the
+  5 components. There is no checksum field. (Header even starts `110271` + a byte
+  `05` = "5 components".)
+- There is no checksum appended at the end of the file: the file ends exactly
+  where the last component ends, with zero trailing bytes.
+- The space between the table and the first component is just padding (zeros).
+
+So the archive carries nothing that a checksum could be hiding in. The updater's
+`Invalid File Format` rejection is therefore almost certainly a **structure/magic
+check** (is this a valid archive with the right version tag and sane offsets),
+which a correctly rebuilt archive would pass.
+
+**One check still to confirm (needs interactive Ghidra):** the main program file
+begins with a magic marker (`ff 77 ff 77`) after its version tag, and has a small
+structured block at its very end. The running firmware also contains a generic
+message `Checksum error in ... section ...`, which hints the code may verify its
+own sections when loading into RAM **at boot time**. If that self-check is active,
+a modified main program could be rejected at startup — but it would be an ordinary
+checksum (not cryptographic), locatable and recomputable. This is the single
+remaining thing to pin down before trusting a modified main image, and it is the
+natural job for a focused Ghidra session.
+
+**Note on misleading strings:** the `CHECKSUM_1/2` and `ADJUST_CHECKSUM` strings
+seen earlier belong to the factory *adjustment-data* files (lens/sensor
+calibration), not the firmware archive. The `header crc mismatch` string belongs
+to bundled Windows PC software, not the camera.
+
 ## FEASIBILITY VERDICT (plain language)
 
 **Reading/understanding the firmware: feasible.** It is ordinary ARM code running
