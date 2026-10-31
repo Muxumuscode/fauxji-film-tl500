@@ -1,32 +1,39 @@
 # Samsung TL500 / EX1 firmware research
 
-## ⏸ STATUS: holding for a genuine TL500 firmware file (decided 31 Oct 2026)
+## ✅ STATUS: genuine TL500 008264 firmware ACQUIRED and verified (31 Oct 2026)
 
-Everything that can be done without the camera is done (format cracked, no
-checksum/signature, Phase 0 rebuild tool proven byte-identical). The project is
-paused on one external blocker: we need the official **TL500 008264** file as a
-known-good restore image before the single TL500 can be touched, and the Internet
-Archive — the best source — was temporarily offline.
+The owner located and downloaded `TL500_FW_file_008264.zip` (44.6 MB). Verified:
+- **Intact** (zip integrity OK) and the correct multi-file set: `EX1-DSP-SR-008264.elf`
+  (main program), `ONBL1.bin`, `ONBL2.bin`, `SPID.Rom`, `FWUP`, plus an empty `DCIM/`.
+  (The forum's "EX1-ESP-SR" was a typo; the real name is `EX1-DSP-SR-008264.elf`.)
+- **Authentic:** `ONBL1.bin` is **byte-for-byte identical** (SHA-256) to the official
+  Samsung EX1 bootloader we already had; the main `.elf` carries the correct `008264`
+  version stamp and the expected `ff77ff77` magic. Strong evidence it is genuine and
+  untampered.
+- Kept out of git (Samsung firmware is never redistributed; `firmware-original/` and
+  `extracted/` are ignored).
 
-**Retry checklist (when the Internet Archive is back up):**
-1. Wayback CDX for a Samsung-hosted copy (archive.org was offline; retry):
-   `web.archive.org/cdx/search/cdx?url=downloadcenter.samsung.com*&filter=urlkey:.*tl500.*&output=json&collapse=urlkey`
-   and the same for `org.downloadcenter.samsung.com*` and `samsungimaging.com*`.
-2. Re-open the one archived US TL500 page (8 Jan 2013 snapshot) and look for the
-   download AJAX/file endpoint it called.
-3. Read dpreview thread 2946806 in a normal browser (it blocked the automated one)
-   for any still-live member mirror of the `EX1-ESP-SR-008264` file set.
-4. If a file is found: verify it is the multi-file set (`EX1-ESP-SR-008264.elf`,
-   `ONBL1.bin`, `ONBL2.bin`, `SPID.Rom`, `FWUP`), keep an untouched copy as the
-   restore image, and only then consider any modification.
+**This file is BOTH:** (1) the known-good **restore image** (the safety-net
+prerequisite is now met), and (2) the real **patch target**.
 
-Alternative that needs none of the above: acquire a cheap used **EX1** body (we
-already have its firmware and the proven tooling) and experiment on that instead.
+**Patch target confirmed present in the real TL500 file** (same as the EX1 analysis):
+`Exposure value - SVR: %d, SHR: %d` (file 0x7a0197), `ExposureG`,
+`eAE_IF_CCD_GAIN_2_CAP_REQ`, `eAE_IF_M_SHUT_1_REQ`, `AeMiddlewareSystem.cpp` — the
+auto-exposure module and the ISO(gain)/shutter levers are all there.
+
+**One refinement pending:** the standalone `.elf` (multi-file format) loads at a
+different base than the EX1 single-file bundle I first analysed (it is a low-memory
+load, ~0x0076xxxx, not 0xC0004000; 35/40 AE labels already correlate). Pinning its
+exact base is the immediate next step, then the write-site + encoding + patch, all on
+this real target.
+
+**Safety note:** because `ONBL1` is the official bootloader and we will not modify
+the bootloaders, the recovery path (re-flash the official set from an SD card via the
+intact bootloader) is viable. The first real flash should still be the *unmodified*
+rebuild, to prove the round-trip before any modified image.
 
 
 
-Goal: understand the camera's firmware and judge whether adding features is feasible.
-Rule: no Samsung firmware is ever redistributed (`firmware-original/`, `docs-original/`, `extracted/` are git-ignored). Only notes, patches and tools are shared. Nothing here is flashed to a camera.
 
 ## Where the firmware comes from
 Samsung's Africa EX1 support page still hosts the files on Samsung's own server:
