@@ -2,6 +2,38 @@
 
 ## 🔑 BREAKTHROUGH: exposure encoding cracked via EXIF MakerNote (31 Oct 2026)
 
+## CORRECTION + real progress: exposure IS on the ARM, clamp is reachable (31 Oct 2026)
+
+**Important correction:** the earlier "the AE decision runs on the DSP" conclusion was
+WRONG — it came from a bug in my scan (an invalid no-index operand check that silently
+matched nothing). The corrected scan finds **2,658 writes** and **4,086 reads** of the
+shutter field in the main firmware (and it correctly finds the known log read). So the
+exposure values are very much handled in the ARM code we can patch.
+
+**What the exposure path actually looks like:**
+- The main chip builds the exposure struct by calling **getter functions**:
+  `0xC03CAE30` -> ISO/Sv (struct +0x30), `0xC03CAEC4` -> shutter/Tv (struct +0x38),
+  with `0xC03CAE7C` / `0xC03CAF0C` for the neighbouring fields.
+- Each getter reads from a **table of 40-byte (0x28) entries** (shared base pointer),
+  indexed by a frame/zone index, with a sub-index (clamped to <=0x12=18). So the live
+  exposure values sit in ordinary ARM memory tables.
+- There are ~27 sites across the AE region that call these getters to populate an
+  exposure struct (for logging, EXIF, capture, preview, etc.).
+
+**Why this matters:** a minimum-shutter clamp (and the Auto-ISO-in-M math) is now
+reachable in ARM code. Cleanest candidate approach: clamp in the shutter getter
+(return max(raw, 96)) and compensate in the ISO getter (add the same delta, both
+derivable from the same raw Tv) — which would also make the displayed value and the
+EXIF reflect the clamp, i.e. correct behaviour. Caveats to resolve next:
+- Must be **mode-conditional** (only auto-ISO modes / the intended mode), or it would
+  override Manual mode's user-set values.
+- Confirm the getters feed the actual **capture** exposure (not just logging/preview).
+
+We also have the **EXIF MakerNote as a zero-risk test oracle**: flash a candidate,
+shoot in dim light, read the Tv/Sv fields, see if it held 1/60 and raised ISO.
+
+
+
 ## Write-site hunt result: the AE decision is on the DSP, not the ARM (31 Oct 2026)
 
 ## Intercept-lead probe (31 Oct 2026)
