@@ -6,6 +6,30 @@
 
 ## First functional patch TEST: code injection works! (31 Oct 2026)
 
+## v2 test: missed again — many copies of the shutter value (31 Oct 2026)
+
+Clamped the x128->x16 conversion sites (0xC03DED80/0xC03DF1B8). Result: booted fine,
+but recorded Tv still unclamped (43,64,48,...) AND image brightness tracks the actual
+set speeds (Manual 1/8 -> dark 30/255, 3" -> bright 190/255). So that struct is yet
+another copy, not the capture/EXIF one.
+
+**The real lesson:** this camera keeps the shutter value in *many* separate structs
+(logging, display, several AE-internal conversion buffers, the EXIF source, and the
+actual sensor-config value). Each looks plausible statically, but we've now hooked
+two and both were the wrong copy. Blindly guessing among them is low-odds (each flash
+rules out one of ~7+ candidates, and the true capture-apply site may not be in that
+list at all).
+
+**Confirmed assets (real and reusable):** code injection works (caves execute),
+the x16 encoding (1/60=96), and the EXIF brightness/Tv **test oracle**.
+
+**This is the genuine longshot threshold.** Distinguishing the many copies and
+finding the one that drives the sensor is exactly what the **serial console** makes
+easy (watch the live capture path, see which code runs). Blind static iteration can
+continue but is slow and low-yield from here.
+
+
+
 Built and flashed a test clamp: redirected the shutter getter (0xC03CAEC4) through a
 code cave (data-region padding at 0xC0703704) doing `cmp r0,#96; movlt r0,#96`.
 
