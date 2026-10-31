@@ -4,6 +4,42 @@
 
 ## Honest status / effort assessment (31 Oct 2026)
 
+## Image-quality + Auto-ISO-in-M research (31 Oct 2026)
+
+**Auto ISO in Manual mode (the owner's preferred near-term feature):** still a hard
+target. The ISO option strings (ISOAUTO, ISO80..ISO6400) found in the .elf are the
+**AE debug-log** name table, not the menu. The real gating — whether "Auto" is
+offered in M mode, and whether the AE computes Sv (ISO) from fixed Tv+Av — lives in
+the glyph-rendered SPID.Rom menus and the AE state machine (the hard parts). No
+simple per-mode flag was findable by string search.
+
+**regset.txt (image tuning):** confirmed hook, but narrow. Its parser reads 18
+values (`%d x4, %x x14`) into the **lens-distortion-correction / post-process** block
+(CCpoLdc, with NR/WDR/HDR adjacent). Using it to improve image quality requires
+reverse-engineering the 18 parameters' meanings and experimenting for good values —
+a project in itself, not a quick setting.
+
+## BOTTOM LINE (31 Oct 2026)
+
+- **Proven and done:** the camera is moddable (custom firmware flashes, runs,
+  recovers; a 1-byte edit demonstrated). Full file analyzed; exposure code located;
+  debug avenues mapped. This is a real result on a camera with no prior hacking
+  scene.
+- **The honest wall:** every *specific* exposure/ISO/image-quality feature the owner
+  wants lands in the firmware's hard parts (multi-state AE engine, glyph-rendered
+  menus, undocumented post-process params). **Without hardware observation (serial
+  console, which the owner declined), each one is a large, slow, iterative RE+patch
+  effort — not a quick edit.**
+- **The lever that would change this:** the serial console (cheap adapter + opening
+  the camera) makes the exposure values and the aedebug/programline commands
+  directly observable, turning these features from blind grinding into tractable work.
+- **Realistic options:** (a) treat this as a successful proof-of-concept and stop;
+  (b) revisit the serial route if the owner reconsiders opening the camera;
+  (c) continue as a slow hobby project, accepting many flash-test iterations per
+  feature.
+
+
+
 **Proven:** the camera is moddable — we flash custom firmware and it runs, recovery
 works, and we have the real file fully analyzed (base, exposure code, struct fields).
 
