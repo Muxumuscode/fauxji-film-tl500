@@ -1,5 +1,30 @@
 # Samsung TL500 / EX1 firmware research
 
+## ⏸ STATUS: holding for a genuine TL500 firmware file (decided 31 Oct 2026)
+
+Everything that can be done without the camera is done (format cracked, no
+checksum/signature, Phase 0 rebuild tool proven byte-identical). The project is
+paused on one external blocker: we need the official **TL500 008264** file as a
+known-good restore image before the single TL500 can be touched, and the Internet
+Archive — the best source — was temporarily offline.
+
+**Retry checklist (when the Internet Archive is back up):**
+1. Wayback CDX for a Samsung-hosted copy (archive.org was offline; retry):
+   `web.archive.org/cdx/search/cdx?url=downloadcenter.samsung.com*&filter=urlkey:.*tl500.*&output=json&collapse=urlkey`
+   and the same for `org.downloadcenter.samsung.com*` and `samsungimaging.com*`.
+2. Re-open the one archived US TL500 page (8 Jan 2013 snapshot) and look for the
+   download AJAX/file endpoint it called.
+3. Read dpreview thread 2946806 in a normal browser (it blocked the automated one)
+   for any still-live member mirror of the `EX1-ESP-SR-008264` file set.
+4. If a file is found: verify it is the multi-file set (`EX1-ESP-SR-008264.elf`,
+   `ONBL1.bin`, `ONBL2.bin`, `SPID.Rom`, `FWUP`), keep an untouched copy as the
+   restore image, and only then consider any modification.
+
+Alternative that needs none of the above: acquire a cheap used **EX1** body (we
+already have its firmware and the proven tooling) and experiment on that instead.
+
+
+
 Goal: understand the camera's firmware and judge whether adding features is feasible.
 Rule: no Samsung firmware is ever redistributed (`firmware-original/`, `docs-original/`, `extracted/` are git-ignored). Only notes, patches and tools are shared. Nothing here is flashed to a camera.
 
