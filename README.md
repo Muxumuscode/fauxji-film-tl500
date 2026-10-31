@@ -116,6 +116,44 @@ seen earlier belong to the factory *adjustment-data* files (lens/sensor
 calibration), not the firmware archive. The `header crc mismatch` string belongs
 to bundled Windows PC software, not the camera.
 
+## Boot-check trace results (31 Oct 2026)
+
+I tried to recover the main program's load address (needed to point Ghidra at the
+exact self-check instruction) by two rigorous methods. Both were inconclusive,
+which is itself a finding: the main program is **not** a simple flat load. It
+rebuilds its own memory layout at boot (consistent with the magic marker at its
+start). Pinpointing the exact self-check instruction would mean first reverse-
+engineering that layout — a larger job.
+
+So I went at the integrity question a more direct way: searched every real
+firmware component for the fingerprint of a genuine CRC routine (the standard
+256-entry CRC32 lookup table has an unmistakable signature). Result:
+
+| Component | CRC table present? |
+|---|---|
+| ONBL1 (boot loader 1) | none |
+| ONBL2 (boot loader, the part that loads the main program) | none |
+| Main program (108091) | none |
+| 80 MB bundle | only one, and it sits inside the bundled **Windows PC software** (zlib), not camera code |
+
+**What this tells us, in order of importance:**
+1. **The boot loaders contain no checksum, no CRC, and no verify logic at all** — no
+   integrity strings, no CRC table. ONBL2 loads the main program and jumps to it;
+   nothing between "file sitting in flash" and "code runs" checks a checksum. This
+   is the architecturally decisive fact: there is **no integrity gate in the boot
+   path**.
+2. **The main program has no CRC table either.** Its generic `Checksum error in
+   section` message, if that feature is even switched on, could only be a **simple
+   additive checksum** (adding bytes together) — which is trivial to recompute when
+   rebuilding, and in any case is your own code to patch once you control it.
+3. The only real CRC routine in the entire download belongs to bundled Windows PC
+   software and never runs on the camera.
+
+**Bottom line of the trace:** nothing cryptographic, and no CRC, stands between a
+modified firmware file and the camera running it. At worst there is a simple,
+recomputable additive self-check inside the main program. The boot path itself is
+unguarded.
+
 ## FEASIBILITY VERDICT (plain language)
 
 **Reading/understanding the firmware: feasible.** It is ordinary ARM code running
