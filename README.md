@@ -19,6 +19,51 @@ Open question: the files are listed for the EX1, and the owner's camera says TL5
 ## How to see the camera's current version (safe, no flashing)
 Per Samsung's guide: put a card containing the firmware files in the camera and power it on. A blue "FW Version" screen shows `DSC: FULL <current> -> <new>`. Do not press the shutter; just turn the camera off. (Be careful: the shutter button starts the update.) This is only a view of the version, but use a fully charged battery anyway.
 
+## Phase 0 rebuild tooling — DONE and proven (31 Oct 2026)
+
+Wrote `tools/drime_fw.py` (Windows-friendly; no camera involved). It unpacks and
+repacks the firmware archive, and the round-trip is **byte-for-byte identical** to
+the original on the 110271 file — so our tooling reproduces exactly what the camera
+expects, losing nothing.
+
+Two firmware layouts exist in this family:
+- **Newer single-file** (110271, and the EX2F/WB850F siblings): one big `.bin` with
+  a header + name/size/offset table + raw parts. `drime_fw.py` handles this;
+  round-trip verified identical.
+- **Older multi-file** (EX1 108091, and — per forums — the **TL500 008264**): the
+  parts are already separate files on the SD card (`...-SR-00xxxx.elf`, `ONBL1.bin`,
+  `ONBL2.bin`, `SPID.Rom`, `FWUP`). Nothing to pack — you edit one file and copy the
+  set to the card. Even simpler, and still no checksum/signature.
+
+So for a TL500 (older format), modifying firmware = editing the main `.elf` (or
+resource file) and copying the standard file set to the card. The rebuild step is
+essentially free.
+
+## TL500 firmware hunt — round 2 (31 Oct 2026)
+
+Still no genuine TL500 008264 file obtained. Status of each avenue:
+- **Internet Archive (Wayback): temporarily OFFLINE** during this session ("Internet
+  Archive: Temporarily Offline" / 503s). This is the most promising source for an
+  archived Samsung-hosted copy, so it is *blocked, not exhausted* — **worth
+  retrying in a few days.**
+- **Samsung official:** gone (US page lists nothing; sole 2013 archive snapshot had
+  no direct link).
+- **GitHub / community mirrors:** none exist for this camera line (the DRIMe III
+  tool `drime3-firmware.py` targets WB850F/EX2F and ships no sample firmware).
+- **dpreview forum thread:** blocked by a bot challenge in the automated browser;
+  could be read manually in a normal browser (thread 2946806) in case a member's
+  link or mirror is still live.
+- **Third-party driver mirrors:** ad-wrapped, unverifiable, not recommended.
+
+Confirmed detail: the TL500 package's main file is `EX1-ESP-SR-008264.elf` (vs the
+EX1's `EX1-DSP-SR-...`), plus the standard ONBL1/ONBL2/SPID/FWUP set.
+
+**Where this leaves the single-camera plan:** flashing the one TL500 still needs a
+genuine TL500 restore image first, and we don't have one yet. Two realistic paths:
+(1) retry the Internet Archive in a few days for the official file; or (2) get a
+cheap used **EX1** body after all — we already have its firmware and the tooling is
+proven, so it needs none of this hunting and keeps the TL500 safe.
+
 ## Firmware dump-method research (31 Oct 2026)
 
 Question: can we read the firmware out of the camera (to get a genuine TL500 copy,
