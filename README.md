@@ -44,6 +44,45 @@ Open question: the files are listed for the EX1, and the owner's camera says TL5
 ## How to see the camera's current version (safe, no flashing)
 Per Samsung's guide: put a card containing the firmware files in the camera and power it on. A blue "FW Version" screen shows `DSC: FULL <current> -> <new>`. Do not press the shutter; just turn the camera off. (Be careful: the shutter button starts the update.) This is only a view of the version, but use a fully charged battery anyway.
 
+## BREAKTHROUGH: exposure code located and base address recovered (31 Oct 2026)
+
+The one thing that had blocked deep analysis — not knowing where the main program
+loads in memory — is now solved.
+
+**Load base = 0xC0004000.** Recovered by finding the values that make the 40
+`eAE_IF_*` auto-exposure labels resolve as real pointers (all 40 matched at this
+base; the alternative candidates were false positives from instruction bytes).
+Conversion: `runtime_address = file_offset + 0xBFFF3474` (for the 110271 main
+image). Tool: `tools/findtable.py`.
+
+**Verified by disassembly.** Disassembling at this base produces clean, textbook
+ARM: proper function prologues/epilogues (`push {fp,lr}` / `pop {fp,pc}`),
+switch-style dispatch chains, and `bl` calls. A wrong base yields noise, so this
+confirms the base is correct and the code is now readable.
+
+**The exposure-decision code is pinpointed.** Each exposure marker string resolves
+to exactly one referencing code site:
+- `Exposure value - SVR: %d, SHR: %d` (SVR = sensitivity/gain = ISO, SHR = shutter)
+  -> printed by the routine that outputs the final exposure. Reference near runtime
+  0xC03D3xxx.
+- `ExposureG : %d` -> a second exposure-math site.
+- `eAE_IF_CCD_GAIN_2_CAP_REQ`, `eAE_IF_M_SHUT_1_REQ`, `eAE_IF_IRIS_REQ` sit as
+  consecutive entries in the AE command-dispatch table (gain / shutter / iris),
+  i.e. the levers the AE pulls.
+
+The code around the exposure site is dense `cmp` / conditional-branch logic — a
+state machine making numeric decisions. That is exactly the shape of code where a
+"if the chosen shutter is slower than the floor, raise gain instead" rule would be
+inserted.
+
+**What this means:** we have moved from "the exposure logic exists" to "we can find
+it, read it, and it is ordinary modifiable ARM code at a known address." The
+remaining work for the minimum-shutter feature is ordinary patch development:
+trace the specific routine that compares/sets shutter vs gain, identify the exact
+instruction(s) to change, and build the patch. No cryptographic or structural
+barrier stands in the way. (Still to do before any camera: a test body + a genuine
+TL500 restore image, per the single-camera constraint.)
+
 ## Feature-feasibility analysis from the firmware (31 Oct 2026)
 
 Studied the EX1 firmware (same code family as the TL500) to judge which features
