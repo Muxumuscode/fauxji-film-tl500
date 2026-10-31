@@ -44,6 +44,77 @@ Open question: the files are listed for the EX1, and the owner's camera says TL5
 ## How to see the camera's current version (safe, no flashing)
 Per Samsung's guide: put a card containing the firmware files in the camera and power it on. A blue "FW Version" screen shows `DSC: FULL <current> -> <new>`. Do not press the shutter; just turn the camera off. (Be careful: the shutter button starts the update.) This is only a view of the version, but use a fully charged battery anyway.
 
+## Feature-feasibility analysis from the firmware (31 Oct 2026)
+
+Studied the EX1 firmware (same code family as the TL500) to judge which features
+are realistically addable. Findings are strong and encouraging.
+
+**The single biggest enabler:** this firmware is compiled with **source-file paths
+and module names left in** (e.g. `Base/BLModules/ImageQuality/AE/SPID_Interface/
+CAEMainController.cpp`, and matching AF / AWB controllers). That means code can be
+attributed to the exact subsystem it came from. For reverse engineering, this is
+about as good as it gets short of having the source.
+
+**The exposure brain is fully present and labelled.** The auto-exposure (AE) module
+is modular and named: `AeMain`, `CAEMainController`, `AECompController`,
+`AeMiddlewareSystem.cpp`. ISO is handled internally as sensor **gain**
+(`CCD_GAIN_1/2_LIVE/CAP`). The AE interface explicitly exposes the levers:
+half-press, AE-lock, gain (ISO), mechanical shutter, iris (aperture), pre-flash,
+and bracketing. The exposure "program line" (the curve that trades off
+shutter/aperture/ISO) is a real in-firmware structure (`DrawProgram`, `programline`),
+and there is an `AE_PATCH` bank mechanism suggesting AE parameters live in
+patchable tables. There is also a built-in `aedebug` console.
+
+**There is an internal control API** indexing every function: `iso`, `shutter_speed`,
+`f_number`, `evc` (exposure comp), `metering`, plus every physical button (FN,
+AEL, etc. — buttons look remappable). This is a clean set of hook points.
+
+### Your two requested features
+- **Minimum shutter speed for Auto ISO** ("never below 1/60, raise ISO instead"):
+  **feasible.** It is a rule added to the AE program-line logic, which already
+  computes shutter + gain together. The module is named and the parameters appear
+  table-driven (`AE_PATCH`). Hardcoding a floor is the easy version; a user-pickable
+  floor needs new menu UI (harder).
+- **Auto ISO available in every mode (incl. Manual):** **feasible.** The gain-
+  control machinery exists and runs; availability per mode is a policy/flag, and the
+  mode logic is also labelled.
+
+### What else is realistic (building blocks already in the firmware)
+- **Extend the intervalometer / time-lapse** — one already exists
+  (`CAPTURE_MENU_INTERVAL_*`: hours, minutes, shot count, start time). Longer/more
+  shots, finer control.
+- **Wider exposure bracketing** (`BRK_AE_STEP`, `AEB`) — more frames / bigger steps,
+  which also feeds better HDR (an `HDR` menu already exists).
+- **Raise the Auto-ISO ceiling, change ISO steps, change default limits.**
+- **Unlock / expand white-balance fine-tuning** — already very complete (Kelvin,
+  per-preset amber-blue & green-magenta shift, custom WB).
+- **Button / FN remapping** to surface hidden functions.
+- **Longer maximum exposures** (if the shutter-control range allows; `SCENE_NIGHT`
+  path exists) — to be confirmed by checking the shutter limit.
+- RAW already exists (Samsung `.SRW`), so RAW-related tweaks are on the table.
+
+### Harder (new code, big effort) — possible in principle, not a tweak
+- **Focus peaking, zebra stripes, live histogram overlay:** no peaking/zebra code
+  found. These need NEW real-time live-view image processing hooked into the preview
+  pipeline — a major undertaking, not a parameter change.
+- **MF focus magnification:** uncertain; depends on an existing live-view zoom path.
+
+### Not feasible (hardware ceilings, not software)
+- 4K or higher-bitrate video beyond the 2010 DRIMe III chip's capability.
+- New autofocus *hardware* behaviour (phase-detect / advanced tracking) — it's
+  contrast-AF hardware.
+- WiFi / Bluetooth / phone-app connectivity — no radio in the camera.
+- Fundamentally better high-ISO image quality — sensor-limited.
+
+**Overall:** the features you care about most are not just possible — they are the
+*best-matched* kind of modification for this camera, because they tune exposure
+logic that already exists, in a firmware that is unusually well-labelled. The limit
+is reverse-engineering labour (finding and changing the exact code safely), not
+capability. Features requiring new hardware or whole new image-processing pipelines
+remain out of reach.
+
+## Phase 0 rebuild tooling
+
 ## Phase 0 rebuild tooling — DONE and proven (31 Oct 2026)
 
 Wrote `tools/drime_fw.py` (Windows-friendly; no camera involved). It unpacks and
