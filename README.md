@@ -4,6 +4,28 @@
 
 ## CORRECTION + real progress: exposure IS on the ARM, clamp is reachable (31 Oct 2026)
 
+## First functional patch TEST: code injection works! (31 Oct 2026)
+
+Built and flashed a test clamp: redirected the shutter getter (0xC03CAEC4) through a
+code cave (data-region padding at 0xC0703704) doing `cmp r0,#96; movlt r0,#96`.
+
+**Result: the camera booted and ran normally — our injected code executes.** This
+confirms two big things: (1) the data-region **cave is executable** (we can inject
+code), and (2) the branch+clamp encoding is correct.
+
+**But the clamp didn't change exposure:** test shots still recorded 1/20, 1", 0.7s
+(MakerNote Tv field 0x72 = 72, 0, 11 — all < 96, unclamped). So the getter we hooked
+feeds a **logging/display copy** of the shutter, not the real exposure value. The
+camera keeps (at least) two copies: the getter-fed struct (+0x38) that we clamped,
+and the actual AE-state copy recorded in EXIF (MakerNote +0x72) that drives capture.
+
+**Next (v2):** find where the real exposure Tv is written/applied (the value that
+lands at MakerNote +0x72 and configures the sensor), and clamp there instead. The
+injection mechanism and the EXIF test-oracle are both proven, so iteration is now a
+known loop.
+
+
+
 **Important correction:** the earlier "the AE decision runs on the DSP" conclusion was
 WRONG — it came from a bug in my scan (an invalid no-index operand check that silently
 matched nothing). The corrected scan finds **2,658 writes** and **4,086 reads** of the
