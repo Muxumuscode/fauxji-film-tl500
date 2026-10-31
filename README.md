@@ -2,6 +2,36 @@
 
 ## 🔑 BREAKTHROUGH: exposure encoding cracked via EXIF MakerNote (31 Oct 2026)
 
+## Write-site hunt result: the AE decision is on the DSP, not the ARM (31 Oct 2026)
+
+Hunted for where the shutter/ISO fields get written. Scanned the **entire** main
+image (2.6M instructions, 276k stores): **zero** instructions write `[Rn,#0x38]`
+(the shutter field) — the ARM code only ever *reads* those values (to log them and
+to put them in the EXIF MakerNote). They are never computed by a normal store here.
+
+**Conclusion:** the actual auto-exposure *decision* (the program line that picks
+Tv/Sv/Av) runs on the camera's **DSP / image co-processor** (the "SPID" side), and
+the ARM firmware just *receives* the finished values via an inter-processor
+message/copy. The ARM `eAE_IF_*` strings and `CAEMainController` are the ARM-side
+*interface* to that engine, not the engine itself.
+
+**What this means for the min-shutter clamp:** it can't be dropped into the ARM
+code at the decision point, because the decision isn't there. Realistic options are
+all harder:
+- **Reverse-engineer the DSP** (its code lives in the SPID side, which we have not
+  analysed and is a separate, bigger project).
+- **Intercept the inter-processor message** on the ARM side and clamp Tv/Sv on
+  receipt — only works if the ARM then forwards the (clamped) values to configure the
+  sensor, rather than the DSP applying them directly. Uncertain.
+- **Auto-ISO-in-Manual** may be more reachable: it's about the ARM middleware's
+  *mode -> request* logic (what Sv the ARM asks the DSP to use in M mode), which is
+  ARM-side — but still needs locating.
+
+**Net:** the encoding is solved and is real and reusable; the patch is blocked not by
+math but by the exposure decision living on a co-processor we haven't reversed.
+
+
+
 Recovered the camera's internal exposure encoding with **zero flashing and zero
 hardware** — just by reading the MakerNote of a controlled set of photos (fixed ISO
 + aperture, shutter stepped 1" -> 1/500). The MakerNote tag 0x0060 is a ~7000-byte
