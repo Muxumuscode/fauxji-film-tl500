@@ -45,6 +45,22 @@ Consequence: for reverse engineering, 108091/110271 (same VxWorks code family) a
 - Making the camera **accept a modified file** is still unknown. Positive signs: no encryption, simple "put a file on the SD card" updater, readable container table. Risks: possible checksum/CRC per part (should be fixable), or a signature check inside the boot loader (would be a hard stop, and bricks if wrong).
 - Brick risk is real: Samsung's own guide warns a failed update can need a board repair. Test only on a spare body.
 
+## How the firmware updater works (found by reading embedded text, 31 Oct 2026)
+
+The camera's own code (inside the big firmware image) contains many readable English messages that describe, step by step, what happens when you put update files on an SD card. Reading them in order tells the story without needing to trace machine code by hand:
+
+1. On startup, the camera checks `/ext/sd0/FWUP` (the small text file we saw, containing a word like "upgrade all" or "keep"). This is literally read as a **script**: a message `Invalid script command!` exists for when it doesn't understand the word.
+2. It looks for a file whose name starts with `EX1-IC` and ends in `.bin` (that pattern is for the EX1; the TL500 files use a different prefix — we don't yet know the exact TL500 one, maybe `TL500-IC` or similar, since we don't have a TL500 file to check).
+2. It prints `Checking F/W file Full Path : %s` and, if nothing matches, ` There is no Firmware Binary in SD Card`.
+3. It reads a **header** from the file (`F/W Versione: %s ,Get Hedaer Info Completed`) that gives, per part, a `file_offset` and `file_size` — this is the table we already found at the start of the `.bin` file, which simply lists where each part (boot loader 1, boot loader 2, main image, resource) sits inside the big file.
+4. It copies each part into its place in flash memory one at a time, printing progress like `BootLoader Upgrade...`, `Image File Upgrade... Done`, `Resource Upgrade...`, and reports `...Update Fail` if a part doesn't look right (`Invalid File Format` is one such message).
+
+**What I did not find anywhere in either firmware file:** any mention of a cryptographic signature, a public key, RSA, SHA, or a "signed by Samsung" style check. The earlier `RSA`/`SHA` keyword hits were false alarms — they were just part of longer words like "SHADING" (a camera calibration term). The one "CRC mismatch" string I found belongs to a **different, unrelated program**: a Windows PC installer (Samsung's "Intelli-studio" software) that happens to be bundled inside the same download archive — it never runs on the camera.
+
+**In plain terms:** the update process looks like a simple, unencrypted, unsigned file-copy mechanism driven by a plain-text script and a small header table. That is good news for someone wanting to build custom firmware: there is no obvious cryptographic wall to break through. It does **not** mean it is risk-free — the updater may still check file sizes, a simple checksum we haven't located yet, or the exact filename pattern, and any of those could refuse (or worse, half-accept) a modified file. The next concrete step is finding and reading the `file_offset`/`file_size` header-parsing code itself, to see exactly what it validates before writing to flash.
+
+Also confirmed: the camera's internal name for its chip platform is **"DRIMeIII"** (found in an embedded XML template: `<Platform value="DRIMeIII"/>`), matching the SoC family suspected at the start of this project.
+
 ## Recommended next steps
 1. Owner: check the camera's current version (above) and confirm if EX1 files are accepted by a TL500 (do not press shutter yet).
 2. Install Ghidra (needs Java 17, already on this PC) and load the main image as raw ARM at the right base address (found from the boot loader).
