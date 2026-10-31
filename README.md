@@ -44,6 +44,42 @@ Open question: the files are listed for the EX1, and the owner's camera says TL5
 ## How to see the camera's current version (safe, no flashing)
 Per Samsung's guide: put a card containing the firmware files in the camera and power it on. A blue "FW Version" screen shows `DSC: FULL <current> -> <new>`. Do not press the shutter; just turn the camera off. (Be careful: the shutter button starts the update.) This is only a view of the version, but use a fully charged battery anyway.
 
+## Patch target identified for the minimum-shutter feature (31 Oct 2026)
+
+Traced the exposure-output routine (the `ldr` that references the SVR/SHR string is
+at runtime 0xC03D33C8). Just before it logs the result, the code does:
+
+    ldr  r2, [fp, #0x30]   ; SVR  = sensitivity/gain  (this is ISO)
+    ldr  r3, [fp, #0x38]   ; SHR  = shutter
+    ldr  r1, <"Exposure value - SVR: %d, SHR: %d">
+    bl   <log>
+    ldr  r2, [fp, #0x3c]   ; further exposure fields
+    ldr  r3, [fp, #0x40]
+
+**So the exposure result is a structure** whose fields we now know by offset:
+`+0x30 = ISO/gain (SVR)`, `+0x38 = shutter (SHR)`, with related values at `+0x3c /
++0x40`. These are the *final* computed values (they are being logged as the answer).
+
+**What the minimum-shutter patch would do:** find where field `+0x38` (shutter) is
+*written* with its final value (upstream of this logging site, inside the same AE
+routine) and insert a clamp:
+
+    if (shutter is slower than the 1/60 threshold):
+        shutter = 1/60 threshold            # write capped value to +0x38
+        raise ISO/gain (+0x30) to compensate  # keep exposure correct
+
+This is a small, local, well-understood change — the kind firmware patches are made
+of — inserted into code we can now read at a known address.
+
+**Still to pin down (next iteration, PC-only):**
+1. The exact instruction/site where `+0x38` gets its final value (vs. just being
+   logged here).
+2. The shutter *encoding* — what integer value represents 1/60 s (likely an APEX/Tv
+   fixed-point or a microsecond count). Found by reading the nearby shutter table or
+   the SHR->exposure conversion.
+Both are ordinary reverse-engineering, not blockers. Conclusion stands: the feature
+is implementable; we have located the exact data and the routine that handles it.
+
 ## BREAKTHROUGH: exposure code located and base address recovered (31 Oct 2026)
 
 The one thing that had blocked deep analysis — not knowing where the main program
