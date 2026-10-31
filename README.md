@@ -44,6 +44,37 @@ Open question: the files are listed for the EX1, and the owner's camera says TL5
 ## How to see the camera's current version (safe, no flashing)
 Per Samsung's guide: put a card containing the firmware files in the camera and power it on. A blue "FW Version" screen shows `DSC: FULL <current> -> <new>`. Do not press the shutter; just turn the camera off. (Be careful: the shutter button starts the update.) This is only a view of the version, but use a fully charged battery anyway.
 
+## Trace refinement + honest stopping point for the analysis phase (31 Oct 2026)
+
+Pushed one level further on the EX1 firmware:
+- **Shutter is stored as a real time value**, displayed via a `"1/%d"` format (the
+  code holds the shutter time and computes the "60" in "1/60"). So a minimum-shutter
+  clamp compares the stored shutter time to a 1/60 threshold value. The exact
+  numeric encoding (microseconds vs APEX fixed-point) is read off the shutter table
+  when we work on the real target.
+- **The exposure result is a context struct passed between functions.** At the
+  logging site the fields are only *read* (`ldr [fp,#0x30]`=ISO, `[fp,#0x38]`=shutter);
+  `fp` holds a pointer to a struct created upstream. The *write* to the shutter
+  field lives in the AE computation function that fills this struct, reached by
+  following the struct pointer across calls.
+
+**Why this is a sensible place to stop the pure-analysis phase (not wasted, but
+complete for its purpose):**
+- Finding the exact write instruction is a cross-function data-structure trace, and
+  the exact addresses/offsets **shift between builds** (EX1 vs TL500). Pinning them
+  to the byte on the EX1 now would largely be redone on the TL500 file.
+- Everything that *transfers* is already done: the feasibility verdict, the format
+  and tooling, the base-recovery method, the string-driven locate technique, the
+  struct layout concept (ISO & shutter as adjacent fields), and the patch design
+  (clamp shutter / raise ISO).
+- The remaining byte-level work (exact write site, exact 1/60 value, assembled patch)
+  is best done **once, on the genuine TL500 file**, and then validated on a camera.
+
+So the analysis has reached its natural goal: the feature is confirmed implementable,
+the patch is designed, and the method to finish it is proven. The next real input
+needed is the TL500 firmware file (the auto-watch is hunting it) and, eventually, a
+test camera.
+
 ## Patch target identified for the minimum-shutter feature (31 Oct 2026)
 
 Traced the exposure-output routine (the `ldr` that references the SVR/SHR string is
