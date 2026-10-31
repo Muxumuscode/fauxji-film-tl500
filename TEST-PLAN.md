@@ -9,6 +9,44 @@ be done on your main TL500.**
 
 ---
 
+## ⚠️ CRITICAL CONSTRAINT: one camera only, and it's a TL500 (31 Oct 2026)
+
+The owner has **only one camera** — the TL500 — and no spare. This removes the
+single most important safety net this plan was built around (testing on a body you
+can afford to lose). Two hard facts follow, and they must not be ignored:
+
+1. **A brick means losing your only camera, permanently.** There is no second body
+   to fall back on and no repair that's worth it on a 2010 camera.
+2. **We have no genuine TL500 firmware file to restore from.** Our files are EX1
+   builds, which must NEVER be flashed to a TL500 (wrong-model firmware is a classic
+   way to brick). And the normal recovery path — "put the official file back on an
+   SD card and let the intact boot loader re-flash" — requires having the official
+   **TL500** file, which is no longer downloadable anywhere we found.
+
+**Conclusion: with a single irreplaceable TL500 and no TL500 restore image, we
+should NOT flash anything modified to it. Not yet, maybe not ever.** Doing so would
+be gambling the only camera with no safety net.
+
+**What is still 100% safe and worth doing now (no camera risk at all):**
+- All PC-side reverse engineering and the Phase 0 rebuild tooling, using the EX1
+  files we already have. This never touches the camera and teaches us everything
+  about the format.
+- Viewing the FW Version screen (read-only; never press shutter) — already done.
+
+**Two prerequisites before ANY flash is even on the table:**
+- **(a) A second body to be the test mule.** A used EX1 is ideal (our files match
+  it) and cheap. This is by far the most important safety step. With a spare, the
+  original plan below applies and your TL500 is never at risk.
+- **(b) Failing that, a genuine TL500 firmware file** to hold as a known-good
+  restore image — obtained *without* risking the camera (keep searching online /
+  camera forums; do NOT open or dump the only camera to get it, since that itself
+  risks it).
+
+Everything below assumes a **separate test body** exists. Until one does, we stay
+on the PC side only.
+
+---
+
 ## The three safety rules (never break these)
 
 1. **Never test on your main camera.** Every flash happens on a separate,
