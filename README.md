@@ -2,6 +2,37 @@
 
 ## 🎯 MILESTONE: camera accepts MODIFIED firmware (31 Oct 2026)
 
+## Honest status / effort assessment (31 Oct 2026)
+
+**Proven:** the camera is moddable — we flash custom firmware and it runs, recovery
+works, and we have the real file fully analyzed (base, exposure code, struct fields).
+
+**The min-shutter-for-auto-ISO feature specifically is a large lift**, for concrete
+reasons found this session:
+- The shutter/ISO decision lives inside a **multi-state AE convergence machine**;
+  the exact instruction that finalizes the shutter is a cross-function dataflow trace
+  that kept stalling statically.
+- The shutter encoding (what value = 1/60) passes through several representations
+  (APEX Tv -> conversions -> display denominator); no plain shutter table is stored.
+- There is **no labeled min-shutter parameter** to simply edit (searched: only
+  WB gain min/max and the debug-drawable program line exist by name).
+- Getting observation **without hardware** means injecting file-I/O or screen code at
+  the AE site — real, risky, iterative patch engineering. (Serial console would make
+  all of this easy but requires opening the camera, which the owner declined.)
+
+**Easier high-value mods that are more achievable near-term:**
+- **`regset.txt` image tuning** (noise reduction / WDR / HDR / lens correction) — a
+  no-patch SD-card file; needs its 18-value format decoded.
+- A **findable value edit** (e.g., max Auto-ISO ceiling / ISO steps) if the constant
+  can be located.
+- Extending the **intervalometer** or **bracketing** ranges.
+
+**Recommendation:** the concept is proven. For a satisfying next win, tackle an
+easier mod first (builds capability and confidence), and treat min-shutter as a
+longer-term goal best done once observation is available.
+
+
+
 Flashed a main image with a single deliberate 1-byte change (day-name string
 "Saturday" -> "Caturday", offset 0x765ac1). The camera **flashed it, booted, and
 works normally.** This proves:
