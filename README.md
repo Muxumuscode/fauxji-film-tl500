@@ -19,6 +19,38 @@ Open question: the files are listed for the EX1, and the owner's camera says TL5
 ## How to see the camera's current version (safe, no flashing)
 Per Samsung's guide: put a card containing the firmware files in the camera and power it on. A blue "FW Version" screen shows `DSC: FULL <current> -> <new>`. Do not press the shutter; just turn the camera off. (Be careful: the shutter button starts the update.) This is only a view of the version, but use a fully charged battery anyway.
 
+## Sourcing the TL500 firmware (hunt results, 31 Oct 2026)
+
+Tried to find a trustworthy copy of the TL500 firmware (ideally 008264, the version
+the owner's camera runs). Outcome: **no reliable official source is available.**
+
+- **Samsung official:** the US TL500 support page now lists no downloads. Only one
+  Internet Archive snapshot exists (8 Jan 2013), and it loaded its download list
+  dynamically, so the archive captured no direct firmware link. The Canada page is
+  dead. (The EX1 files we already have came from Samsung's still-live Africa page;
+  the US TL500 equivalent is gone.)
+- **Internet Archive index:** the archive's URL index was overloaded (503/timeout)
+  and couldn't be enumerated for archived download-center files. Worth retrying
+  another day.
+- **Third-party mirrors (userdrivers.com etc.):** list a "008264" entry, but the
+  page is ad-wrapped with no verifiable Samsung-origin link and no file metadata.
+  Downloading from these is risky and we have no known-good copy to check it
+  against, so this is not recommended.
+
+**Useful fact learned:** the TL500 package's main-program file is named
+`EX1-ESP-SR-008264.elf` (note **ESP**, where the EX1 build uses **DSP**), alongside
+the same `ONBL1.bin`, `ONBL2.bin`, `SPID.Rom`, `FWUP` files. So the TL500 and EX1
+share the `EX1-` filename prefix but differ in the middle tag. This is exactly the
+filename-pattern detail the updater checks.
+
+**Best path to a genuine TL500 firmware: dump it from the camera itself.** The
+owner's working TL500 already holds 008264 in its flash — that is the authentic,
+exact-match source, with no untrusted download. Reading it out requires a
+camera-side method (a USB/service download mode if one exists, or a NAND read),
+which is the **same recovery-mode research already listed as Phase 2 of the test
+plan**. So this goal and the safety groundwork are the same piece of work. Until
+then, the EX1 files we have serve as a close stand-in for understanding the format.
+
 ## Owner's camera (checked 2026-10-31)
 The camera's FW Version screen showed `DSC: FULL 008264`, OIS 1.0 (a TL500). 008264 appears to be the latest TL500 build (Samsung's TL500 firmware manual, via manualslib, describes 008264 as the update; US model only). Numbering pattern (inference): TL500 builds end in 4 (005254, 006254, 008264), EX1 builds end in 1 (005251, 006291, 108091, 110271). So the downloaded files are EX1 builds and must NOT be flashed to this camera.
 Samsung's US and Canada TL500 support pages list no files any more. A third-party copy of the old TL500 005254 exists on userdrivers.com (unverified). The 008264 file itself was not found online; the camera already runs it.
