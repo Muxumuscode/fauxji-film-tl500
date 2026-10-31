@@ -4,6 +4,28 @@
 
 ## Write-site hunt result: the AE decision is on the DSP, not the ARM (31 Oct 2026)
 
+## Intercept-lead probe (31 Oct 2026)
+
+Checked the capture-exposure path on the ARM side. The labels `Capt.Tvalue`,
+`Capt.Svalue`, `eAE_IF_M_SHUT_1_REQ`, `eAE_IF_CCD_GAIN_2_CAP_REQ` are each referenced
+only from **debug name-tables** (string-pointer arrays used for logging), not from
+plain computation sites. This reinforces the DSP conclusion: the ARM treats Tv/Sv as
+values it *receives and forwards*, not values it derives.
+
+A clean ARM intercept point (clamp Tv/Sv after the DSP delivers them, before the
+hardware is configured) **may** exist, but finding it means tracing the
+inter-processor message/receive path and confirming the ARM — not the DSP — applies
+the final shutter/gain. That is deep, multi-hop work with uncertain payoff, and it is
+exactly the kind of thing the serial console (declined) would make easy by letting us
+watch the message flow live.
+
+**Practical ceiling reached (without new inputs):** the realistic ways forward are
+(a) reverse-engineer the DSP/SPID side (big new project), (b) the serial console
+(needs opening the camera), or (c) a long, uncertain ARM message-boundary trace. The
+encoding, the moddability, and the EXIF observation tool are all banked and real.
+
+
+
 Hunted for where the shutter/ISO fields get written. Scanned the **entire** main
 image (2.6M instructions, 276k stores): **zero** instructions write `[Rn,#0x38]`
 (the shutter field) — the ARM code only ever *reads* those values (to log them and
