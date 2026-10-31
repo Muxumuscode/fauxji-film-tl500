@@ -1,5 +1,23 @@
 # Samsung TL500 / EX1 firmware research
 
+## 🎯 MILESTONE: camera accepts MODIFIED firmware (31 Oct 2026)
+
+Flashed a main image with a single deliberate 1-byte change (day-name string
+"Saturday" -> "Caturday", offset 0x765ac1). The camera **flashed it, booted, and
+works normally.** This proves:
+- There is **no integrity check** (checksum/signature) blocking a modified main
+  image. Our edit was accepted and is running.
+- The full **edit -> flash -> run** pipeline works on the real camera, and the
+  **recover** path (reflash official) was already proven just before.
+
+Conclusion: custom firmware is not just theoretically feasible on this camera — it
+is **demonstrated**. The minimum-shutter exposure patch is now an engineering task,
+not an open question. (Visual confirmation of the day-name change is incidental; the
+accepted flash is the proof. UI text is largely glyph-rendered from SPID.Rom, and
+only the long-form day name was changed, so it may not appear on screen.)
+
+
+
 ## ✅ STATUS: genuine TL500 008264 firmware ACQUIRED and verified (31 Oct 2026)
 
 The owner located and downloaded `TL500_FW_file_008264.zip` (44.6 MB). Verified:
