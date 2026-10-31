@@ -55,6 +55,36 @@ Per Samsung's guide: put a card containing the firmware files in the camera and 
 
 ## regset.txt + Production Mode findings (31 Oct 2026)
 
+## Shutter encoding findings (31 Oct 2026)
+
+Two shutter representations exist in the firmware:
+
+1. **Human/UI representation — solved.** The shutter-display routine (string ref at
+   file 0x4B577F, formatter at 0xC04B88AC) does `sprintf(buf, "1/%d", value)` for
+   fast shutters, where the value **is the denominator directly** — so a display of
+   `1/60` means the value is literally `60`. Shutters of 1 s or longer use a
+   `"%d.%d"` seconds format instead. So in this representation, "never slower than
+   1/60" is simply "denominator >= 60".
+
+2. **AE internal representation — APEX.** The exposure engine works in APEX units:
+   a debug string `" Av %x Tv %x Sv %x "` prints Aperture / Time-value / Sensitivity
+   (gain) in hex. Shutter there is **Tv = log2(1/seconds)**; for 1/60 s, Tv ~= 5.907,
+   stored as a fixed-point (scale factor — x8/x16/x32/... — not yet pinned). The AE
+   result struct field `+0x38` (SHR) is in this internal domain.
+
+**What this means for the clamp:** there are two clean places it could go —
+- in the UI/denominator domain (trivial: keep denominator >= 60), or
+- in the AE/Tv domain (clamp Tv to the 1/60 value), which is where the auto-ISO
+  trade-off actually happens, so that's the right one for the feature.
+
+**The one remaining number** — the exact internal value that equals 1/60 — is a
+**one-minute on-camera read**: put the camera in Manual at 1/60 and observe the
+SHR/Tv value (via the exposure log once debug output is reachable), or trace the
+Tv<->denominator conversion one more hop statically. Either pins the constant. The
+encoding question is otherwise understood (APEX Tv; UI is direct denominator).
+
+
+
 **`regset.txt` = image-quality tuning override (not an AE-debug hook).** Its parser
 uses the format `%d, %d, %d, %d, %x ×14` and lives in the image **post-processing**
 module (CCpoLdc = lens-distortion correction, CCpoNr = noise reduction, CCpoWdr =
