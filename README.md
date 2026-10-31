@@ -61,6 +61,44 @@ The camera's own code (inside the big firmware image) contains many readable Eng
 
 Also confirmed: the camera's internal name for its chip platform is **"DRIMeIII"** (found in an embedded XML template: `<Platform value="DRIMeIII"/>`), matching the SoC family suspected at the start of this project.
 
+## Container format of the single-file update (VERIFIED 31 Oct 2026)
+
+The 80 MB `EX1-IC-S1-110271.bin` is a simple archive. The first few KB are a
+plain **table of contents** listing each part by name with its size and its
+offset inside the big file; the parts (boot loader 1, boot loader 2, main
+program, resource data) then follow one after another, stored **raw and
+uncompressed**.
+
+I verified this rather than guessing: the table says boot loader 1 (ONBL1) is
+520 bytes long and starts at offset 0x800. At that exact spot the bytes are a
+perfect, byte-for-byte match for the standalone ONBL1 file. Boot loader 2 lands
+where the table points too. So the format is confirmed: a readable directory +
+concatenated parts, with no scrambling.
+
+**Why this matters for adding features:** to make a modified firmware you would
+rebuild this archive with your changed part swapped in and fix up the size/offset
+numbers in the table. There is no encryption and no signature standing in the way
+of doing that. The one thing still unconfirmed is whether a simple **checksum**
+is verified somewhere before the camera commits the new data to flash; if so it
+would need to be recomputed, which is routine once located.
+
+## FEASIBILITY VERDICT (plain language)
+
+**Reading/understanding the firmware: feasible.** It is ordinary ARM code running
+the VxWorks 6.6 operating system, uncompressed, and packed with readable function
+and error names. Standard tools (Ghidra) can open it directly.
+
+**Modifying it and getting the camera to accept it: promising, not yet proven.**
+The updater is a simple, unsigned, unencrypted file-copy driven by a plain-text
+script (`FWUP`) and the offset/size table above. No cryptographic signature check
+was found anywhere. That removes the single biggest obstacle that stops most
+modern cameras from being modified. Remaining unknowns are small by comparison:
+a possible plain checksum, and the exact filename pattern a TL500 (vs EX1) expects.
+
+**Brick risk is real and unchanged.** Samsung's own guide warns a failed update
+can require mainboard service. Any real test must be on a spare body, never your
+main camera, and only after a recovery path is understood.
+
 ## Recommended next steps
 1. Owner: check the camera's current version (above) and confirm if EX1 files are accepted by a TL500 (do not press shutter yet).
 2. Install Ghidra (needs Java 17, already on this PC) and load the main image as raw ARM at the right base address (found from the boot loader).
