@@ -8,6 +8,35 @@
 
 ## v2 test: missed again — many copies of the shutter value (31 Oct 2026)
 
+## Shotgun test: bust — static approach exhausted (31 Oct 2026)
+
+Clamped FOUR distinct +0x72 exposure-write sites at once (0xC03DED80, 0xC03DF1B8,
+0xC0222798, 0xC05C099C). Result: booted fine, but EVERY shot still recorded slow
+shutters (1/6..1/45, Tv 24..88, all < 96) across Program/Aperture/Manual, and
+brightness tracked the real exposures. No effect.
+
+**Decisive finding:** even clamping four sites that write offset 0x72, the EXIF
+MakerNote 0x72 field never changed. So the recorded/capture shutter comes from a
+buffer that NONE of the findable write sites touches. Across the session we clamped
+~6 separate copies (getter +0x38, two conversion sites, four +0x72 writers) — all
+display/recording/debug copies. The real capture value's buffer is not locatable by
+static reading.
+
+**Conclusion: blind static analysis is exhausted.** The value that drives the sensor
+hides behind the ARM/DSP exposure messaging and likely uses a raw sensor encoding.
+Next step requires **observation** — a 3.3V USB-TTL serial adapter on the camera's
+UART to watch the live capture path. (Owner is ordering one; pick up here when it
+arrives: find UART pads, get a console, trace the real exposure apply, then clamp it.)
+
+### Session scorecard (what's proven and reusable)
+- Firmware is moddable: custom code flashes, runs, recovers (verified).
+- Exposure encoding cracked: APEX x16, 1/60 = 96 (via EXIF, zero-risk).
+- Code injection works: data-region caves execute.
+- Zero-risk test oracle: EXIF MakerNote Tv + image brightness.
+- Full map of the firmware, exposure getters, and ~6 shutter-value copies.
+Remaining blocker: locating the single capture-apply value — needs serial.
+
+
 Clamped the x128->x16 conversion sites (0xC03DED80/0xC03DF1B8). Result: booted fine,
 but recorded Tv still unclamped (43,64,48,...) AND image brightness tracks the actual
 set speeds (Manual 1/8 -> dark 30/255, 3" -> bright 190/255). So that struct is yet
