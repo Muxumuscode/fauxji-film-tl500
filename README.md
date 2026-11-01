@@ -1600,3 +1600,25 @@ out to be gaps *inside* larger tables, so they're also unsafe.
   Chrome / Classic Neg.), which costs Beauty Shot face-tone levels 1-3 their brighter
   curves. Eterna/ASTIA/Reala use stock Contrast -2/-1/+1 curves; ACROS/Sepia curve 4.
 - Matrices, ASTIA/Eterna swap and Sepia fixes as in FAUXJI5.
+
+
+## FAUXJI6 field test (1 Nov 2026): live view fixed, all looks distinct; FAUXJI7 retune
+SAM_0432-0441 (`TL500-K`; live view back to normal). Scenes vary, so I compare
+yellow-shirt saturation (fixed subject) and tone percentiles rather than whole-frame means:
+| look | yellow sat | median Y | p10 / p98 | IQR (mid contrast) | verdict |
+|---|---|---|---|---|---|
+| PROVIA | 0.70 | 0.37 | 0.10 / 1.00 | 0.55 | baseline |
+| ASTIA | 0.72 | 0.48 | 0.15 / 1.00 | 0.50 | soft, slightly richer: ok |
+| Velvia | 0.85 | 0.48 | 0.07 / 1.00 | 0.65 | ok |
+| Reala Ace | 0.80 | 0.45 | 0.08 / 1.00 | 0.62 | too saturated |
+| Classic Chrome | 0.69 | 0.36 | 0.05 / 0.97 | 0.58 | dense/held highlights ok, colour not muted enough |
+| Classic Neg. | 0.73 | 0.45 | 0.04 / 1.00 | 0.72 | hard ok, colour too strong |
+| Eterna | (none) p90 0.23 | 0.48 | 0.14 / 1.00 | 0.43 | soft ok, too grey |
+| ACROS | mono | 0.42 | 0.06 / 1.00 | 0.68 | ok |
+| Sepia | warm mono | 0.39 | 0.05 / 1.00 | 0.67 | **fix works** |
+| Nostalgic Neg. (Defog) | 0.60 | 0.41 | 0.07 / 0.91 | 0.52 | warm, soft highlights: close enough for now |
+The contrast curves raise display saturation, so muted looks need a lower matrix
+saturation. **FAUXJI7** (`TL500-L`, 109 bytes vs FAUXJI6, matrices only):
+Reala Ace sat 1.08 -> 1.00 (curve-only difference from PROVIA); Classic Chrome
+(0.68,0.78,0.80) -> (0.55,0.65,0.70); Classic Neg. (0.95,0.70,0.90) -> (0.80,0.58,0.80);
+Eterna 0.62 -> 0.78. Bleach Bypass wasn't shot this round (still Sketch).

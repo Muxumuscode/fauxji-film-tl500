@@ -49,13 +49,15 @@ R, G, Bl = 0, 1, 2
 LOOKS = {
     0: look(),                                                  # PROVIA: Samsung standard
     1: look(mono=(0.35, 0.55, 0.10)),                           # ACROS: R/G mix, cleaner than blue
-    2: look(sat=(0.62, 0.62, 0.62), mix=[(G, Bl, 0.03)],        # Eterna: low saturation, teal greens
+    # round 2 (SAM_0432-0441): the contrast curves add saturation, so the muted
+    # looks go lower and the soft Eterna curve needs more colour in the matrix
+    2: look(sat=(0.78, 0.78, 0.78), mix=[(G, Bl, 0.03)],        # Eterna: low saturation, teal greens
             overall=0.98),
-    3: look(sat=(0.95, 0.70, 0.90), gain=(0.98, 1, 1.03),       # Classic Neg.: yellow-ish greens,
+    3: look(sat=(0.80, 0.58, 0.80), gain=(0.98, 1, 1.03),       # Classic Neg.: yellow-ish greens,
             mix=[(R, G, 0.05)], overall=0.98),                  #   cool cast, muted greens
-    4: look(sat=(0.68, 0.78, 0.80), gain=(1.02, 1, 0.97),       # Classic Chrome: muted, cyan blues
+    4: look(sat=(0.55, 0.65, 0.70), gain=(1.02, 1, 0.97),       # Classic Chrome: muted, cyan blues
             mix=[(G, Bl, 0.06)], overall=0.97),                 #   (density comes from its curve)
-    5: look(sat=(1.08, 1.08, 1.08)),                            # Reala Ace: natural, slightly richer
+    5: look(sat=(1.00, 1.00, 1.00)),                            # Reala Ace: PROVIA colour, crisper curve
     6: look(sat=(1.20, 1.40, 1.40)),                            # Velvia: big greens/blues, reds held back
     7: look(sat=(1.00, 1.10, 1.10), gain=(1.01, 1, 0.99)),      # ASTIA: soft skin, clean sky/green
     8: look(mono=(0.33, 0.57, 0.10), gain=(1.08, 1.0, 0.80)),   # Sepia: warm-toned monochrome
