@@ -1423,3 +1423,9 @@ FAUXJI1 text + .elf = S80 with one instruction changed: the 0x8F change is undon
 the RAW branch menu **0x88**'s allow-mask 0xFFFFF9 (blocks exactly items 1 and 2,
 i.e. two entries, as observed) becomes 0xFFFFFF: 0xC04D2298
 `ldr r1,=0xFFFFF9` -> `mvn r1,#0xFF000000`.
+
+### FAUXJI2 field test: SUCCESS, Bleach Bypass / Nostalgic Neg. unlock with RAW
+Owner confirms both are selectable in RAW and RAW+JPEG. So menu **0x88 is the
+Photo Style / filter list** whose items 1 and 2 are the two late-added entries
+(Sketch, Defog), and its RAW allow-mask was 0xFFFFF9. Still to check: a shot with
+each in RAW+JPEG (capture completes, the JPEG gets the effect, the RAW is unaffected).
