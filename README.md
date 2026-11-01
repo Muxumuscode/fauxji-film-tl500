@@ -1411,3 +1411,15 @@ Owner: the greyed pair in the quick menu was **Sketch and Defog** (with RAW+JPEG
   needs their processing redirected to a colour-style slot (or the 13-byte
   menu->style map at 0xC07B0198, if they go through it). Test first whether they
   can be selected in RAW+JPEG and what the JPEG looks like.
+
+### FAUXJI1 field test: names fine, Sketch/Defog still greyed with RAW
+Owner: greyed in RAW and RAW+JPEG (selectable with JPEG only). So menu 0x8F wasn't
+the list. Checked and ruled out: other reads of the quality cache (`+0x14`,
+0xC04D0FE0 / 0xC04D2C54 / 0xC04D2D0C = mode -> force non-RAW, not greying), UI value
+0x30 (a camera-state flag set from 0xC041xxxx with values 4-9, not quality).
+
+### Build: FAUXJI2 (`extracted/tl500_008264_FAUXJI2/`, EXIF `TL500-G`)
+FAUXJI1 text + .elf = S80 with one instruction changed: the 0x8F change is undone, and in
+the RAW branch menu **0x88**'s allow-mask 0xFFFFF9 (blocks exactly items 1 and 2,
+i.e. two entries, as observed) becomes 0xFFFFFF: 0xC04D2298
+`ldr r1,=0xFFFFF9` -> `mvn r1,#0xFF000000`.
