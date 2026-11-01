@@ -974,3 +974,28 @@ main camera, and only after a recovery path is understood.
 5. Look for a recovery or serial/debug mode before any flash test (hidden USB port mentioned in forums).
 
 Tools: `tools/analyze.py` (entropy/strings summary).
+
+
+## Research while waiting for the serial adapter (1 Nov 2026)
+
+**Lead 1 (highest value): a sibling firmware ships real function names.**
+Georg Lukas reverse-engineered the WB850F (same DRIMe III chip, same Samsung SPID
+platform, same container format and same 0xC0004000 base as ours):
+https://op-co.de/blog/posts/samsung_wb850f_firmware/ . Its firmware ZIP includes
+`partialImage.o.map`, a GNU-ld linker map with ~77k named functions, which he loaded
+into Ghidra. Our EX1/TL500 ZIPs have no map, but the WB850F firmware (210086,
+~59 MB) is still listed on Samsung Austria:
+https://www.samsung.com/at/support/model/EC-WB850FBPBE3/ (not yet downloaded).
+Plan: get the named WB850F functions, find the AE/exposure functions by name (the
+real sensor-apply path), then match them into the TL500 by shared strings, call
+structure and code similarity. This could identify the elusive capture-apply site
+without any hardware.
+
+**Lead 2: service documentation for the serial session.**
+- Free "Samsung EX1 Training" PDF (103 pages, disassembly instructions):
+  https://elektrotanya.com/samsung_ex1_training.pdf/download.html
+- Paid official TL500/EX1/EX1-VE service manual (block diagram, PCB diagrams,
+  schematics): https://www.emanualonline.com/electronics/cameras-photo/cameras/samsung/samsung-tl500-ex1-ex1-ve-service-manual-repair-guide-emo-75210
+These may show test points / UART pads and the safe disassembly route.
+
+No public UART/serial notes exist for DRIMe III cameras (searched).
