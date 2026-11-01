@@ -1752,3 +1752,15 @@ Deltas (R, B, G, C, M, Y): Eterna (-300,0,-200,+250,-200,-300); Classic Neg.
 Reala (-100,+100,+100,0,0,0); Velvia (-250,+450,+450,+300,+150,+250);
 ASTIA (-150,+300,+200,+200,0,0); Nostalgic Neg. (+200,-300,-250,-250,0,+350);
 others 0. Capture only (live view has its own PCSE stage).
+
+### FAUXJI11 field test (garden set SAM_0476-0486 + PROVIA selfie SAM_0487)
+Shots aligned to PROVIA by phase correlation, then region saturation vs PROVIA:
+Velvia orange +36% / green +56% / blue +15%; ASTIA ~0; Reala ~+2%; Classic Chrome
+orange -36% / green -17% / blue -30%; Classic Neg. -26% / -8% / -16%; Eterna
+-48% / -46% / -34%; Nostalgic Neg. orange 0 but hue 30 -> 42 (amber), green -19%,
+blue -28%, neutrals warm; Bleach Bypass -69/-63/-48%, neutrals clean.
+PROVIA skin (owner, brown skin, shade): hue 19.5, sat 0.30, value 0.66 = natural.
+Skin sits in band R, so Velvia would push skin orange and Classic Chrome / Eterna would
+grey it. **FAUXJI12** (`TL500-Q`, PCSE copies only): Velvia R -550, B +600, G +400;
+Classic Chrome R -300, B +1000, C +450, M -400; Classic Neg. G -1100, Y -600, R -50;
+Eterna R -100, B +150, G 0, Y -150; ASTIA B +450, G +350.

@@ -119,15 +119,20 @@ PCSE_STOCK, PCSE_ENTRIES = 0xC07BAD8C, 5
 PCSE_HOOK, PCSE_RET = 0xC0448E1C, 0xC0448E20     # `ldr r7,=0xC07BAD8C`
 PCSE_HOME = 0xC0425430                           # factory "BATTERY.CSV" dump, never runs normally
 PCSE_HOME_END = 0xC04260A0
+# Round 2 (garden set SAM_0476-0486 + PROVIA selfie: skin hue 19.5, sat 0.30, aligned
+# region measurements vs PROVIA): Velvia orange/skin +36% -> hold red harder, more
+# blue; Classic Chrome blues -30% -> much more blue/cyan, lighter red cut (brown skin
+# went grey); Classic Neg. greens only -8% -> drain more; Eterna -45% everywhere ->
+# give some colour back; ASTIA ~= PROVIA -> a bit more sky/greenery.
 #            R     B     G     C     M     Y
 HUE = {0:  (0,    0,    0,    0,    0,    0),      # PROVIA
        1:  (0,    0,    0,    0,    0,    0),      # ACROS (mono)
-       2:  (-300, 0,    -200, 250,  -200, -300),   # Eterna: teal cyan, quiet reds/yellows
-       3:  (-150, 100,  -700, 250,  -300, -450),   # Classic Neg.: drained greens/yellows
-       4:  (-450, 500,  -350, 250,  -250, -400),   # Classic Chrome: muted reds, deep blues
+       2:  (-100, 150,  0,    250,  -200, -150),   # Eterna: teal cyan, quiet reds/yellows
+       3:  (-50,  100,  -1100, 250, -300, -600),   # Classic Neg.: drained greens/yellows
+       4:  (-300, 1000, -350, 450,  -400, -400),   # Classic Chrome: muted reds, deep blues
        5:  (-100, 100,  100,  0,    0,    0),      # Reala Ace: natural, gentle
-       6:  (-250, 450,  450,  300,  150,  250),    # Velvia: big greens/blues, skin/red held back
-       7:  (-150, 300,  200,  200,  0,    0),      # ASTIA: soft skin, vivid sky/greenery
+       6:  (-550, 600,  400,  300,  150,  250),    # Velvia: big greens/blues, skin held back
+       7:  (-150, 450,  350,  200,  0,    0),      # ASTIA: soft skin, vivid sky/greenery
        8:  (0,    0,    0,    0,    0,    0),      # Sepia (mono)
        9:  (0,    0,    0,    0,    0,    0),      # Bleach Bypass (matrix does it)
        10: (200,  -300, -250, -250, 0,    350),    # Nostalgic Neg.: amber, warm reds
