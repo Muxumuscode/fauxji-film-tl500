@@ -1188,3 +1188,15 @@ ISO follows the light with the shutter and aperture fixed, and normal scenes lan
 brightness 105-123 (P-mode reference: 129), so the injected formula
 `Sv = Tv + Av - Ev + 80` has the right sign and scale. Remaining polish: un-grey
 Auto in the M-mode ISO menu (menu-disable mask; ISO's id still to identify).
+
+### Build: MAUTO2 — un-grey Auto in the Manual ISO menu (MAUTO + 4 bytes, EXIF `TL500-U`)
+The TL500's menu-disable routine (WB `setMenuDisableFlag`, TL around 0xC04D2000)
+writes per-menu masks through 0xC04CE83C(id, mask) (TL ids 0x88..0x9B = WB
+0x148..0x167). **Id 0x99 is ISO, and its mask is an allow-list** (bit n set = item n
+selectable): every mode gets 0xFFFFFF, but `if mode == 5 (Manual)` it gets
+**0xFFFE** (everything except item 0 = Auto). In a restricted sub-state, Manual gets
+0xE and the other modes 0xF (Auto..200). The WB850F has the same rule (`mode 8 ->
+0x15A = 0xFFFE`), which supports reading it as ISO.
+Patch: the two `bne` after `cmp fp,#5` at 0xC04D2108 / 0xC04D2258 -> `b` (Manual
+never gets the 0xFFFE mask), and 0xC04D2320 `mov r1,#0xE` -> `#0xF`. GUI-only change.
+Test: M mode -> ISO menu -> Auto should be selectable, not greyed.
