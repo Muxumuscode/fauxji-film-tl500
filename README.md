@@ -1092,3 +1092,11 @@ PL_Capt_Program — confirming the table drives real capture exposure.
 **Min-shutter feature = edit PL_Capt_Program (13 rows, same size):** hold Tv 96
 (1/60) while Sv rises to 128 (ISO800, a value the Auto table already uses), only then
 slow the shutter. No code injection.
+
+### Build: MINSHUT (1 Nov 2026) — ready to flash, not yet tested
+`extracted/tl500_008264_MINSHUT/` = demo build + new PL_Capt_Program (11 bytes vs
+demo). EXIF Model stamp `TL500-M` identifies this build in photos. New table holds
+Tv96 (1/60) from ISO100 up to ISO800 (Sv128); below that the shutter slows toward 1 s.
+Brighter half of the table unchanged. Test: Program/A mode in a dim room -> expect
+1/60 with ISO rising to 800; only very dark scenes go slower. If capture still lands
+at 1/15, the half-press lock tables (PL_Lock_*) may also need the same edit.
