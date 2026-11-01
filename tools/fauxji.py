@@ -107,6 +107,32 @@ EFFECT_TYPES = 0xC0766518    # effect -> art-effect type; [10]=5 (Sketch), [11]=
 FIXES = [(0xC0449588, 0xE3A00008, 0xE3A0000C),   # still clamp: `mov r0,#8`  -> #12 (limit)
          (0xC04495DC, 0xE3A09008, 0xE3A0900B),   #              `mov sb,#8`  -> #11 (cap)
          (0xC04D24FC, 0xE59F1400, 0xE3E014FF)]   # Sketch size rule: ldr r1,=0xFFF3E0 -> 0xFFFFFF
+# Per-hue saturation (PCSE stage 0xC04484B0). Table 0xC07BAD8C holds 5 entries of
+# 12 int32 (two linked halves of 6 bands), picked by ISO/light; Samsung uses it for
+# high-ISO colour-noise cuts. Calibrated with chart shots (CAL/CAL2 vs baseline):
+# band order R, B, G, C, M, Y (0 red/orange/skin, 1 blue/violet/magenta, 2 green,
+# 3 cyan, 4 rose, 5 yellow); saturation ~ x(1 + v/3500), positive = more.
+# Each style gets its own copy of the table (stock values + its deltas, both halves),
+# stored in the factory-only BATTERY.CSV function; the stage's table load is
+# redirected to the current style's copy.
+PCSE_STOCK, PCSE_ENTRIES = 0xC07BAD8C, 5
+PCSE_HOOK, PCSE_RET = 0xC0448E1C, 0xC0448E20     # `ldr r7,=0xC07BAD8C`
+PCSE_HOME = 0xC0425430                           # factory "BATTERY.CSV" dump, never runs normally
+PCSE_HOME_END = 0xC04260A0
+#            R     B     G     C     M     Y
+HUE = {0:  (0,    0,    0,    0,    0,    0),      # PROVIA
+       1:  (0,    0,    0,    0,    0,    0),      # ACROS (mono)
+       2:  (-300, 0,    -200, 250,  -200, -300),   # Eterna: teal cyan, quiet reds/yellows
+       3:  (-150, 100,  -700, 250,  -300, -450),   # Classic Neg.: drained greens/yellows
+       4:  (-450, 500,  -350, 250,  -250, -400),   # Classic Chrome: muted reds, deep blues
+       5:  (-100, 100,  100,  0,    0,    0),      # Reala Ace: natural, gentle
+       6:  (-250, 450,  450,  300,  150,  250),    # Velvia: big greens/blues, skin/red held back
+       7:  (-150, 300,  200,  200,  0,    0),      # ASTIA: soft skin, vivid sky/greenery
+       8:  (0,    0,    0,    0,    0,    0),      # Sepia (mono)
+       9:  (0,    0,    0,    0,    0,    0),      # Bleach Bypass (matrix does it)
+       10: (200,  -300, -250, -250, 0,    350),    # Nostalgic Neg.: amber, warm reds
+       11: (0,    0,    0,    0,    0,    0)}      # Custom RGB
+
 LIVE_DEFAULT = 0xC04461BC    # 6 words of stack shuffling in the live CCMatrix default case
 LIVE_DEFAULT_STOCK = [0xE58D00D8, 0xE58D10DC, 0xE59D20D8, 0xE59D30DC, 0xE58D2010, 0xE58D3014]
 LIVE_DEFAULT_NEW = [0xE59B200C,              # ldr r2,[fp,#0xc]       style
@@ -208,6 +234,29 @@ def iso_routine():
     return b''.join(struct.pack('<I', x) for x in w)
 
 
+def pcse_block(stock):
+    """Routine + per-style PCSE tables for the factory-only function."""
+    a = PCSE_HOME
+    w = [0xE59F7018,                     # ldr r7,[pc,#0x18]  -> tables (literal below)
+         0xE59BC00C,                     # ldr ip,[fp,#0xc]    style
+         0xE35C000C,                     # cmp ip,#12
+         0x23A0C000,                     # movhs ip,#0
+         0xE3A0E0F0,                     # mov lr,#0xF0        (5 entries x 48 bytes)
+         0xE0277E9C,                     # mla r7,ip,lr,r7     this style's table
+         arm_b(a + 24, PCSE_RET),        # b back (the stage adds entry*48 itself)
+         0xE1A00000]                     # nop (pads to the literal at a+32)
+    tables = a + 48
+    code = b''.join(struct.pack('<I', x) for x in w) + struct.pack('<I', tables)
+    code += b'\0' * (tables - a - len(code))
+    rows = struct.unpack_from('<%di' % (12 * PCSE_ENTRIES), stock, PCSE_STOCK - B)
+    for s in range(12):
+        delta = HUE[s]
+        vals = [rows[e * 12 + i] + delta[i % 6] for e in range(PCSE_ENTRIES) for i in range(12)]
+        code += struct.pack('<%di' % len(vals), *vals)
+    assert a + len(code) <= PCSE_HOME_END
+    return code
+
+
 def fixed(m):
     return [int(round(v * 256)) for row in m for v in row]
 
@@ -263,6 +312,12 @@ def patch(d):
         struct.pack_into('<I', d, LIVE_DEFAULT + 4 * k - B, w)
     # gentler high-ISO sharpening, computed from the stock rows (idempotent)
     stock = open(STOCK_ELF, 'rb').read()
+    # per-style per-hue saturation: tables restored to stock (undoes any calibration
+    # build), routine + per-style copies in the factory function, table load redirected
+    d[PCSE_STOCK - B:PCSE_STOCK - B + 48 * PCSE_ENTRIES] = stock[PCSE_STOCK - B:PCSE_STOCK - B + 48 * PCSE_ENTRIES]
+    put(d, PCSE_HOME, pcse_block(stock))
+    assert word(d, PCSE_HOOK) in (0xE59F7288, arm_b(PCSE_HOOK, PCSE_HOME))
+    struct.pack_into('<I', d, PCSE_HOOK - B, arm_b(PCSE_HOOK, PCSE_HOME))
     for k in range(EE_ROWS):
         row = struct.unpack_from('<6i', stock, EE_TABLE - B + 24 * k)
         struct.pack_into('<6i', d, EE_TABLE - B + 24 * k, *ee_row(k, row))

@@ -1732,3 +1732,23 @@ hiding small cuts). Settled: **col5 (-1800) = yellow**, **col4 (-1500) = magenta
 Cols 0/1/3 (red/green/cyan, some order) still ambiguous.
 **CAL2** (`TL500-D`): AD8C rows = (-1800, +1200, 0, -600, 0, 0): big cut / boost / small
 cut on cols 0/1/3 only, which also checks that positive values add saturation.
+
+### CAL2 vs baseline -> PCSE band map (1 Nov 2026)
+CAL2 (cols 0/1/3 = -1800/+1200/-600) kept: red 0.47, orange 0.42, skin 0.57, rose
+0.71 (col 0 cut); blue 1.23, violet 1.29, magenta 1.32, azure 1.17, spring 1.14 (col 1
+boost); green/yellow/lime ~1.0. Combined with CAL1: **column order R, B, G, C, M, Y**
+(0 red/orange/skin, 1 blue/violet/magenta, 2 green, 3 cyan (clips on the screen chart),
+4 rose, 5 yellow); positive = more saturation; roughly x(1 + v/3500).
+Stage detail: AD8C stride is 48 bytes = 5 entries x 12 int32 (two linked halves of 6
+bands; stock halves near-equal; the calibration changed both, so deltas go to both).
+
+## Build: FAUXJI11 — per-look per-hue colour (`TL500-P`)
+`tools/fauxji.py`: AD8C restored to stock; 12 per-style copies (stock + HUE[style]
+deltas on both halves, 240 bytes each) at 0xC0425460 inside the factory-only
+BATTERY.CSV function (routine at 0xC0425430: `r7 = tables + style*240`, then the
+stage adds entry*48); hook 0xC0448E1C `ldr r7,=0xC07BAD8C` -> `b 0xC0425430`.
+Deltas (R, B, G, C, M, Y): Eterna (-300,0,-200,+250,-200,-300); Classic Neg.
+(-150,+100,-700,+250,-300,-450); Classic Chrome (-450,+500,-350,+250,-250,-400);
+Reala (-100,+100,+100,0,0,0); Velvia (-250,+450,+450,+300,+150,+250);
+ASTIA (-150,+300,+200,+200,0,0); Nostalgic Neg. (+200,-300,-250,-250,0,+350);
+others 0. Capture only (live view has its own PCSE stage).
