@@ -1,0 +1,40 @@
+{
+  "about": "FAUXJI English menu text, as ordered rewrite passes over the stock SPID.Rom table (tools/spid_strings.py). null = keep the entry's current text (it only absorbs spare bytes, as in the original builds).",
+  "passes": [
+    {"build": "FAUXJI0", "changes": {
+      "181": "FAUXJI FILM PRO",
+      "182": "PROVIA", "183": "ASTIA", "184": "Velvia", "185": "Reala Ace", "186": "Classic Chrome",
+      "187": "Classic Neg.", "188": "Eterna", "189": "ACROS", "190": "Sepia",
+      "987": "FAUXJI FILM PRO film looks.",
+      "988": "Standard, true colour.", "989": "Soft tones, gentle skin.", "990": "Vivid slide film.",
+      "991": "Natural and crisp.", "992": "Muted colour, deep shadows.", "993": "Hard tones, cool shadows.",
+      "994": "Cinema: soft and muted.", "995": "Rich black and white.", "996": "Warm monochrome."}},
+    {"build": "FAUXJI1", "changes": {
+      "911": "Bleach Bypass", "986": "Nostalgic Neg.",
+      "1295": "Gritty, high contrast, muted.", "1296": "Warm amber, soft highlights.", "996": null}},
+    {"build": "FAUXJI4", "changes": {
+      "11": "Recipes", "871": "Save Recipe", "872": "C1 Recipe", "873": "C2 Recipe",
+      "748": "Current settings will be saved as a recipe.",
+      "814": "Current settings will be saved as a recipe. Save it?",
+      "1263": "Save current settings as a recipe.", "1264": "Save current settings as C1.",
+      "1265": "Save current settings as C2.",
+      "290": "FAUXJI FILM PRO", "920": "FILM BKT", "1316": "D-Range",
+      "212": "Grain Effect", "302": "Grain Effect", "1237": "Add film grain for an analog look.",
+      "1296": null}},
+    {"build": "FAUXJI15", "changes": {
+      "988": "Standard, true colour. Best for: everyday, travel, anything.",
+      "989": "Soft tones, gentle skin. Best for: portraits and people.",
+      "990": "Vivid slide film. Best for: landscapes, flowers, sunsets.",
+      "991": "Natural and crisp. Best for: street, documentary, real life.",
+      "992": "Muted colour, deep blues. Best for: street, urban, moody.",
+      "993": "Hard, faded colour. Best for: snapshots, nostalgic street.",
+      "994": "Soft, muted cinema. Best for: overcast, moody, film stills.",
+      "995": "Rich black and white. Best for: portraits, street, texture.",
+      "996": "Warm monochrome. Best for: vintage portraits, old towns.",
+      "1295": "Silvery and gritty. Best for: dramatic street, harsh light.",
+      "1296": "Warm amber glow. Best for: golden hour, family, memories.",
+      "751": "Use a fully charged battery.", "966": "Demo mode.", "1126": "Not available.",
+      "838": "Sample.", "1310": "Formatting will delete all data.",
+      "1369": "Not available.", "1370": "Not available.", "1316": null}}
+  ]
+}

@@ -1875,3 +1875,27 @@ Samsung's own Shutter1 recording**: its two mechanical events (~42 ms and ~349 m
 `tools/sounds.py shutter_f2()` rebuilds it from the stock ROM (matches the approved
 preview within 1 LSB). FAUXJI16 (`TL500-U`) = FAUXJI15 + F2 as Shutter Sound 3 + the
 chime as Start Sound 3.
+
+
+## One-command build (1 Nov 2026)
+`python tools/build_fauxji.py <stock dir> <out dir> [--check <ref dir>]` rebuilds the
+complete FAUXJI firmware from Samsung's official 008264 files:
+1. verifies all five stock files by SHA-256;
+2. .elf: applies `patches/fauxji_elf_runs.json` (203 runs, 5,459 bytes of FAUXJI code
+   and data), then re-runs `tools/fauxji.py` (idempotent colour recipes, so tuning
+   there flows straight into the build);
+3. SPID.Rom: replays the text passes in `patches/fauxji_text.json` (same order as the
+   original builds, so the layout is byte-identical), renders the boot screen
+   (`bootscreen.py`), synthesizes the chime and reshapes the shutter from the user's
+   own stock ROM (`sounds.py`);
+4. copies ONBL1/ONBL2/FWUP unchanged.
+Verified: output is **byte-identical to FAUXJI16**. The patch package contains no
+Samsung files (the stock firmware is the user's input).
+
+## FILM BKT (Photo Style bracket): how it picks styles (in progress)
+TL GetSmartFilter (0xC0443A90): when bracket type == 4 (PSS), the effect comes from
+capture-info item 0x57 (getBracketCaptureInfo 0xC01C60B4 -> 0xC01C74C4(store, 0x57))
+instead of the menu value. The writer of item 0x57 isn't found yet (the call chain goes
+through function-pointer tables). Plan: one FILM BKT burst on the camera; MakerNote
+byte 15650 of the three frames gives Samsung's three styles, then search the firmware
+for that sequence.
