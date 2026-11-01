@@ -1237,3 +1237,17 @@ standard 1/3-stop values; the AE works in 1/16 stops).
 - Test: (a) M, ISO Auto, EV comp button usable? (b) same scene/settings at 0 and
   -1 -> MakerNote Sv should drop ~16 and the photo darken; (c) P at 0 vs -1;
   (d) M auto-ISO very dark -> ISO 3200: check the picture size isn't reduced.
+
+### EVC field test #1 (1 Nov 2026): runs; EV comp usable in M; ISO3200 full size
+| photo | mode | shutter | EV comp | ISO (MakerNote) | size | brightness |
+|---|---|---|---|---|---|---|
+| SAM_0410 | M auto-ISO | 1/30 | -0.7 | 2263 | 3648x2736 | 60 |
+| SAM_0411 | M auto-ISO | 1/45 | -0.7 | 3200 (cap) | 3648x2736 | 68 |
+| SAM_0412/13 | P | 1/60 | -1.0 | 1600 (cap) | 3648x2736 | 33/42 |
+| SAM_0414/15 | M auto-ISO | 1/250 | 0 | 3200 (cap) | 3648x2736 | 23/19 |
+
+Confirmed: the EV comp setting can be set and saved in Manual (EXIF shows -0.7 in
+M); M auto-ISO now reaches 3200 (and values between, e.g. 2263); **ISO 3200 keeps
+full 10 MP resolution**. Not yet confirmed: the *size* of the EV comp effect. Every
+shot was in dim light at or near the ISO cap, and there's no 0 vs -1 pair of the
+same scene. Next: matched pairs in a medium-lit scene (M auto-ISO and P).
