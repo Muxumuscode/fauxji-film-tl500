@@ -56,7 +56,8 @@ LOOKS = {
             overall=0.98),
     3: look(sat=(0.80, 0.58, 0.80), gain=(0.98, 1, 1.03),       # Classic Neg.: yellow-ish greens,
             mix=[(R, G, 0.05)], overall=0.98),                  #   cool cast, muted greens
-    4: look(sat=(0.55, 0.65, 0.70), gain=(1.02, 1, 0.97),       # Classic Chrome: muted, cyan blues
+    4: look(sat=(0.55, 0.65, 0.80), gain=(1.02, 1, 0.97),       # Classic Chrome: muted, cyan blues
+                                                                #   (blue row 0.70 -> 0.80: backlit skies ran pale)
             mix=[(G, Bl, 0.06)], overall=0.97),                 #   (density comes from its curve)
     5: look(sat=(1.00, 1.00, 1.00)),                            # Reala Ace: PROVIA colour, crisper curve
     6: look(sat=(1.10, 1.40, 1.40)),                            # Velvia: big greens/blues, reds held back
@@ -137,19 +138,33 @@ HUE = {0:  (0,    0,    0,    0,    0,    0),      # PROVIA
        3:  (-50,  100,  -1100, 250, -300, -600),   # Classic Neg.: drained greens/yellows
        4:  (-300, 1300, -350, 600,  -400, -400),   # Classic Chrome: muted reds, deep blues
        5:  (0,    0,    0,    0,    0,    0),      # Reala Ace: PROVIA colour, crisper curve
-       6:  (-750, 600,  250,  300,  150,  -150),   # Velvia: big greens/blues, skin held back
+       6:  (-750, 600,  0,    300,  150,  -150),   # Velvia: big greens/blues, skin held back
+                                                   #   (G 250 -> 0: greys picked up green)
        7:  (0,    450,  150,  200,  0,    0),      # ASTIA: soft skin, vivid sky/greenery
        8:  (0,    0,    0,    0,    0,    0),      # Sepia (mono)
        9:  (0,    0,    0,    0,    0,    0),      # Bleach Bypass (matrix does it)
        10: (200,  -300, -250, -250, 0,    350),    # Nostalgic Neg.: amber, warm reds
        11: (0,    0,    0,    0,    0,    0)}      # Custom RGB
 
-LIVE_DEFAULT = 0xC04461BC    # 6 words of stack shuffling in the live CCMatrix default case
-LIVE_DEFAULT_STOCK = [0xE58D00D8, 0xE58D10DC, 0xE59D20D8, 0xE59D30DC, 0xE58D2010, 0xE58D3014]
+LIVE_DEFAULT = 0xC04461BC    # 12 words of stack shuffling in the live CCMatrix default case
+LIVE_DEFAULT_STOCK = [0xE58D00D8, 0xE58D10DC, 0xE59D20D8, 0xE59D30DC, 0xE58D2010, 0xE58D3014,
+                      0xE59D2010, 0xE59D3014, 0xE58D20E0, 0xE58D30E4, 0xE59D00E0, 0xE59D10E4]
+LIVE_DEFAULT_V1 = [0xE59B200C, 0xE3520008, 0x03800B02, 0xE3520009, 0x03800C01, 0xE1CD01F0]
 LIVE_DEFAULT_NEW = [0xE59B200C,              # ldr r2,[fp,#0xc]       style
-                    0xE3520008, 0x03800B02,  # cmp r2,#8 ; orreq r0,r0,#0x800 (live slot 8)
-                    0xE3520009, 0x03800C01,  # cmp r2,#9 ; orreq r0,r0,#0x100 (live slot 1)
-                    0xE1CD01F0]              # strd r0,r1,[sp,#0x10]  (what the 6 words did)
+                    0xE3520008, 0x03800B02,  # cmp r2,#8  ; orreq r0,r0,#0x800 (live slot 8: Sepia)
+                    0xE3520009, 0x03800C01,  # cmp r2,#9  ; orreq r0,r0,#0x100 (live slot 1: B&W)
+                    0xE352000A, 0x03800C05,  # cmp r2,#10 ; orreq r0,r0,#0x500 (live slot 5: Nostalgic)
+                    0xE1CD01F0,              # strd r0,r1,[sp,#0x10]  } what the 12 stock words did:
+                    0xE1CD0EF0,              # strd r0,r1,[sp,#0xe0]  } [sp,#0x10]=[sp,#0xe0]=r0:r1,
+                    0xE1A02000, 0xE1A03001,  # mov r2,r0 ; mov r3,r1  }  r2:r3 = r0:r1
+                    0xE1A00000]              # nop
+# Reala Ace's colour matrix is the identity (= PROVIA's), so its live case uses slot 0
+# and live slot 5 holds Nostalgic Neg. instead
+LIVE_REALA_CASE = (0xC04460BC, 0xE3822C05, 0xE3822000)   # orr r2,r2,#0x500 -> #0
+LIVE_SLOT_OVERRIDE = {5: 10}                             # live slot -> style whose matrix it holds
+# Live tone stage 0xC04463C4: same style checks as capture, own curve table
+LIVE_TONE_BLOCK, LIVE_TONE_DONE = 0xC044640C, 0xC0446458
+LIVE_CURVES = 0xC07B2C88
 
 # Sharpening (EE stage 0xC0449FBC): 25 rows of 6 int32 at 0xC07B987C, row =
 # (Sv-62)/4 clamped to 24 (ISO100 ~ row 4, 800 ~ 16, 1600 ~ 20, 3200 ~ 24).
@@ -208,10 +223,10 @@ def arm_b(src, dst, cond=0xE, link=False):
     return (cond << 28) | ((0xB if link else 0xA) << 24) | (((dst - (src + 8)) >> 2) & 0xFFFFFF)
 
 
-def tone_block():
-    """In-place replacement for the tone stage's style -> curve checks."""
+def tone_block(a=TONE_BLOCK, done=TONE_DONE):
+    """In-place replacement for a tone stage's style -> curve checks."""
     EQ, HS = 0x0, 0x2
-    a = TONE_BLOCK
+    TONE_DONE = done
     table = a + 11 * 4
     w = [0xE59B200C,                                  # ldr r2,[fp,#0xc]   style
          0xE352000C,                                  # cmp r2,#12
@@ -282,9 +297,12 @@ def word(d, addr):
 
 def patch(d):
     d = bytearray(d)
-    # colour matrices: live view (stock table, styles 0-8) ...
+    # colour matrices: live view (stock table, slots 0-8; slot 5 = Nostalgic Neg.) ...
     for k in range(9):
-        struct.pack_into('<9i', d, LIVE - B + 36 * k, *fixed(LOOKS[k]))
+        struct.pack_into('<9i', d, LIVE - B + 36 * k, *fixed(LOOKS[LIVE_SLOT_OVERRIDE.get(k, k)]))
+    addr, old, new = LIVE_REALA_CASE
+    assert word(d, addr) in (old, new)
+    struct.pack_into('<I', d, addr - B, new)
     # ... and capture: all 12 styles in the relocated table
     for k, m in LOOKS.items():
         struct.pack_into('<9i', d, MATRICES - B + 36 * k, *fixed(m))
@@ -317,10 +335,15 @@ def patch(d):
     for addr, old, new in FIXES:
         assert word(d, addr) in (old, new), hex(addr)
         struct.pack_into('<I', d, addr - B, new)
-    cur = [word(d, LIVE_DEFAULT + 4 * k) for k in range(6)]
-    assert cur in (LIVE_DEFAULT_STOCK, LIVE_DEFAULT_NEW)
+    cur = [word(d, LIVE_DEFAULT + 4 * k) for k in range(12)]
+    assert cur in (LIVE_DEFAULT_STOCK, LIVE_DEFAULT_V1 + LIVE_DEFAULT_STOCK[6:], LIVE_DEFAULT_NEW)
     for k, w in enumerate(LIVE_DEFAULT_NEW):
         struct.pack_into('<I', d, LIVE_DEFAULT + 4 * k - B, w)
+    # live tone: same per-style table lookup, custom curves in the live table's slots 6-8
+    assert word(d, LIVE_TONE_BLOCK) == 0xE59B200C
+    put(d, LIVE_TONE_BLOCK, tone_block(LIVE_TONE_BLOCK, LIVE_TONE_DONE))
+    for name, slot in CURVE_SLOT.items():
+        put(d, LIVE_CURVES + 256 * slot, monotone(CURVE_POINTS[name]))
     # gentler high-ISO sharpening, computed from the stock rows (idempotent)
     stock = open(STOCK_ELF, 'rb').read()
     # per-style per-hue saturation: tables restored to stock (undoes any calibration

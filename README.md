@@ -1804,3 +1804,22 @@ factory lens check. So the camera can't know how it was held. Options: Playback 
 Rotate in camera; rotate on import; or (long shot) a firmware feature that sets the EXIF
 orientation from face detection (FD handles rotated faces: SetRotateFace) or a
 manual portrait toggle.
+
+
+## Build: FAUXJI14 — live view previews each look (`TL500-S`)
+- **Live tone:** the live gamma stage 0xC04463C4 mirrors the capture one (style 1 -> 4,
+  4/5/7 -> 5, else Contrast map 0xC07B3E40) with its own curve table 0xC07B2C88 (an
+  exact copy of the capture curves). Its 19-word style check (0xC044640C-0xC0446458)
+  is now the same in-place table lookup ([FF,4,0,8,7,3,6,1,4,8,1,FF]) and live slots
+  6-8 hold the Velvia / Classic Chrome / Classic Neg. curves.
+- **Live matrices:** Reala's live case (0xC04460BC `orr r2,r2,#0x500` -> `#0`) uses slot
+  0 (its matrix is the identity anyway), freeing live slot 5 for **Nostalgic Neg.**; the
+  live default case (12 stack-shuffle words at 0xC04461BC) maps 8 -> slot 8 (Sepia),
+  9 -> 1 (B&W, Bleach Bypass), 10 -> 5 (Nostalgic), with the same stack/register state
+  as stock (`strd` to [sp,#0x10] and [sp,#0xe0], r2:r3 = r0:r1).
+- **Not in the preview:** per-hue saturation. Live view's PCSE stage (0xC0445DB0)
+  registers one fixed block (0xC09AF7B0), no per-ISO/per-style tables; the per-hue
+  deltas are moderate (~ +/-10-30% on specific hues), so the preview is close.
+- Queued micro-tweaks folded in: Velvia PCSE G +250 -> 0; Classic Chrome matrix blue
+  row 0.70 -> 0.80.
+- Added to the UI list (last): auto-rotate from face detection (no orientation sensor).
