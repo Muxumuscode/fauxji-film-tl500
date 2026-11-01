@@ -1206,3 +1206,34 @@ Owner confirms: in M mode, ISO Auto is now selectable directly in the menu (no l
 greyed out). Feature complete: P/A hold 1/60 with auto-ISO 100-1600; M offers Auto
 ISO (camera picks ISO for the chosen shutter/aperture, 100-1600) or any fixed ISO.
 Current firmware on the camera: `extracted/tl500_008264_MAUTO2/` (model `TL500-U`).
+
+
+## Exposure compensation everywhere + Manual ISO 3200 (1 Nov 2026)
+
+Owner's request: leave EV comp at e.g. -0.3 in every mode, with the camera picking
+ISO. (Selectable minimum shutter / settings GUI is **dropped**: P/A keep the 1/60
+floor; for slower shutters the owner uses M with auto-ISO.)
+
+**Fine ISO steps already happen:** MakerNote Sv x16 shows ISO 209, 673, 183, 591,
+1131 for shots whose EXIF ISO tag reads 200/640/200/640/1280 (the tag rounds to
+standard 1/3-stop values; the AE works in 1/16 stops).
+
+**Where Manual blocks EV comp (three places):**
+- AE: `AeUpdateSysInfo` (TL 0xC03EEED0) stores the EV comp shift (x16, from
+  `AeSystemEVCSetToAeEVCShift` = TL **0xC03ECCF8**, 90%) into sysinfo
+  `0xC0CF8660+0x16`, but forces 0 when sysinfo+0xA == 4 (AE manual mode).
+- UI live-view check (WB `checkEVCEnableMode` = TL **0xC04C0688**): allowed in
+  modes 2,3,4,6 only (not 5 = M).
+- UI store (WB `setEVCValue`, inline in TL at **0xC04D0400**): saves the EV setting
+  (capture menu 7) only in modes 2,3,4,7,6.
+
+### Build: EVC (`extracted/tl500_008264_EVC/`, MAUTO2 + 58 bytes, EXIF `TL500-E`)
+- 0xC04C069C..A4: mode check becomes `2 <= mode <= 6` (adds 5).
+- 0xC04D0404..10: store check becomes `2 <= mode <= 7` (adds 5).
+- Cave 0xC0703704 rewritten: `bl 0xC03ECCF8` (EV comp, x16) then
+  `Sv = Tv + Av - Ev + 80 + EVcomp`, clamp 80..160 (ISO100..**3200**). The AE
+  forcing to 0 for AE-manual is left alone, so EV comp in M affects only auto-ISO
+  (fixed ISO in M behaves exactly as stock).
+- Test: (a) M, ISO Auto, EV comp button usable? (b) same scene/settings at 0 and
+  -1 -> MakerNote Sv should drop ~16 and the photo darken; (c) P at 0 vs -1;
+  (d) M auto-ISO very dark -> ISO 3200: check the picture size isn't reduced.
