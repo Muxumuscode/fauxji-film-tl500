@@ -1783,3 +1783,24 @@ from red cuts plus green boosts acting on near-neutrals.
 B +1300, C +600. Bleach Bypass still 2592x1944: no other UI size rule found (the
 PSS==1/2 check at 0xC04D2D28 only resets the style in some modes); most likely the
 stored Photo Size is still 5M.
+
+### FAUXJI13 final colour check (SAM_0534-0566: sunset garden / flowers / selfie on green)
+Selfie skin (green background, centre crop): PROVIA hue 17.7 sat 0.43; Velvia 0.48
+(fixed, was > 0.58), Reala 0.49, Nostalgic 0.44 (hue 21.6), ASTIA 0.39, Classic Neg.
+0.39, Classic Chrome 0.32, Eterna 0.25. Sunset halo hue back to warm (13-32) in all
+colour looks (was 71-98 yellow-green); Classic Chrome clips least (1.5% vs 7-8%).
+Grey road: Classic Chrome/Eterna clean (0.02-0.03), Velvia 0.10 (slight green, mostly
+its matrix boost). Backlit sky: Classic Chrome 0.17 vs PROVIA 0.27 (a bit pale).
+**Colours declared done.** Queued micro-tweaks for the next (UI) build: Velvia PCSE
+G +250 -> 0; Classic Chrome matrix blue row 0.70 -> ~0.80.
+
+## Portrait orientation: the TL500 has no orientation sensor
+Every portrait shot has EXIF Orientation = 1. The firmware has no accelerometer /
+orientation code (the WB850F has LibProduct_AccelManager + GetOrientation; the TL500
+has none), and the TL500's settings list (29 `SETUP_MENU_*` names) has no
+AUTO_ROTATE; the "Auto Rotate" string in SPID.Rom comes from Samsung's shared string
+table. `acc_rotation.c` is the 2D graphics accelerator (playback rotate), "AF TILT" a
+factory lens check. So the camera can't know how it was held. Options: Playback >
+Rotate in camera; rotate on import; or (long shot) a firmware feature that sets the EXIF
+orientation from face detection (FD handles rotated faces: SetRotateFace) or a
+manual portrait toggle.
