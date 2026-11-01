@@ -1109,3 +1109,17 @@ demo build 1/3 @ ISO400 (brightness 87) vs MINSHUT 1/3 @ ISO800 (brightness 126)
 All test scenes were very dark (1/3-1/6 even at ISO800), i.e. the 'ISO maxed, slow
 the shutter' segment, which is correct per the new table. Still to verify: the 1/60
 hold in moderately dim light (expect 1/60 with ISO 200-800).
+
+### Build: HOLD60 (1 Nov 2026) — 1/60 never slower in P/A, ISO cap 1600
+Owner's spec: in P and A ("run and gun") the shutter never goes below 1/60; Manual
+stays fully manual (auto-ISO *selectable* in M is the next project). Build
+`extracted/tl500_008264_HOLD60/` = MINSHUT + 3 bytes: PL_Capt_Program darkest row
+`(0,0,128,0)` (1 s @ ISO800) -> `(0,96,144,0)` (1/60 @ ISO1600); EXIF Model stamp
+`TL500-6`. Every row now has Tv >= 96, so the program line contains no shutter
+slower than 1/60. Darker scenes should underexpose rather than blur.
+Evidence the darkest row acts as a hard floor: PL_Capt_Auto's darkest row is 1/8,
+matching Auto mode's real slowest shutter. Evidence ISO1600 is accepted: the live/AF
+tables already use Sv150. Open risks: a separate max-ISO limiter
+(LimitProgramLineMaxSV) could cap at 800, and flash or slow-sync paths may bypass
+the table. Test: P and A in dim and very dark rooms, flash off -> expect 1/60 with
+ISO up to 1600, darker photos in very dark scenes.
