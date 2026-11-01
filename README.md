@@ -1391,3 +1391,23 @@ table. Observation: in the quick (Fn) menu **two styles appear greyed out**; whi
 ones and in which mode is still to check. Text-only build, so this is stock
 per-mode/per-setting behaviour (candidates: the two "effects" Classic/Negative
 being disabled with RAW quality, or a mode restriction via the menu-disable masks).
+
+
+## FAUXJI1: two more looks in the Sketch/Defog slots, allowed in RAW+JPEG
+Owner: the greyed pair in the quick menu was **Sketch and Defog** (with RAW+JPEG).
+- Text: idx 911 `Sketch` -> **Bleach Bypass**, idx 986 `Defog` -> **Nostalgic
+  Neg.**; help lines 1295/1296 rewritten. (Both strings were appended late in the
+  table, i.e. added by a Samsung update.)
+- RAW rule: capture setting 6 = QUALITY is cached at UI `0xC0D7F300+0x14`; values
+  >= 3 are RAW. In setMenuDisableFlag the RAW branch (0xC04D226C) writes allow-masks:
+  0 for the JPEG-only menus and **0x5F for menu 0x8F** (items 5 and 7 blocked).
+  0x8F is taken to be the list holding Sketch/Defog. Patch 0xC04D22BC
+  `mov r1,#0x5F` -> `#0xFF`. EXIF model `TL500-F`.
+- Descriptor table at 0xC0916330 (40-byte rows) names every capture setting; the
+  capture-menu index is the printed index - 1 (ISO = 0xB, EV = 7, QUALITY = 6,
+  PSS = 0x1E). UI `+0x40` caches PSS.
+- Open: Sketch and Defog are probably Smart-Filter effects with their own processing
+  (WB: ADE_SKETCH, defog), not plain table slots, so making them real film looks
+  needs their processing redirected to a colour-style slot (or the 13-byte
+  menu->style map at 0xC07B0198, if they go through it). Test first whether they
+  can be selected in RAW+JPEG and what the JPEG looks like.
