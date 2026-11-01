@@ -141,7 +141,32 @@ def pcm(x):
     return np.clip(np.round(x), -32768, 32767).astype('<i2').tobytes()
 
 
-SOUNDS = {'shutter': shutter, 'chime': chime}
+STOCK_ROM = 'extracted/tl500_008264/SPID.Rom'
+
+
+def shutter_f2():
+    """Owner's pick: Samsung's own Shutter1 recording reshaped toward a small leaf
+    shutter. Its two mechanical events (at ~42 ms and ~349 ms) are pulled 60 ms
+    apart, played 15% faster (smaller mechanism), low end rolled off below ~350 Hz.
+    (The synthesized versions above were rejected as not sounding like a camera.)"""
+    sys.path.insert(0, os.path.dirname(__file__))
+    import spid_files as F
+    d = open(STOCK_ROM, 'rb').read()
+    rec, off, size, slot = F.directory(d)['Shutter1_32m.snd']
+    a = np.frombuffer(d[off:off + size // 2 * 2], '<i2').astype(float)
+    e1 = a[int(0.025 * RATE):int(0.110 * RATE)]
+    e2 = a[int(0.335 * RATE):int(0.420 * RATE)]
+    gap = int(0.060 * RATE)
+    x = np.zeros(gap + len(e2)); x[:len(e1)] += e1; x[gap:] += 0.8 * e2
+    x = np.interp(np.arange(0, len(x) - 1, 1.15), np.arange(len(x)), x)      # 15% faster
+    S = np.fft.rfft(x); f = np.fft.rfftfreq(len(x), 1 / RATE)
+    x = np.fft.irfft(S / np.sqrt(1 + (350 / np.maximum(f, 1)) ** 4), len(x))  # high-pass
+    i, o = int(0.001 * RATE), int(0.012 * RATE)
+    x[:i] *= np.linspace(0, 1, i); x[-o:] *= np.linspace(1, 0, o)
+    return x / np.abs(x).max() * 20000
+
+
+SOUNDS = {'shutter': shutter_f2, 'chime': chime}
 
 if __name__ == '__main__':
     cmd = sys.argv[1]

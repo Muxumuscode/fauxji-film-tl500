@@ -1865,3 +1865,13 @@ sounds peak ~25k.
   and 3.01x partials, 0.42 s decay; 1.25 s, peak 20k.
 Build **FAUXJI16** (`TL500-U`) = FAUXJI15 + these two files (only those two slots and
 their size fields changed). Select Setup > Sound > Shutter Sound 3 / Start Sound 3.
+
+### Shutter sound: owner's pick F2 (FAUXJI16 rebuilt)
+Three rounds of synthesized shutters were rejected ("doesn't sound mechanical", then "sounds
+musical", then "none of these sound like a camera"): sinusoidal modes read as pitch, and
+even dense noise models didn't sound like a real mechanism. What worked is **reshaping
+Samsung's own Shutter1 recording**: its two mechanical events (~42 ms and ~349 ms) pulled
+60 ms apart, played 15% faster (smaller mechanism), high-passed at ~350 Hz, 0.13 s, peak 20k.
+`tools/sounds.py shutter_f2()` rebuilds it from the stock ROM (matches the approved
+preview within 1 LSB). FAUXJI16 (`TL500-U`) = FAUXJI15 + F2 as Shutter Sound 3 + the
+chime as Start Sound 3.
