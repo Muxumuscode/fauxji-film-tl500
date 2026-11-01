@@ -96,6 +96,24 @@ EFFECT_OFF = [(0xC03CBB58, 0xE35E000A, 0xE35E00FF),   # "heavy effect" helper: e
               (0xC01D2060, 0xE35E000A, 0xE35E00FF)]   # Sketch capture-size rule
 EFFECT_TYPES = 0xC0766518    # effect -> art-effect type; [10]=5 (Sketch), [11]=6 (Defog)
 
+# found from the FAUXJI8 shots (MakerNote byte 15650 = internal style):
+# - the capture colour stage clamps the style index to 8 (styles 9/10 rendered as
+#   Sepia): raise the clamp so 9-11 reach their own matrices;
+# - the UI restricts photo size (menu 0x91 allow-mask 0xFFF3E0) when the Photo Style
+#   is in menu position 1 (Sketch): allow all sizes;
+# - live view's default case cleared the style byte (styles >= 8 previewed in colour):
+#   map 8 -> live slot 8 (Sepia), 9 -> live slot 1 (B&W, for Bleach Bypass); others
+#   (Nostalgic Neg., Custom RGB) keep the neutral slot 0.
+FIXES = [(0xC0449588, 0xE3A00008, 0xE3A0000C),   # still clamp: `mov r0,#8`  -> #12 (limit)
+         (0xC04495DC, 0xE3A09008, 0xE3A0900B),   #              `mov sb,#8`  -> #11 (cap)
+         (0xC04D24FC, 0xE59F1400, 0xE3E014FF)]   # Sketch size rule: ldr r1,=0xFFF3E0 -> 0xFFFFFF
+LIVE_DEFAULT = 0xC04461BC    # 6 words of stack shuffling in the live CCMatrix default case
+LIVE_DEFAULT_STOCK = [0xE58D00D8, 0xE58D10DC, 0xE59D20D8, 0xE59D30DC, 0xE58D2010, 0xE58D3014]
+LIVE_DEFAULT_NEW = [0xE59B200C,              # ldr r2,[fp,#0xc]       style
+                    0xE3520008, 0x03800B02,  # cmp r2,#8 ; orreq r0,r0,#0x800 (live slot 8)
+                    0xE3520009, 0x03800C01,  # cmp r2,#9 ; orreq r0,r0,#0x100 (live slot 1)
+                    0xE1CD01F0]              # strd r0,r1,[sp,#0x10]  (what the 6 words did)
+
 # Sharpening (EE stage 0xC0449FBC): 25 rows of 6 int32 at 0xC07B987C, row =
 # (Sv-62)/4 clamped to 24 (ISO100 ~ row 4, 800 ~ 16, 1600 ~ 20, 3200 ~ 24).
 # Field 0 rises with ISO (coring threshold 32 -> 48), fields 1-2 fall (gain 15 -> 8):
@@ -236,6 +254,13 @@ def patch(d):
     o = EFFECT_TYPES - B
     assert d[o + 10] in (5, 0) and d[o + 11] in (6, 0)
     d[o + 10] = d[o + 11] = 0
+    for addr, old, new in FIXES:
+        assert word(d, addr) in (old, new), hex(addr)
+        struct.pack_into('<I', d, addr - B, new)
+    cur = [word(d, LIVE_DEFAULT + 4 * k) for k in range(6)]
+    assert cur in (LIVE_DEFAULT_STOCK, LIVE_DEFAULT_NEW)
+    for k, w in enumerate(LIVE_DEFAULT_NEW):
+        struct.pack_into('<I', d, LIVE_DEFAULT + 4 * k - B, w)
     # gentler high-ISO sharpening, computed from the stock rows (idempotent)
     stock = open(STOCK_ELF, 'rb').read()
     for k in range(EE_ROWS):

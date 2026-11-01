@@ -1654,3 +1654,32 @@ Live view keeps its stock 9-slot table (styles 9-11 preview neutral).
   clamp), so 3200 gets 1600-level NR. Not changed yet; tune from a high-ISO test.
 - Recommendation for a Fuji-like rendering with zero risk: Image Adjust >
   Sharpness -1 (Samsung's own control).
+
+
+## FAUXJI8 field test (1 Nov 2026) and FAUXJI9
+SAM_0442-0452 = the 11 looks, SAM_0453-0454 = ISO 3200 1/30 in a very dark room.
+**New tool: MakerNote byte 15650 = internal style number** (0-11), so every test
+shot now identifies its own look. The quick-menu order is Normal, Sketch, Defog,
+Soft, Vivid, Forest, Retro, Cool, Calm, Classic, Negative (Sketch/Defog = positions 1-2,
+which is why the 0x88 RAW mask blocked items 1-2).
+Results: 442 PROVIA, 445 ASTIA, 446 Velvia (red R-G 0.65 vs PROVIA 0.26), 447 Reala,
+448 Classic Chrome (darkest), 449 Classic Neg. (hardest), 450 Eterna (low sat, soft),
+451 ACROS, 452 Sepia: all as designed. **443 (style 9, Bleach Bypass) = Sepia colour
+at 5 MP; 444 (style 10, Nostalgic Neg.) = soft Sepia.** Causes:
+1. the capture CCMatrix stage clamps the key's style byte to 8 (0xC0449584-0xC04495DC,
+   `mov r0,#8` limit / `mov sb,#8` cap), so 9 and 10 used matrix 8;
+2. the 5 MP: UI rule "PSS menu position == 1 (Sketch)" -> menu 0x91 (photo size)
+   allow-mask 0xFFF3E0 (0xC04D24FC).
+Also, live view's default case (0xC0446194) clears the style byte, so styles >= 8
+previewed in colour (owner: "it looks color until I shoot").
+ISO 3200 at 100%: fine luma grain + moderate red/green chroma speckle in deep
+shadows; the scenes were >1 stop below what ISO 3200 can expose (median Y 0.07).
+NR left stock (stronger NR would smear the fine grain; this is near the CCD's limit).
+
+### Build: FAUXJI9 (`extracted/tl500_008264_FAUXJI9/`, FAUXJI8 + 29 bytes, EXIF `TL500-N`)
+- still clamp: limit 8 -> 12, cap 8 -> 11 (0xC0449588, 0xC04495DC);
+- Sketch photo-size rule off: 0xC04D24FC `ldr r1,=0xFFF3E0` -> `mvn r1,#0xFF000000`;
+- live default case 0xC04461BC: 6 stack-shuffle words -> `ldr r2,[fp,#0xc]; cmp r2,#8;
+  orreq r0,r0,#0x800; cmp r2,#9; orreq r0,r0,#0x100; strd r0,r1,[sp,#0x10]`, so Sepia
+  previews in sepia (live slot 8) and Bleach Bypass in B&W (live slot 1, ACROS);
+  Nostalgic Neg. and Custom RGB preview neutral (colour looks, per the owner's request).
