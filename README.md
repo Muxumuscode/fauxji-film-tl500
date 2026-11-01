@@ -1692,3 +1692,26 @@ Bypass still saved at 2592x1944: most likely the Photo Size setting the old Sket
 set to 5M is still stored (the rule itself is now off); owner to set 10M and see if it sticks.
 Recipe tweak queued for the next build: Bleach Bypass saturation 0.38 -> ~0.30 (reds
 still a bit strong after the hard curve).
+
+
+## Per-hue colour: what the hardware offers (1 Nov 2026)
+- The **CLUT stage (0xC044A4F4) is not per-hue**: it sets a (u,v) colour shift (only
+  Custom RGB / Beauty Shot use one) and points at a 1 KB table 0xC07BA3D4 + n*1024
+  (256 int32) chosen by ISO. The tables are an identity ramp, a flat gain 64 and a
+  16 -> 64 ramp: a saturation-dependent chroma gain, i.e. chroma-noise suppression.
+- **Per-hue saturation is the PCSE stage** ("Primary Color Saturation Enhancement",
+  WB names IPCM_PCSE_PrimaryGain/GeneralGain/SPRange/GrayTH; TL stage 0xC04484B0).
+  It picks 6-column delta rows from three tables by ISO (this+0x28) and light level
+  (this+0x30/+0x34 vs 0x40/0x80/0xA0), **not by style**:
+  0xC07BAD8C (10 rows: column 2 cut -250 -> -1000 as ISO rises), 0xC07BAE7C (18
+  rows: cols 1/3/4), 0xC07BB02C (14 rows: cols 0/5); base gains/ranges near
+  0xC07BACD4-0xC07BAD2C ((2100,3000)x3, (500,1000), (200,500), (100,250)).
+  The 6 columns are taken to be hue bands; which column is which hue is unknown.
+- Space for per-style per-hue code + table: the factory-only BATTERY.CSV function
+  0xC0425430 (3,184 bytes; only caller 0xC04277E8 inside the production dispatcher
+  0xC04274BC, reached via the factory command table 0xC0843E20-0xC0843F00).
+
+### Build: CAL (`extracted/tl500_008264_CAL/`, EXIF `TL500-C`) — one-off calibration
+FAUXJI9 + Bleach Bypass sat ~0.30 + every AD8C row = (-300, -600, -900, -1200,
+-1500, -1800). Photograph `research-out/fauxji_colour_chart.png` (12 hues + skin
++ greys) on a screen in PROVIA: how much each hue loses tells which column is which band.
