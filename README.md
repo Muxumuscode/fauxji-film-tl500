@@ -1715,3 +1715,11 @@ still a bit strong after the hard curve).
 FAUXJI9 + Bleach Bypass sat ~0.30 + every AD8C row = (-300, -600, -900, -1200,
 -1500, -1800). Photograph `research-out/fauxji_colour_chart.png` (12 hues + skin
 + greys) on a screen in PROVIA: how much each hue loses tells which column is which band.
+
+### CAL field test: chart shot SAM_0465-0467 (ISO 100, Daylight WB, PROVIA)
+Measured patch saturation (HSV S): red 0.82, orange 0.79, **yellow 0.27**, lime 0.57,
+green 0.67, spring 0.83, cyan 0.97, azure 0.76, blue 0.69, violet 0.50, magenta
+0.44, rose 0.51. Yellow is clearly the hardest hit, but the screen's bluish white point also
+desaturates yellow, so a **baseline shot without the cuts is needed** to separate the two.
+FAUXJI10 (`TL500-O`) = FAUXJI9 + Bleach Bypass sat ~0.30, PCSE tables stock: flash it,
+shoot the same chart the same way, then diff the two per patch.
