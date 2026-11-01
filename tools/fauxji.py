@@ -1,9 +1,16 @@
-"""FAUXJI FILM PRO: write Fuji-style colour matrices into the TL500 Photo Styles.
+"""FAUXJI FILM PRO: Fuji-style colour matrices and tone curves for the TL500 Photo Styles.
 
 Each Photo Style has a 3x3 colour matrix (int32, 256 = 1.0) that the image pipeline
 multiplies with the sensor colour matrix (TL500 CCMatrix stage 0xC0448FF4 reads
-0xC07BB28C[style]; live view uses the copy at 0xC07B3C40). This script builds the
-FAUXJI matrices from a few readable knobs and patches both copies.
+0xC07BB28C[style]; live view uses the copy at 0xC07B3C40). The tone stage
+(0xC0449730) picks one of nine 256-byte curves at 0xC07B9AD4 + n*256.
+
+This script builds the FAUXJI matrices from a few readable knobs, gives each style
+its own curve by rewriting the tone stage's style checks *in place* as a table
+lookup, and writes three custom curves into slots 6-8 (otherwise used only by the
+Beauty Shot face-tone levels 1-3). It also moves the Manual auto-ISO routine out of
+0xC0703704 (a driver's hardware-register shadow area, not free space) into the
+factory-only EEPROM-dump function 0xC042661C, and restores the shadow area to zeros.
 
 Knobs per look: per-row saturation (R, G, B rows; 1.0 = unchanged, 0 = mono),
 channel gains (warmth/tint), extra cross-mixes for hue shifts, overall gain.
@@ -47,36 +54,36 @@ LOOKS = {
     3: look(sat=(0.95, 0.70, 0.90), gain=(0.98, 1, 1.03),       # Classic Neg.: yellow-ish greens,
             mix=[(R, G, 0.05)], overall=0.98),                  #   cool cast, muted greens
     4: look(sat=(0.68, 0.78, 0.80), gain=(1.02, 1, 0.97),       # Classic Chrome: muted, cyan blues
-            mix=[(G, Bl, 0.06)], overall=0.97),                 #   (density now comes from its curve)
+            mix=[(G, Bl, 0.06)], overall=0.97),                 #   (density comes from its curve)
     5: look(sat=(1.08, 1.08, 1.08)),                            # Reala Ace: natural, slightly richer
     6: look(sat=(1.20, 1.40, 1.40)),                            # Velvia: big greens/blues, reds held back
     7: look(sat=(1.00, 1.10, 1.10), gain=(1.01, 1, 0.99)),      # ASTIA: soft skin, clean sky/green
     8: look(mono=(0.33, 0.57, 0.10), gain=(1.08, 1.0, 0.80)),   # Sepia: warm-toned monochrome
 }
 
-# Tone curves (display-referred, 0..255 in and out; stock curve 2 is the identity).
-# Control points are joined with a monotone cubic. Every curve keeps a soft shoulder
-# above ~224 (this CCD has ~11 EV, so highlights are rolled off rather than clipped)
-# and never lifts the black point (lifted blacks would show CCD noise).
+# Custom tone curves (display-referred, 0..255; stock curve 2 is the identity),
+# joined with a monotone cubic. Soft shoulder above ~224 (this CCD has ~11 EV) and
+# the black point is never lifted (lifted blacks would show CCD noise).
 CURVE_POINTS = {
-    'velvia':  [(0, 0), (32, 22), (64, 52), (128, 134), (192, 208), (224, 234), (255, 255)],
-    'chrome':  [(0, 0), (32, 19), (64, 46), (128, 120), (192, 192), (224, 222), (255, 250)],
-    'neg':     [(0, 0), (32, 17), (64, 45), (128, 128), (192, 210), (224, 236), (255, 255)],
-    'eterna':  [(0, 0), (32, 31), (64, 65), (128, 128), (192, 185), (224, 213), (255, 246)],
-    'astia':   [(0, 0), (32, 32), (64, 66), (128, 131), (192, 191), (224, 221), (255, 253)],
-    'reala':   [(0, 0), (32, 28), (64, 60), (128, 129), (192, 197), (224, 227), (255, 255)],
+    'velvia': [(0, 0), (32, 22), (64, 52), (128, 134), (192, 208), (224, 234), (255, 255)],
+    'chrome': [(0, 0), (32, 19), (64, 46), (128, 120), (192, 192), (224, 222), (255, 250)],
+    'neg':    [(0, 0), (32, 17), (64, 45), (128, 128), (192, 210), (224, 236), (255, 255)],
 }
-CURVE_ORDER = ['velvia', 'chrome', 'neg', 'eterna', 'astia', 'reala']
-# internal style -> curve name, or None = keep the camera's own choice
-STYLE_CURVE = {0: None, 1: None, 2: 'eterna', 3: 'neg', 4: 'chrome', 5: 'reala',
-               6: 'velvia', 7: 'astia', 8: None, 9: None, 10: None, 11: None}
+CURVE_SLOT = {'velvia': 6, 'chrome': 7, 'neg': 8}   # Beauty Shot face-tone slots 6-8
+STOCK_CURVES = 0xC07B9AD4
+# internal style -> curve slot (0-8), or None = keep the camera's own choice (Contrast).
+# Stock slots: 0/1 = Contrast -2/-1 (soft), 3 = Contrast +1, 4 = Contrast +2 (B&W).
+STYLE_CURVE = {0: None, 1: 4, 2: 0, 3: CURVE_SLOT['neg'], 4: CURVE_SLOT['chrome'], 5: 3,
+               6: CURVE_SLOT['velvia'], 7: 1, 8: 4, 9: None, 10: None, 11: None}
 
-# cave layout (free zeros after the Manual auto-ISO routine, 0xC070373C-0xC0703E28)
-CURVE_CODE = 0xC0703740
-HOOK = 0xC0449864          # gamma stage: `ldr ip,=0xC07B9AD4` (curve base) -> b CURVE_CODE
-HOOK_RET = 0xC0449870
-STOCK_BASE = 0xC07B9AD4
-CAVE_END = 0xC0703E28
+# Tone stage: Samsung's style checks (19 words) become a table lookup, same place.
+TONE_BLOCK, TONE_DONE = 0xC0449788, 0xC04497D4
+
+# Manual auto-ISO routine (AeCalcCaptureManual 0xC05408C8, ISO-Auto fallback hook)
+ISO_HOOK, ISO_RET = 0xC0540938, 0xC0540940
+ISO_HOME = 0xC042661C        # factory-only "Check EEPROM" dump (E2PR.CSV), never runs normally
+OLD_CAVE, OLD_CAVE_LEN = 0xC0703704, 0x3C   # driver register shadows: must stay zero
+EVC_SHIFT = 0xC03ECCF8       # AeSystemEVCSetToAeEVCShift -> EV comp, x16
 
 
 def monotone(points):
@@ -111,99 +118,95 @@ def arm_b(src, dst, cond=0xE, link=False):
     return (cond << 28) | ((0xB if link else 0xA) << 24) | (((dst - (src + 8)) >> 2) & 0xFFFFFF)
 
 
-def ldr_pc(rd, src, lit):
-    return 0xE59F0000 | (rd << 12) | (lit - (src + 8))
-
-
-def curve_routine():
-    """Pick a FAUXJI curve for this style (unless Samsung's special mode is on)."""
-    base = CURVE_CODE
-    lits = base + 21 * 4                       # three literal words after the code
-    table = lits + 12
-    curves = table + 16
-    EQ, NE, HS = 0x0, 0x1, 0x2
-    stock = base + 17 * 4
-    w = [0xE59B200C,                           # ldr r2,[fp,#0xc]    style
-         0xE352000C,                           # cmp r2,#12
-         None,                                 # bhs stock
-         0xE59B3044,                           # ldr r3,[fp,#0x44]   special tone mode?
-         0xE3530003,                           # cmp r3,#3
-         None,                                 # beq stock
-         None,                                 # ldr ip,=table
-         0xE7DCC002,                           # ldrb ip,[ip,r2]
-         0xE35C00FF,                           # cmp ip,#0xff
-         None,                                 # beq stock
-         None,                                 # ldr r3,=curves
-         0xE083A40C,                           # add sl,r3,ip,lsl #8   curve pointer
-         0xE28CC020,                           # add ip,ip,#0x20       distinct parameter key
-         0xE58DC010,                           # str ip,[sp,#0x10]
-         0xE3A0C000,                           # mov ip,#0
-         0xE58DC014,                           # str ip,[sp,#0x14]
-         None,                                 # b HOOK_RET
-         None,                                 # stock: ldr ip,=STOCK_BASE
-         0xE59DE010,                           # ldr lr,[sp,#0x10]
-         0xE08CA40E,                           # add sl,ip,lr,lsl #8
-         None]                                 # b HOOK_RET
-    w[2] = arm_b(base + 8, stock, HS)
-    w[5] = arm_b(base + 20, stock, EQ)
-    w[6] = ldr_pc(12, base + 24, lits)
-    w[9] = arm_b(base + 36, stock, EQ)
-    w[10] = ldr_pc(3, base + 40, lits + 4)
-    w[16] = arm_b(base + 64, HOOK_RET)
-    w[17] = ldr_pc(12, base + 68, lits + 8)
-    w[20] = arm_b(base + 80, HOOK_RET)
-    code = b''.join(struct.pack('<I', x) for x in w)
-    code += struct.pack('<III', table, curves, STOCK_BASE)
-    tbl = bytes(0xFF if STYLE_CURVE[s] is None else CURVE_ORDER.index(STYLE_CURVE[s]) for s in range(12))
-    code += tbl + b'\xff' * 4
-    assert len(code) == curves - base
-    code += b''.join(monotone(CURVE_POINTS[c]) for c in CURVE_ORDER)
-    assert base + len(code) <= CAVE_END, 'cave overflow'
+def tone_block():
+    """In-place replacement for the tone stage's style -> curve checks."""
+    EQ, HS = 0x0, 0x2
+    a = TONE_BLOCK
+    table = a + 11 * 4
+    w = [0xE59B200C,                                  # ldr r2,[fp,#0xc]   style
+         0xE352000C,                                  # cmp r2,#12
+         arm_b(a + 8, TONE_DONE, HS),                 # bhs done (keep Contrast curve)
+         0xE28F3000 | (table - (a + 12 + 8)),         # add r3,pc,#table
+         0xE7D33002,                                  # ldrb r3,[r3,r2]
+         0xE35300FF,                                  # cmp r3,#0xff
+         arm_b(a + 24, TONE_DONE, EQ),                # beq done
+         0xE58D3010,                                  # str r3,[sp,#0x10]  curve index
+         0xE3A03000,                                  # mov r3,#0
+         0xE58D3014,                                  # str r3,[sp,#0x14]
+         arm_b(a + 40, TONE_DONE)]                    # b done (Beauty Shot check follows)
+    tbl = bytes(0xFF if STYLE_CURVE[s] is None else STYLE_CURVE[s] for s in range(12))
+    code = b''.join(struct.pack('<I', x) for x in w) + tbl
+    code += struct.pack('<I', 0xE1A00000) * ((TONE_DONE - a - len(code)) // 4)   # nop fill
+    assert len(code) == TONE_DONE - a
     return code
+
+
+def iso_routine():
+    """Manual auto-ISO: Sv = Tv + Av - Ev + 80 + EVcomp, clamped ISO80..ISO3200."""
+    a = ISO_HOME
+    w = [arm_b(a, EVC_SHIFT, link=True),              # bl AeSystemEVCSetToAeEVCShift -> r0
+         0xE1DAE0F0, 0xE1DAC0F2, 0xE08EE00C,          # lr = Tv + Av
+         0xE1DDC2F8, 0xE04EE00C,                      # lr -= metered Ev [sp,#0x28]
+         0xE28EE050, 0xE08EE000,                      # lr += 80 + EV comp
+         0xE35E004B, 0xB3A0E04B,                      # min ISO80
+         0xE35E00A0, 0xC3A0E0A0,                      # max ISO3200
+         0xE1CAE0B4]                                  # strh lr,[sl,#4]
+    w.append(arm_b(a + 4 * len(w), ISO_RET))
+    return b''.join(struct.pack('<I', x) for x in w)
 
 
 def fixed(m):
     return [int(round(v * 256)) for row in m for v in row]
 
 
+def put(d, addr, data):
+    d[addr - B:addr - B + len(data)] = data
+
+
+def word(d, addr):
+    return struct.unpack_from('<I', d, addr - B)[0]
+
+
 def patch(d):
     d = bytearray(d)
+    # colour matrices, capture and live view
     for base in (STILL, LIVE):
         for k, m in LOOKS.items():
             struct.pack_into('<9i', d, base - B + 36 * k, *fixed(m))
     # Sepia uses the Negative slot: switch off its colour-inversion stage
-    # (0xC044AE2C `cmp lr,#8` -> `cmp lr,#0xFF`, a style number that never occurs)
-    o = 0xC044AE2C - B
-    assert struct.unpack_from('<I', d, o)[0] in (0xE35E0008, 0xE35E00FF)
-    struct.pack_into('<I', d, o, 0xE35E00FF)
-    # ...and make style 8 use its own matrix: the CCMatrix switch only covers 0-7 and
-    # its default case picked matrix 8 only when flag this+0x3E was set.
-    # `ldrb lr,[fp,#0x3e]; cmp lr,#0; beq` -> `ldr lr,[fp,#0xc]; cmp lr,#8; bne`
+    assert word(d, 0xC044AE2C) in (0xE35E0008, 0xE35E00FF)
+    struct.pack_into('<I', d, 0xC044AE2C - B, 0xE35E00FF)
+    # ...and make style 8 use its own matrix (CCMatrix default case only took matrix 8
+    # when flag this+0x3E was set): `ldrb lr,[fp,#0x3e]; cmp lr,#0; beq`
+    #   -> `ldr lr,[fp,#0xc]; cmp lr,#8; bne`
     for addr, old, new in ((0xC044937C, 0xE5DBE03E, 0xE59BE00C),
                            (0xC0449380, 0xE35E0000, 0xE35E0008),
                            (0xC0449384, 0x0A000016, 0x1A000016)):
-        assert struct.unpack_from('<I', d, addr - B)[0] in (old, new)
+        assert word(d, addr) in (old, new)
         struct.pack_into('<I', d, addr - B, new)
-    # per-style tone curves: routine + table + curves in the cave, hooked at the
-    # point where the gamma stage computes its curve pointer
-    code = curve_routine()
-    o = CURVE_CODE - B
-    assert all(c in (0,) for c in d[o:o + len(code)]) or d[o:o + 4] == code[:4], 'cave not free'
-    d[o:o + len(code)] = code
-    h = struct.unpack_from('<I', d, HOOK - B)[0]
-    assert h in (0xE59FCED8, arm_b(HOOK, CURVE_CODE))
-    struct.pack_into('<I', d, HOOK - B, arm_b(HOOK, CURVE_CODE))
+    # tone: undo the FAUXJI5 cave hook if present, then the in-place table lookup
+    if word(d, 0xC0449864) == arm_b(0xC0449864, 0xC0703740):
+        struct.pack_into('<I', d, 0xC0449864 - B, 0xE59FCED8)     # stock `ldr ip,=curve base`
+    assert word(d, 0xC0449864) == 0xE59FCED8
+    assert word(d, TONE_BLOCK) == 0xE59B200C                       # `ldr r2,[fp,#0xc]` in both
+    put(d, TONE_BLOCK, tone_block())
+    for name, slot in CURVE_SLOT.items():
+        put(d, STOCK_CURVES + 256 * slot, monotone(CURVE_POINTS[name]))
+    # Manual auto-ISO: move routine to the factory-only function, zero the shadow area
+    hook = word(d, ISO_HOOK)
+    assert hook in (0xE3A0E050, arm_b(ISO_HOOK, OLD_CAVE), arm_b(ISO_HOOK, ISO_HOME))
+    put(d, ISO_HOME, iso_routine())
+    struct.pack_into('<I', d, ISO_HOOK - B, arm_b(ISO_HOOK, ISO_HOME))
+    o = OLD_CAVE - B
+    d[o:o + 0x724] = b'\0' * 0x724                                 # 0xC0703704-0xC0703E28, as stock
     return bytes(d)
 
 
 if __name__ == '__main__':
     src, dst = sys.argv[1], sys.argv[2]
     d = open(src, 'rb').read()
-    for base in (STILL, LIVE):
-        assert struct.unpack_from('<9i', d, base - B + 36)[0:3] in ((78, 150, 28), tuple(fixed(LOOKS[1])[0:3])), \
-            'style table not where expected'
     out = patch(d)
     open(dst, 'wb').write(out)
     for k, (old, new) in SLOTS.items():
         f = fixed(LOOKS[k])
-        print('%d %-9s -> %-15s %s' % (k, old, new, [f[0:3], f[3:6], f[6:9]]))
+        print('%d %-9s -> %-15s curve %-4s %s' % (k, old, new, STYLE_CURVE[k], [f[0:3], f[3:6], f[6:9]]))

@@ -1571,3 +1571,32 @@ All in `tools/fauxji.py` (reproducible from FAUXJI4):
 - Caveat: curves live in the zero area beyond the proven cave (0xC0703740+); if a
   look's tone is odd/corrupt, that area is being written at runtime. Live view
   doesn't get the custom curves (its gamma stage is separate).
+
+
+## FAUXJI5 broke live view: 0xC0703704+ is NOT free space (lesson learned)
+Owner photo: menus/overlays fine, live image a field of garbage. Cause: the "cave"
+zeros at 0xC0703704-0xC0703E28 are a **driver's RAM shadow of hardware registers**:
+the literal pool at 0xC004E718 pairs each RAM slot with a register (0xC0703704 <->
+0x800B3A00, 0xC0703718 <-> 0x800B3A04, 0xC070372C <-> 0x800B3A10, 0xC0703740 <->
+0x800B3D00, 0xC0703774 <-> 0x800B3D04, ...; 54 references into the area). FAUXJI5's
+curve code/data at 0xC0703740+ was pushed into image-pipeline registers, which garbled
+the live view. The Manual auto-ISO code (since MAUTO) also sat on three shadow slots
+(0x800B3A00/04/10). That block appears unused on this camera (no visible effect
+across many builds), but it's wrong all the same. Unreferenced zero runs elsewhere all turned
+out to be gaps *inside* larger tables, so they're also unsafe.
+**Rule from now on: no zero-filled "caves". Use code that provably never runs.**
+
+### Build: FAUXJI6 (`extracted/tl500_008264_FAUXJI6/`, from FAUXJI4, EXIF `TL500-K`)
+`tools/fauxji.py` rewritten:
+- **0xC0703704-0xC0703E28 restored to stock zeros.**
+- Manual auto-ISO routine (EV comp, ISO 80-3200) moved to **0xC042661C**, the
+  factory "Check EEPROM" E2PR.CSV dump. Only caller 0xC04278A8 inside
+  CProductionModeAdjustFunc (0xC04274BC), reached only via the production command
+  table at 0xC0843EF8. Hook 0xC0540938 -> `b 0xC042661C`.
+- Tone: the stage's own 19-word style check (0xC0449788-0xC04497D4) rewritten in
+  place as `if style<12 and table[style]!=0xFF: curve=table[style]`, table inline at
+  0xC04497B4 = [FF,4,0,8,7,3,6,1,4,FF,FF,FF]. The Beauty Shot override after it is
+  untouched. Custom curves written into stock slots **6/7/8** (Velvia / Classic
+  Chrome / Classic Neg.), which costs Beauty Shot face-tone levels 1-3 their brighter
+  curves. Eterna/ASTIA/Reala use stock Contrast -2/-1/+1 curves; ACROS/Sepia curve 4.
+- Matrices, ASTIA/Eterna swap and Sepia fixes as in FAUXJI5.
