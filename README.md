@@ -1141,3 +1141,33 @@ slowing down, as designed. ISO1600 is reached, so no hidden 800 limiter applies.
 (the build differs from stock by 51 bytes; the other 40 are the cosmetic
 EXIF/day-name changes). Not yet checked: flash-on behaviour.
 Next project: auto-ISO selectable in Manual mode.
+
+
+## Auto-ISO in Manual mode (1 Nov 2026)
+
+### Where Manual forces ISO 100 (two places)
+1. **UI layer**, WB850F `CAPPCaptureUiValue::setISOBackupValue(mode)` = TL500
+   **0xC04D0D34** (exact structure; TL mode numbers 2/3/4 = P/A/S, **5 = Manual**).
+   When switching modes it restores the saved ISO index into `[0xC0D7F300+0x88]`
+   (0 = Auto, 1 = 100, 2 = 200 ... per WB `changeISOInfo`), but for Manual only:
+   `if ISO == Auto: ISO = 1`. `setISOinitValue` = TL **0xC04D16D8** sets Manual's
+   default to index 1 (others 0 = Auto).
+2. **Exposure engine**, WB `AeCalcCaptureManual` = TL **0xC05408C8** (94%). It fills
+   the capture exposure: `[sl]` = Tv, `[sl+2]` = Av, `[sl+4]` = Sv from system info;
+   `if Sv == 0 (Auto): Sv = 80 (ISO100)`. It then computes the meter's "proper Tv":
+   `[sl+0xA] = Ev - Av + Sv - 80` (arg0 = metered Ev on an ISO100 basis; Tv is
+   also compared with the hand-shake Tv for the shake warning, which confirms `[sl]` is Tv).
+
+The menu-disable mechanism (`setMenuDisableFlag` -> `setCapDisableMenuInfo(id, mask)`,
+item enabled unless bit set) was looked at; which id is ISO isn't pinned down yet.
+If the M-mode menu still greys out Auto, there's a workaround: select Auto in P, then turn the dial to M
+(patch 1 makes the saved Auto survive the switch).
+
+### Build: MAUTO (`extracted/tl500_008264_MAUTO/`, HOLD60 + 53 bytes, EXIF `TL500-A`)
+- 0xC04D0DA4 and 0xC04D16EC: `mov ip,#1` -> `mov ip,#0` (Manual keeps / defaults to Auto).
+- 0xC0540938: the ISO100 fallback -> `b 0xC0703704` (cave, proven executable), which
+  solves the meter equation for ISO: `Sv = Tv + Av - Ev + 80`, clamped to
+  80..144 (ISO100..1600), stores `[sl+4]`, returns to 0xC0540940. Only runs when
+  ISO is Auto in Manual; a fixed ISO in Manual is untouched.
+- Test: M mode, ISO Auto, same shutter/aperture in brighter and darker spots ->
+  EXIF ISO should change with the light and brightness should stay similar.
