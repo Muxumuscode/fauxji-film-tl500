@@ -1899,3 +1899,34 @@ instead of the menu value. The writer of item 0x57 isn't found yet (the call cha
 through function-pointer tables). Plan: one FILM BKT burst on the camera; MakerNote
 byte 15650 of the three frames gives Samsung's three styles, then search the firmware
 for that sequence.
+
+
+## FAUXJI17/18: Fuji-style menu names + AE-L button cycles film looks (1 Nov 2026)
+**Renames (text pass FAUXJI17, 31 strings):** Metering -> Photometry, Drive -> Drive
+Setting, Image Adjust -> Image Settings, Contrast -> Tone Curve, Saturation -> Color,
+OIS -> IS Mode, Photo Size -> Image Size, Quality -> Image Quality, Quick View -> Image
+Disp., Grid/Guide Line -> Framing Guide, ACB -> DR Auto, Key mapping -> AE-L Button
+(AE-L / **FILM SIM** / AE-L/AF-L), Smart Filter -> Advanced Filter, Bracket ->
+Bracketing, Start Image -> Startup Screen, Function Description -> Help Text.
+
+**AE-L button -> FILM SIM** (`tools/fauxji_ui.py`, wired into the builder):
+- Live-view key dispatcher 0xC04C18CC switches on the logical key (16-entry table at
+  0xC04C19F0): key 0 -> AE-lock handler 0xC04C1414 (UI 0x63), key 14 -> AF-lock
+  handler 0xC04C1624 (UI 0x64). The "AE-L Button" setting chooses which key the button
+  sends, so the AF-L option is repurposed: key 14's case (0xC04C1AE8) calls a new routine
+  at 0xC0425FA0 (tail of the factory-only BATTERY.CSV function, after the PCSE tables).
+- Routine: on a press (same event virtual call as the stock handlers), read the Photo
+  Style at 0xC0D7F300+0x40, step to the next entry of FAVOURITES = PROVIA, Classic
+  Chrome, Velvia, ASTIA, Classic Neg., ACROS, Nostalgic Neg. (menu values 0,6,4,3,7,9,2),
+  then the menu's own commit sequence (menu handler ~0xC050C494): setUiValue(0x41, v)
+  0xC048F630 -> apply 0xC04D2A18 -> menu masks 0xC04D2000 -> GUI event 0x42
+  (0xC048FD5C) -> 0xC04DC174(0x41) -> 0xC04CDB70(0x41).
+- Setting IDs found on the way: capture setter 0xC04CFD28 (switch on id-0x30; **0x41 =
+  Photo Style**, stores the +0x40 cache and capture menu 0x1E); apply dispatcher
+  0xC04D2A18 (0x41 -> 0xC04D1538).
+- **Bleach Bypass 5 MP solved:** 0xC04D1538 (applied whenever the style is applied) forced
+  photo size >= index 5 for Sketch (menu value 1) and two more minimums (+0x6C >= 3,
+  +0x70 >= 7) for Sketch/Defog; checks at 0xC04D15BC / 0xC04D1608 / 0xC04D1610 ->
+  #0xFF. (The owner setting 10M couldn't stick because this rule re-applied.)
+Build **FAUXJI18** (`TL500-V`) = everything so far (FAUXJI16 + renames + FILM SIM +
+5 MP fix). Not flashed. Test: Setup > AE-L Button > FILM SIM, press AE-L in P mode.

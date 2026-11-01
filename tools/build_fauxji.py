@@ -18,7 +18,7 @@ Put the five output files in the root of an SD card and power the camera on to f
 import hashlib, json, os, shutil, sys
 
 sys.path.insert(0, os.path.dirname(__file__))
-import fauxji, spid_files, spid_strings, sounds, bootscreen
+import fauxji, fauxji_ui, spid_files, spid_strings, sounds, bootscreen
 
 ELF, ROM = 'EX1-DSP-SR-008264.elf', 'SPID.Rom'
 STOCK_SHA256 = {
@@ -37,7 +37,7 @@ def build_elf(stock):
     for run in json.load(open(os.path.join(PATCHES, 'fauxji_elf_runs.json')))['runs']:
         b = bytes.fromhex(run['bytes'])
         d[run['offset']:run['offset'] + len(b)] = b
-    return fauxji.patch(bytes(d))
+    return fauxji_ui.patch(fauxji.patch(bytes(d)))
 
 
 def build_rom(stock):
