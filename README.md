@@ -1137,6 +1137,7 @@ All five carry Model `TL500-6`. Every shot is 1/60; ISO moves freely (200, 640,
 1600) to match the light, so the camera is doing auto-ISO with a minimum shutter
 speed. In the darkest scenes it stops at ISO1600 and underexposes instead of
 slowing down, as designed. ISO1600 is reached, so no hidden 800 limiter applies.
-**The owner's main feature is done: pure data edit, 13 bytes vs stock in total
-(3 cosmetic EXIF/day-name changes aside).** Not yet checked: flash-on behaviour.
+**The owner's main feature is done: a pure data edit of 11 bytes in one table**
+(the build differs from stock by 51 bytes; the other 40 are the cosmetic
+EXIF/day-name changes). Not yet checked: flash-on behaviour.
 Next project: auto-ISO selectable in Manual mode.
