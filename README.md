@@ -1383,3 +1383,11 @@ the recipes are adapted:
 | Sepia | ACROS curve | mono + warm tint | brown cast |
 Numbers are relative steps (like Fuji's -4..+4 scale), turned into table values
 once the per-style formats are decoded.
+
+### FAUXJI0 field test (1 Nov 2026): SUCCESS, the GUI text edit works
+Owner: the new names and title show correctly and the text looks fine, so
+SPID.Rom string edits (with length changes) are safe and the runtime walks the
+table. Observation: in the quick (Fn) menu **two styles appear greyed out**; which
+ones and in which mode is still to check. Text-only build, so this is stock
+per-mode/per-setting behaviour (candidates: the two "effects" Classic/Negative
+being disabled with RAW quality, or a mode restriction via the menu-disable masks).
