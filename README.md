@@ -1251,3 +1251,12 @@ M); M auto-ISO now reaches 3200 (and values between, e.g. 2263); **ISO 3200 keep
 full 10 MP resolution**. Not yet confirmed: the *size* of the EV comp effect. Every
 shot was in dim light at or near the ISO cap, and there's no 0 vs -1 pair of the
 same scene. Next: matched pairs in a medium-lit scene (M auto-ISO and P).
+
+### EVC field test #2 (1 Nov 2026): EV comp acts on Manual auto-ISO
+Same room/window view as SAM_0404 (M auto-ISO, EV 0, 1/60 f/1.8 -> ISO 183).
+At EV -1: SAM_0416 1/90 -> ISO 100 (floor; ~137 expected), SAM_0417 1/125 ->
+ISO 161 (~190 expected with -1, ~380 without). The ISO lands near the "-1"
+prediction, about 1.2 stops below the no-comp value, and brightness drops 48 -> 37-40
+(about -1 stop after JPEG gamma). Framing differs between the shots, so this is a cross-shot estimate,
+but the comp is clearly applied with the right sign. P-mode comp is the camera's
+stock behaviour.
