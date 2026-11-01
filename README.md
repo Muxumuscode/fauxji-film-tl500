@@ -1059,3 +1059,36 @@ floor rather than injecting new logic.
 **Next:** confirm the hand-shake function and read how AeReadPLParam /
 LimitProgramLineMaxSV apply limits; then design a clamp at the decision (Tv256 for
 1/60 = 6*256 = 1536) and test with the EXIF oracle.
+
+
+## The program-line tables: the feature becomes a data edit (1 Nov 2026)
+
+Using WB850F data names (data base 0xC1835BC0, validated: 258/277 getters land
+exactly on named variables), the exposure decision reads per-mode **program-line
+tables** `PL_Capt_<Mode>`: `int16 count` then `count` rows of
+`(Av index, Tv x16, Sv x16, flag)`, ordered dark -> bright. Same x16 units as EXIF
+(1/60 = 96, ISO100 = 80, ISO80 = 75). (`aeHandshakeTVZm` turned out to feed only the
+camera-shake *warning* via AeCalcExpOutWarning, not exposure.)
+
+14 such tables exist in the TL500 at 0xC094A892..0xC094ACC8. Names come from aligning
+the capture pointer arrays (WB `0xC0A26F30` vs TL `0xC05407EC`; same order, TL lacks
+Panorama) and the AeReadPLInfo arrays, confirmed by content:
+
+| TL500 runtime | name | low-light behaviour |
+|---|---|---|
+| 0xC094AA18 | PL_Capt_Program (P/A) | holds 1/30, ISO to 400, then 1/15 -> 1 s |
+| 0xC094AAAC | PL_Capt_Beauty | ISO cap 200 |
+| 0xC094AB0E | PL_Capt_Auto | starts 1/8 @ ISO800 |
+| 0xC094AB78 | PL_Capt_SmartAuto | = Auto |
+| 0xC094ACC8 | PL_Capt_ASR (Dual IS) | holds ~1/45, ISO to 800 |
+| 0xC094ABE2 / 0xC094AC34 | PL_Capt_Night / Night_Redeye | ISO80, long exposure |
+| 0xC094AC86 | PL_Capt_Portrait | |
+| 0xC094AA82 | PL_Capt_TV (S mode) | from 16 s |
+| 0xC094A940..0xC094A9E6 | live / AF / lock tables | |
+
+Owner's Program-mode test shots (1/15 ISO320, 1/6 ISO400) sit exactly on
+PL_Capt_Program — confirming the table drives real capture exposure.
+
+**Min-shutter feature = edit PL_Capt_Program (13 rows, same size):** hold Tv 96
+(1/60) while Sv rises to 128 (ISO800, a value the Auto table already uses), only then
+slow the shutter. No code injection.
