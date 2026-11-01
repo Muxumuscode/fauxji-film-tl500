@@ -1311,3 +1311,75 @@ Retro->Classic Chrome, Calm->Eterna, Cool->Classic Neg; Normal stays Provia-like
 SAM_0418 (`TL500-S`, M auto-ISO, 1/15 f/1.8, EV 0): MakerNote Sv 75 = **ISO 80**,
 brightness 118 (well exposed). The S-mode auto-ISO-to-3200 change isn't tested yet
 (no S-mode shot on the card).
+
+
+## GUI modding: the menu text is editable (1 Nov 2026)
+
+**Where the words live:** `SPID.Rom` (69 MB resource ROM) holds ~40 language
+string tables back to back (each preceded by `?, total_size, count=1390`). English
+starts at file 0x683110 (header 12 bytes before), 1390 entries, ends 0x692AB8.
+Entry = `uint32 n` + n bytes UTF-16LE, NUL, padded with 0xAB to 4 bytes. Strings
+are addressed by **index**; no precomputed offset index exists in SPID.Rom or the
+.elf (searched for consecutive entry offsets in every encoding), so the camera
+walks the table at runtime: entries may change length **as long as the table's
+total size is unchanged** (the next language table must not move).
+Tool: `tools/spid_strings.py` (list / size-preserving rewrite, self-verifying).
+
+Photo Style strings: capture menu idx 181 (title) and 182-191 (Normal..Custom RGB),
+playback-edit copy idx 290-300, help lines idx 987-997.
+
+### Build: FAUXJI0, names only (S80 + edited SPID.Rom; .elf identical to S80)
+Title "Photo Style Selector" -> **FAUXJI FILM PRO**; Normal->PROVIA, Soft->ASTIA,
+Vivid->Velvia, Forest->Reala Ace, Retro->Classic Chrome, Cool->Classic Neg.,
+Calm->Eterna, Classic->ACROS, Negative->Sepia; help lines rewritten. Colours are
+still Samsung's at this stage (note: "Sepia" is still the Negative effect until
+the colour work lands). **First edit of SPID.Rom ever**: if the GUI shows wrong or
+garbled text, re-flash S80's SPID.Rom (original) to restore.
+
+## FAUXJI colour pipeline — what's known (1 Nov 2026)
+- Menu choice -> internal style: TL `GetSmartFilter` (0xC0443A90) reads the effect
+  mode and maps it through a **13-byte table at 0xC07B0198** =
+  `[0,0,1,2,...,11]` (menu value -> style number). Result stored at info+0xC
+  (Custom RGB triple at info+0x10) by 0xC0444880 (TL `UpdateInfo`).
+- Colour constant tables: 0xC07B0000-0xC07BB900, used by the TL Update* functions
+  (CLUT 0xC044A4F4 -> 0xC07BA3D4/0xC07BA7D4; CCMatrix 0xC0448FF4 -> 0xC07BB190;
+  tone-LUT candidates 0xC07B6804 / 0xC07B8804 / 0xC07B9804; Mono 0xC0447070).
+- **Colour matrix format decoded** (0xC07BB190): 3x3 int32, fixed point /128
+  (rows sum to 128). First: `[[225,-104,7],[-30,190,-32],[11,-86,203]]`; the
+  following sets fall off (225,220,216,212,208...), apparently the camera already
+  lowering colour saturation as ISO rises to hide chroma noise.
+- Per-style tables (likely CLUT and tone curves indexed by the style number) are
+  next to decode.
+
+## FAUXJI recipes, tuned for this sensor
+Sensor: Sony 10 MP 1/1.7" CCD (same as Canon G11/S90). DxO: **11.1 EV** dynamic
+range at base, low-light score ~ISO 130. Real Fuji X sensors have ~13-14 EV, so
+the recipes are adapted:
+1. **Protect highlights first.** Every curve gets a soft shoulder (roll-off over
+   the top ~1.5 EV) instead of Fuji's harder clip; pairs well with the owner's
+   habit of -0.3 EV. Velvia/Classic Neg contrast comes from the mid-tones, not
+   from pushing highlights.
+2. **Shadows: crush a little, never lift.** Deeper shadows hide CCD read noise
+   and JPEG blocking; lifted (faded) blacks would show noise. Eterna's "fade" is
+   done as lower mid-contrast, not raised blacks.
+3. **Saturation follows ISO.** Keep Samsung's per-ISO matrix falloff and apply
+   each look's saturation on top, so Velvia at ISO 1600 doesn't amplify colour noise.
+4. **Reds are the first to clip on this CCD**, so Velvia boosts greens/blues more
+   than reds (via the per-hue CLUT); skin stays close to PROVIA.
+5. **ACROS from red+green, not blue.** The blue channel is the noisiest on small
+   CCDs, so the mono mix weights R/G (like a yellow filter, ~0.35R/0.55G/0.10B),
+   cleaner and punchier, close to Acros+Ye.
+
+| look | tone curve (mid contrast / shoulder) | saturation | hue notes |
+|---|---|---|---|
+| PROVIA | Samsung Normal, soft shoulder | 0 | neutral |
+| Velvia | +2 mid / soft shoulder | +2 (greens/blues), +1 reds | slight warm, deep blue skies |
+| ASTIA | -1 mid, gentle shadows | +1 | skin protected, clean blues/greens |
+| Classic Chrome | +1 mid, deeper shadows, -1 highlights | -2 | muted reds, cyan-ish blues, slightly warm |
+| Classic Neg. | +2 mid, hard toe | -1 | cyan/teal shadows, magenta-warm highlights, desaturated greens |
+| Eterna | -2 mid, soft everywhere | -3 | teal-greens, muted |
+| Reala Ace | +1 mid, crisp | +1 | neutral, accurate |
+| ACROS | +1 mid, rich blacks | mono | R/G-weighted mix |
+| Sepia | ACROS curve | mono + warm tint | brown cast |
+Numbers are relative steps (like Fuji's -4..+4 scale), turned into table values
+once the per-style formats are decoded.
