@@ -1849,3 +1849,19 @@ manual portrait toggle.
 ### FAUXJI15 field test: SUCCESS
 Owner: the cheat-sheet lines fit on screen and look great; Sepia previews correctly.
 UI steps 1 and the Sepia preview are done.
+
+
+## Sounds (1 Nov 2026)
+SPID.Rom holds 26 `.snd` files: **headerless 16-bit little-endian mono PCM at 32 kHz**
+(the byte order shows in waveform smoothness; the rate was confirmed by ear by the owner): Shutter1-3,
+ShutterShort, PowerOn1-3, Beep/AF/Menu/Self-timer cues, NoBattery, Warning and five
+slideshow music tracks (2.4-4.2 MB each). Stock shutter peak 14-33k / rms 1-2k, start
+sounds peak ~25k.
+`tools/sounds.py` synthesizes (no samples from any other camera):
+- **shutter** (-> Shutter3_32m.snd, so menu Shutter Sound 3): leaf-shutter open tick +
+  softer close tick 35 ms later (2.5-9 kHz noise bursts), faint 4.2 kHz ring, 190 Hz
+  body; 0.16 s, peak 21k.
+- **chime** (-> PowerOn3_mono.snd, menu Start Sound 3): A5 then E6 soft bell with 2x
+  and 3.01x partials, 0.42 s decay; 1.25 s, peak 20k.
+Build **FAUXJI16** (`TL500-U`) = FAUXJI15 + these two files (only those two slots and
+their size fields changed). Select Setup > Sound > Shutter Sound 3 / Start Sound 3.
