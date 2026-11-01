@@ -1520,3 +1520,20 @@ x, y, width, height), so screens can be re-laid-out as text.
    softness, Velvia punch.
 5. Real colour for Bleach Bypass / Nostalgic Neg. (styles 10/11 -> matrix + curve slots).
 6. CLUT (Colour Chrome-like) and film-sim bracketing.
+
+
+## Build: FAUXJI4 — boot screen + Fuji-style renames (1 Nov 2026)
+`extracted/tl500_008264_FAUXJI4/` = FAUXJI3 (colour matrices, not yet tested) +
+SPID.Rom edits, EXIF model `TL500-I`.
+- **Boot screen:** `bg_power_on_off_422.jpg` replaced via `tools/spid_files.py`
+  (in place, size field updated) with `tools/bootscreen.py firmware`: "FAUXJI FILM
+  X20 / Digital Camera / Korean body. German glass. Japanese colors. / Firmware by
+  an economist and a chatbot. / Warranty void since 2026." 22,116 bytes (slot
+  22,528), baseline 4:2:2, JFIF APP0 stripped so the marker layout matches the stock
+  file (DQT, DQT, SOF0 2x1/1x1/1x1, 4 DHT, SOS).
+- **Renames:** User -> Recipes, User Mode Set -> Save Recipe, User Mode 1/2 -> C1/C2
+  Recipe (+ help lines), playback Photo Style Selector -> FAUXJI FILM PRO, PSS BKT
+  -> FILM BKT, Smart Range -> D-Range, Add Noise -> Grain Effect (+ help).
+- Changed bytes are confined to: the one directory size field, the English text table, and
+  the image slot. First change to a SPID.Rom *file* (not text): if the power-on
+  screen shows garbage or stays black, re-flash FAUXJI3's SPID.Rom.

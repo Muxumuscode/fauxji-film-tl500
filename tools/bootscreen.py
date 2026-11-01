@@ -86,8 +86,11 @@ def fit(im):
     for q in range(95, 30, -3):
         b = io.BytesIO()
         im.save(b, 'JPEG', quality=q, subsampling=1)     # 4:2:2 like the stock image
-        if b.tell() <= SLOT:
-            return b.getvalue(), q
+        data = b.getvalue()
+        if data[2:4] == b'\xff\xe0':                     # drop the JFIF APP0: stock starts with DQT
+            data = data[:2] + data[4 + int.from_bytes(data[4:6], 'big'):]
+        if len(data) <= SLOT:
+            return data, q
     raise SystemExit('cannot fit the slot')
 
 
