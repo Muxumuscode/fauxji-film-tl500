@@ -1622,3 +1622,35 @@ saturation. **FAUXJI7** (`TL500-L`, 109 bytes vs FAUXJI6, matrices only):
 Reala Ace sat 1.08 -> 1.00 (curve-only difference from PROVIA); Classic Chrome
 (0.68,0.78,0.80) -> (0.55,0.65,0.70); Classic Neg. (0.95,0.70,0.90) -> (0.80,0.58,0.80);
 Eterna 0.62 -> 0.78. Bleach Bypass wasn't shot this round (still Sketch).
+
+
+## Build: FAUXJI8 — all 11 looks real + gentler high-ISO sharpening (1 Nov 2026)
+`extracted/tl500_008264_FAUXJI8/` (EXIF `TL500-M`), all via `tools/fauxji.py`
+(idempotent: re-running on its own output changes nothing).
+
+**Sketch/Defog are effects 10/11 -> internal styles 9/10** (GetSmartFilter map
+0xC07B0198 = [0,0,1..11]); **style 11 = Custom RGB** (CLUT stage 0xC044A5AC uses
+the RGB triple only when style == 11). Samsung's art-effect engine is off for them:
+- effect->art-type table 0xC0766518: [10]=5 (Sketch), [11]=6 (Defog) -> 0;
+- "heavy effect" helper 0xC03CBB28 compares effect with 10/11 (0xC03CBB58/64) -> #0xFF;
+- Sketch capture-size rule (forced 5 MP) 0xC01D2060 `cmp lr,#0xa` -> #0xFF.
+**Matrices for 12 styles:** the CCMatrix stage's only literal for the style table
+(0xC044A63C, was 0xC07BB28C) now points at a 12-slot table at **0xC0426660**
+(inside the factory-only EEPROM-dump function, after the ISO routine; ends 0xC0426810
+< function end 0xC0426898). The default case handles every style >= 8:
+`blt` at 0xC0449384, and `orr r2,r2,lr,lsl #8` at 0xC04493C4 (key byte = style).
+Live view keeps its stock 9-slot table (styles 9-11 preview neutral).
+- Bleach Bypass (9): sat 0.38-0.40, faint cool, hard curve (slot 8).
+- Nostalgic Neg. (10): warm amber gains (1.06, 1.01, 0.88), red sat 1.05, soft curve (slot 1).
+- Custom RGB (11): identity (unchanged behaviour).
+
+**Noise/sharpening study:**
+- Sharpening EE (0xC0449FBC): 25 rows x 6 int32 at 0xC07B987C, row = (Sv-62)/4 cap
+  24. Stock already tapers: coring 32 -> 48, gain 15 -> 8 (ISO 100 -> 800+). FAUXJI8:
+  rows 16-24 (ISO 800+) gain 8 -> 7, coring +2 (+4 at 1600+). Low ISO untouched.
+- Luma/chroma NR YCNR (0xC044A2E4): 6 rows x 96 B at 0xC09AFD84, row =
+  (Sv-56)/16 clamped to 5. Only fields 0-1 vary: (1,26) (2,32) (6,42) (8,60) (12,72)
+  (18,112) = strength/threshold by ISO. **ISO 3200 reuses the ISO 1600 row** (the
+  clamp), so 3200 gets 1600-level NR. Not changed yet; tune from a high-ISO test.
+- Recommendation for a Fuji-like rendering with zero risk: Image Adjust >
+  Sharpness -1 (Samsung's own control).
