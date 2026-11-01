@@ -108,7 +108,8 @@ EFFECT_TYPES = 0xC0766518    # effect -> art-effect type; [10]=5 (Sketch), [11]=
 #   (Nostalgic Neg., Custom RGB) keep the neutral slot 0.
 FIXES = [(0xC0449588, 0xE3A00008, 0xE3A0000C),   # still clamp: `mov r0,#8`  -> #12 (limit)
          (0xC04495DC, 0xE3A09008, 0xE3A0900B),   #              `mov sb,#8`  -> #11 (cap)
-         (0xC04D24FC, 0xE59F1400, 0xE3E014FF)]   # Sketch size rule: ldr r1,=0xFFF3E0 -> 0xFFFFFF
+         (0xC04D24FC, 0xE59F1400, 0xE3E014FF),   # Sketch size rule: ldr r1,=0xFFF3E0 -> 0xFFFFFF
+         (0xC0447100, 0xE35E0008, 0xE35E00FF)]   # live-view invert stage for style 8 (Sepia preview)
 # Per-hue saturation (PCSE stage 0xC04484B0). Table 0xC07BAD8C holds 5 entries of
 # 12 int32 (two linked halves of 6 bands), picked by ISO/light; Samsung uses it for
 # high-ISO colour-noise cuts. Calibrated with chart shots (CAL/CAL2 vs baseline):

@@ -1823,3 +1823,25 @@ manual portrait toggle.
 - Queued micro-tweaks folded in: Velvia PCSE G +250 -> 0; Classic Chrome matrix blue
   row 0.70 -> 0.80.
 - Added to the UI list (last): auto-rotate from face detection (no orientation sensor).
+
+
+## Build: FAUXJI15 — Sepia preview fix + film-look cheat sheet (`TL500-T`)
+- Owner (FAUXJI14): the preview matches the photos, except Sepia still previewed as a negative.
+  Live view has its own invert stage (0xC04470F0, `cmp lr,#8` at 0xC0447100) -> #0xFF.
+- Help lines now say what each look is **best for**, about 56-60 chars, e.g. Velvia "Vivid
+  slide film. Best for: landscapes, flowers, sunsets." (idx 988-996, 1295, 1296).
+  Space came from strings for hardware/features this camera lacks: 751 (alkaline-battery
+  warning), 838 (engineering sample), 966 (front-display demo), 1126 (touchscreen), 1310
+  (map/music format warning), 1369/1370 (composite modes from other models); 700 bytes
+  still spare. Whether ~60 chars fit on screen without clipping is still to check.
+
+## UI rework: order of work
+1. Check the cheat-sheet lines fit on screen (shorten if they clip).
+2. Bleach Bypass 5 MP: owner sets Photo Size to 10M once, see if it sticks.
+3. Shutter + start-up sounds (confirm .snd format by ear, then synthesized click/chime).
+4. Finish the Fuji-style menu pass (check C1/C2 Recipe, FILM BKT, D-Range, Grain Effect
+   screens; rename anything else the owner wants).
+5. FILM BKT: point Photo Style bracketing at three chosen looks.
+6. Menu theming: backgrounds (bg_menu*.jpg) and layouts (the 7 XML documents).
+7. Reproducible patch script: one command rebuilds FAUXJI from Samsung's official file.
+8. (Last) Auto-rotate portraits from face detection (no orientation sensor).
