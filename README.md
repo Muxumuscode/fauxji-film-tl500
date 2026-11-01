@@ -1537,3 +1537,37 @@ SPID.Rom edits, EXIF model `TL500-I`.
 - Changed bytes are confined to: the one directory size field, the English text table, and
   the image slot. First change to a SPID.Rom *file* (not text): if the power-on
   screen shows garbage or stays black, re-flash FAUXJI3's SPID.Rom.
+
+
+## FAUXJI3/4 field test (1 Nov 2026) and FAUXJI5 retune
+Owner: boot screen and renamed menus fine. 11 test shots SAM_0421-0431 (same room,
+P mode, ISO200 1/60, Daylight WB). Mean HSV saturation / luma:
+PROVIA 0.40/0.44, ASTIA **0.27**/0.50, Velvia 0.55/0.46, Reala 0.44/0.49,
+Classic Chrome 0.31/0.51, Classic Neg. 0.30/0.51, Eterna **0.42**/0.49, ACROS 0/0.48,
+Sepia **0.39 (colour)**, Bleach Bypass = Sketch (mono hatching), Nostalgic Neg. = Defog.
+Findings: (1) **Soft = style 7, Calm = style 2** (ASTIA came out desaturated, Eterna
+normal), so the data is swapped. (2) **Style 8 never used its matrix**: the CCMatrix switch
+covers 0-7 and its default only picked matrix 8 when flag this+0x3E was set. (3)
+Tone is the main gap from Fuji: Classic Chrome sits on the brightening curve 5 and
+Velvia has no extra contrast.
+
+### Build: FAUXJI5 (`extracted/tl500_008264_FAUXJI5/`, EXIF `TL500-J`)
+All in `tools/fauxji.py` (reproducible from FAUXJI4):
+- ASTIA/Eterna data swapped to the real slots.
+- Sepia: CCMatrix default case `ldrb lr,[fp,#0x3e]; cmp lr,#0; beq` (0xC044937C) ->
+  `ldr lr,[fp,#0xc]; cmp lr,#8; bne`, so style 8 uses its matrix (capture only; live
+  view has no such branch).
+- **Per-style tone curves:** hook 0xC0449864 (gamma stage, curve-base load) ->
+  `b 0xC0703740`; routine: if style < 12, special tone mode off (this+0x44 != 3) and
+  table[style] != 0xFF, point at a FAUXJI curve (key 0x20+n so the parameter refreshes),
+  else stock `0xC07B9AD4 + n*256`. Table 0xC07037A0, six 256-byte monotone-cubic
+  curves at 0xC07037B0-0xC0703DB0 (velvia, chrome, neg, eterna, astia, reala).
+  PROVIA/ACROS/Sepia keep the camera's own curve. Curves never lift black and keep a
+  soft shoulder above ~224 (11 EV CCD).
+  Samples (in 0,32,64,128,192,224,255): Velvia 0,22,52,134,208,234,255;
+  Chrome 0,19,46,120,192,222,250; Neg 0,17,45,128,210,236,255;
+  Eterna 0,31,65,128,185,213,246; Astia 0,32,66,131,191,221,253; Reala 0,28,60,129,197,227,255.
+- Classic Chrome / Classic Neg. / Eterna overall gain back near 1 (density now from the curve).
+- Caveat: curves live in the zero area beyond the proven cave (0xC0703740+); if a
+  look's tone is odd/corrupt, that area is being written at runtime. Live view
+  doesn't get the custom curves (its gamma stage is separate).
