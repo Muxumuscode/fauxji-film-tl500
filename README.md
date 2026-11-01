@@ -999,3 +999,25 @@ without any hardware.
 These may show test points / UART pads and the safe disassembly route.
 
 No public UART/serial notes exist for DRIMe III cameras (searched).
+
+
+### Downloaded: WB850F firmware 210086 with symbol map (1 Nov 2026)
+`firmware-original/wb850f/WB850F_FW_210086.zip` (62 MB, zip OK, link verified on
+Samsung AT page), extracted to `extracted/wb850f/` (both git-ignored). Contains
+`partialImage.o.map` (36.5 MB, ~95.5k symbols). Named exposure functions include:
+- Decision: `AeCalcProgramLine`, `AeCalcProgramLine2`, `STW_AE_CalcProgramLine`,
+  `LimitProgramLineMaxSV` (an existing program-line limit hook)
+- Capture shutter: `AeCalcCaptureTV`, `AeSetCaptureEShutter`,
+  `AeDriverEShutterSetCapTV`, `AeHWSetShutterConfig`, `CalcClkFromTv256`
+- Gain/ISO: `AeHWSetCaptureAGCGain`, `AeSetCaptureGain`, `AeSetSVTo`,
+  `CalcSv256FromISO`, `AeSetLiveSvMin`
+- Conversions: `CalcTv256FromTime`, `CalcShutterTime`
+
+**Key insight:** the AE works internally in **Tv256 / Sv256 (APEX x256)**. The x16
+values we kept clamping were downstream copies (EXIF/log), which explains every miss.
+
+Caveats: the WB850F is ~2 years newer and uses a Sony CMOS sensor (TL500 is CCD),
+so code differs; names must be matched into the TL500 by strings/structure.
+
+**EX1 Training PDF** (Part 1 Firmware, Part 2 Adjustment, Part 3 Disassembly) is
+behind a CAPTCHA on elektrotanya — owner to download manually into `docs-original/`.
