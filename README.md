@@ -1260,3 +1260,49 @@ prediction, about 1.2 stops below the no-comp value, and brightness drops 48 -> 
 (about -1 stop after JPEG gamma). Framing differs between the shots, so this is a cross-shot estimate,
 but the comp is clearly applied with the right sign. P-mode comp is the camera's
 stock behaviour.
+
+
+## Build: S80 — auto-ISO in S mode to 3200, Manual auto-ISO floor ISO 80 (1 Nov 2026)
+`extracted/tl500_008264_S80/` = EVC + 5 bytes, EXIF model `TL500-S`.
+- PL_Capt_TV (S mode, 0xC094AA82) rows 0-1: Sv 112 (ISO400) -> 160 (ISO3200). New
+  table `[(0,-64,160),(0,80,160),(0,80,75),(4,80,75),(4,168,75)]`: in dim light ISO
+  now rises to 3200 before anything else gives.
+- Cave 0xC0703724/28: auto-ISO floor Sv 80 -> 75 (ISO 80, the cleanest RAW).
+- Test: S mode, ISO Auto, 1/60 in a dim room -> ISO above 400 (was capped at 400);
+  M auto-ISO in bright light -> ISO 80 possible.
+
+
+## FAUXJI FILM PRO — Fuji-style JPEG looks (investigation, 1 Nov 2026)
+
+Idea: rewrite some of the TL500's built-in **Photo Styles** (Normal, Soft, Vivid,
+Forest, Retro, Cool, Calm, Classic, Custom RGB) into Fuji-like film simulations
+(Provia, Velvia, Astia, Classic Chrome, Classic Neg, Acros, Eterna). JPEG only; RAW
+is untouched (shoot RAW+JPEG to get both).
+
+**What the sister firmware shows (WB850F names):** styles are applied in the
+DRIMe III image pipeline by `CIpcDrimeIII::Update*4Still` (capture) / `*4Draft`
+(live view), one per pipeline block. The blocks a film look needs:
+| block | WB function | film-look use |
+|---|---|---|
+| colour matrix | UpdateCCMatrix4Still -> IPCS_ColorCorrection_param | hue shifts / channel mix (Classic Chrome, Neg) |
+| tone curve | UpdateGamma4Still -> IPCS_Tone_LUT (curves at ~0xC1400624.. in WB) | contrast, faded blacks, highlight roll-off |
+| colour LUT | UpdateCLUT4Still -> IPCS_ChromaLUT | per-hue saturation (Velvia, muted greens/blues) |
+| saturation | UpdatePCSE4Still (primary colour sat. enhance) | overall vividness |
+| monochrome | UpdateMono4Still | Acros (with a tone curve) |
+The firmware's own art effects (`ADE_LOMO_*`, `ADE_OldFaded_*`, `ADE_OldMovie_*`)
+drive exactly these blocks (Tone_LUT + ChromaLUT), which shows a "film look" is
+achievable with them. Playback-side style tables `g_tPss{Soft,Vivid,Forest,Retro,
+Cool,Calm}{Y,C}` (60 bytes each) exist too (for editing existing photos in playback).
+
+**TL500 side:** the matching code sits at 0xC0443000-0xC044B000 (fuzzy matches:
+UpdateCLUT4Still ~0xC044A4F4 42%, UpdateMono4Still ~0xC0447070 73%,
+UpdateCCMatrix4Still ~0xC0448FF4, UpdatePCSE4Still ~0xC0448940).
+
+**Feasibility:** good, and low-risk: if the per-style parameters are stored as data
+tables (likely, as in the playback tables and the AE program lines), each film sim
+is a **data edit** of one existing style: worst case, odd colours in the JPEG. Next steps:
+(1) find the per-style tables those TL functions index by the Photo Style value;
+(2) decode their format (matrix 3x3 ints, tone LUT, chroma LUT); (3) write
+recipes for each Fuji look; (4) test with the EXIF/pixel oracle (colour checks).
+Mapping proposal: Vivid->Velvia, Soft->Astia, Classic->Acros (mono + punchy curve),
+Retro->Classic Chrome, Calm->Eterna, Cool->Classic Neg; Normal stays Provia-like.
