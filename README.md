@@ -1306,3 +1306,8 @@ is a **data edit** of one existing style: worst case, odd colours in the JPEG. N
 recipes for each Fuji look; (4) test with the EXIF/pixel oracle (colour checks).
 Mapping proposal: Vivid->Velvia, Soft->Astia, Classic->Acros (mono + punchy curve),
 Retro->Classic Chrome, Calm->Eterna, Cool->Classic Neg; Normal stays Provia-like.
+
+### S80 field test #1 (1 Nov 2026): ISO 80 floor works; S-mode test still to shoot
+SAM_0418 (`TL500-S`, M auto-ISO, 1/15 f/1.8, EV 0): MakerNote Sv 75 = **ISO 80**,
+brightness 118 (well exposed). The S-mode auto-ISO-to-3200 change isn't tested yet
+(no S-mode shot on the card).
