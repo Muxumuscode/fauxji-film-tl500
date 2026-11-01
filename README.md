@@ -1473,3 +1473,50 @@ Open: the menu-name -> style-number mapping is inferred from the stock matrices,
 so Soft/Calm (2/7) and Cool/Forest (3/5) need confirming with test shots.
 Bleach Bypass / Nostalgic Neg. (Sketch/Defog, styles 10/11) aren't in the matrix
 table (the CCMatrix switch only handles 0-7, default for others), so they still need a code change.
+
+
+## FAUXJI expansion study (1 Nov 2026, desk research while away from the camera)
+
+### Resource ROM file system (SPID.Rom)
+SPID.Rom starts with a directory of named files (`/int/rom/...`): **record = 128-byte
+name + u32 offset + u32 size** (stride 144; verified on all 36 JPEGs). Contents:
+58 .raw images, 36 .jpg backgrounds, 26 .snd sounds, plus PNG icons and **7 XML
+screen-layout documents** (`page/layer/region/group/div/bitmap` with id, resource,
+x, y, width, height), so screens can be re-laid-out as text.
+- **Boot screen** = `bg_power_on_off_422.jpg` at 0x01A92800, 640x480 baseline JPEG
+  (4:2:2), 21,504 bytes, **slot 22,528 bytes**. A FAUXJI draft
+  (`research-out/fauxji_boot_draft.jpg`, original design, no Fujifilm marks) is
+  21,275 bytes, so it fits as-is (update the size field). Menu backgrounds
+  `bg_menu*.jpg` can be themed the same way.
+- **Sounds**: `Shutter1/2/3_32m.snd`, `ShutterShort_32m.snd`, `PowerOn1/2/3_mono.snd`:
+  headerless, likely 16-bit mono at 32 kHz (0.15-1.5 s; rate to confirm by ear);
+  each slot has a little spare room. A synthesized leaf-shutter click and a short
+  power-on chime can replace them (Shutter/Start Sound 1/2/3 are user-selectable).
+- **No-flash option today:** Setup > Start Image > *User Image* shows any photo at
+  power-on: shoot or copy a FAUXJI logo image and select it.
+
+### What the firmware already has that maps to Fuji features
+| Fuji feature | TL500 equivalent found | FAUXJI plan | effort |
+|---|---|---|---|
+| Film simulations | Photo Style (9 slots + Sketch/Defog) | done: names + matrices (FAUXJI3) | done / tune |
+| Custom settings C1-C7 (recipes) | **User Mode 1 / User Mode 2** ("save current settings") | rename "C1 Recipe"/"C2 Recipe"; store e.g. a Classic Chrome and an ACROS recipe | text only |
+| Film simulation bracketing | **PSS BKT** (Photo Style bracket) | rename "FILM BKT"; find which 3 styles it shoots and point them at three sims | text + small data/code |
+| Dynamic Range DR100/200/400 | **Smart Range**, **ACB** | rename "D-Range" / "DR Auto" | text |
+| Highlight / Shadow tone | 9 tone curves + Contrast setting | per-style curves (code patch: style -> curve table; new curves in a cave); repurpose Contrast as "Tone" | code, medium |
+| Grain effect | "Add Noise" (playback edit, aged look) | rename "Grain Effect"; capture-time grain = long shot | text / hard |
+| Colour Chrome effect | CLUT stage (per-hue saturation) 0xC044A4F4 | decode CLUT tables, deepen reds/blues per sim | decode, medium |
+| WB shift per recipe | WB detail (BA/GM shifts) saved in User Mode | include in recipes | none |
+| Q menu | Fn panel + XML layouts | reorder / relabel via the layout XML | medium |
+| Fuji-like shutter sound | Shutter Sound 1/2/3 | replace one with a synthesized click | data |
+| Boot logo | Start Image Logo / power-on JPEG | FAUXJI boot screen | data, easy |
+| Assignable button | "User can designate the function of AEL button" | assign to Photo Style for a one-press film sim | none / check |
+
+### Suggested order (lowest risk first, each a data edit)
+1. Boot screen JPEG + renames (User Mode -> C1/C2, PSS BKT -> FILM BKT, Smart
+   Range -> D-Range, Add Noise -> Grain Effect): one flash, text/image only.
+2. Confirm the style-number mapping with the FAUXJI3 test shots; fix swaps.
+3. Shutter/start sounds (after confirming the .snd sample rate).
+4. Per-style tone curves (small code patch) -> real Classic Chrome shadows, Eterna
+   softness, Velvia punch.
+5. Real colour for Bleach Bypass / Nostalgic Neg. (styles 10/11 -> matrix + curve slots).
+6. CLUT (Colour Chrome-like) and film-sim bracketing.
