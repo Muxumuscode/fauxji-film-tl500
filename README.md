@@ -1429,3 +1429,11 @@ Owner confirms both are selectable in RAW and RAW+JPEG. So menu **0x88 is the
 Photo Style / filter list** whose items 1 and 2 are the two late-added entries
 (Sketch, Defog), and its RAW allow-mask was 0xFFFFF9. Still to check: a shot with
 each in RAW+JPEG (capture completes, the JPEG gets the effect, the RAW is unaffected).
+
+### FAUXJI2 capture test (1 Nov 2026): RAW+JPEG works with both
+SAM_0419 (Sketch slot, "Bleach Bypass"): JPEG 2592x1944, i.e. Samsung's Sketch effect
+renders at 5 MP; pencil-hatch black and white. SAM_0420 (Defog slot, "Nostalgic
+Neg."): JPEG full 3648x2736, contrast/clarity boost. Both wrote normal-size SRW files
+(24.9 / 24.3 MB) and the camera didn't hang. RAW cleanliness not yet viewed (no RAW
+decoder installed here). Sketch is a structural effect (edge hatching, reduced
+size), so a real film look in that slot means redirecting its processing.
