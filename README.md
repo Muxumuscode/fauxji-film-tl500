@@ -1200,3 +1200,9 @@ selectable): every mode gets 0xFFFFFF, but `if mode == 5 (Manual)` it gets
 Patch: the two `bne` after `cmp fp,#5` at 0xC04D2108 / 0xC04D2258 -> `b` (Manual
 never gets the 0xFFFE mask), and 0xC04D2320 `mov r1,#0xE` -> `#0xF`. GUI-only change.
 Test: M mode -> ISO menu -> Auto should be selectable, not greyed.
+
+### MAUTO2 field test (1 Nov 2026): SUCCESS
+Owner confirms: in M mode, ISO Auto is now selectable directly in the menu (no longer
+greyed out). Feature complete: P/A hold 1/60 with auto-ISO 100-1600; M offers Auto
+ISO (camera picks ISO for the chosen shutter/aperture, 100-1600) or any fixed ISO.
+Current firmware on the camera: `extracted/tl500_008264_MAUTO2/` (model `TL500-U`).
