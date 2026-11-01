@@ -1683,3 +1683,12 @@ NR left stock (stronger NR would smear the fine grain; this is near the CCD's li
   orreq r0,r0,#0x800; cmp r2,#9; orreq r0,r0,#0x100; strd r0,r1,[sp,#0x10]`, so Sepia
   previews in sepia (live slot 8) and Bleach Bypass in B&W (live slot 1, ACROS);
   Nostalgic Neg. and Custom RGB preview neutral (colour looks, per the owner's request).
+
+### FAUXJI9 field test (1 Nov 2026): all looks reach their own colour
+SAM_0455-0464 (`TL500-N`, MakerNote style byte checked): style 9 Bleach Bypass is now
+desaturated/hard (sat90 0.58 vs PROVIA 0.91) instead of Sepia; style 10 Nostalgic
+Neg. is warm and soft (IQR 0.38, p10 0.15); every other style as designed. Bleach
+Bypass still saved at 2592x1944: most likely the Photo Size setting the old Sketch rule
+set to 5M is still stored (the rule itself is now off); owner to set 10M and see if it sticks.
+Recipe tweak queued for the next build: Bleach Bypass saturation 0.38 -> ~0.30 (reds
+still a bit strong after the hard curve).

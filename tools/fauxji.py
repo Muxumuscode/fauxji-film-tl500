@@ -63,7 +63,7 @@ LOOKS = {
     7: look(sat=(1.00, 1.10, 1.10), gain=(1.01, 1, 0.99)),      # ASTIA: soft skin, clean sky/green
     8: look(mono=(0.33, 0.57, 0.10), gain=(1.08, 1.0, 0.80)),   # Sepia: warm-toned monochrome
     # styles 9/10 were Samsung's Sketch / Defog effects (art-effect engine switched off below)
-    9: look(sat=(0.38, 0.38, 0.40), gain=(1.0, 1.0, 1.02)),     # Bleach Bypass: silvery, very low
+    9: look(sat=(0.28, 0.30, 0.32), gain=(1.0, 1.0, 1.02)),     # Bleach Bypass: silvery, very low
                                                                 #   saturation, hard curve
     10: look(sat=(1.05, 1.00, 0.95), gain=(1.06, 1.01, 0.88)),  # Nostalgic Neg.: amber highlights,
                                                                 #   rich warm reds, soft curve
