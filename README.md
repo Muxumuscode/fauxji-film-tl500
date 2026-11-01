@@ -1021,3 +1021,41 @@ so code differs; names must be matched into the TL500 by strings/structure.
 
 **EX1 Training PDF** (Part 1 Firmware, Part 2 Adjustment, Part 3 Disassembly) is
 behind a CAPTCHA on elektrotanya — owner to download manually into `docs-original/`.
+
+
+## Function matching WB850F -> TL500: the real AE engine located (1 Nov 2026)
+
+String matching failed (the AE core uses no text), so `tools/fuzzy_match.py`
+fingerprints each named WB850F function as mnemonic 6-grams and votes for the best
+TL500 alignment. Validation: WiFi/SSL functions (absent on the TL500) score 3-16%,
+and matched AE functions appear in the **same order with byte-identical spacing**
+(e.g. AeSearchBiggerfloor->AeFlashModeAvCheck = 0xAC in both; ->AeReadPLParam =
+0x11C in both). The AE program-line module sits at **0xC0538000-0xC0546000** in the
+TL500 — a region not examined before.
+
+| WB850F function | TL500 address | score |
+|---|---|---|
+| STW_AE_CalcProgramLineTable | 0xC0538A3C | 100% |
+| STW_AE_CalcProgramLine | 0xC05385DC | 90% |
+| STW_AE_CalcProgramLineTable2 | 0xC0538CFC | 91% |
+| AeCalcCaptureTV | 0xC0540644 | 68% |
+| AeCalcCaptureLTTV | 0xC05406D0 | 80% |
+| AeSearchBiggerfloor | 0xC0541CD4 | 100% |
+| AeAdjustAVtoDefaultAV | 0xC0541D3C | 90% |
+| AeFlashModeAvCheck | 0xC0541D80 | 100% |
+| AeReadPLParam | 0xC0541E9C | 96% |
+| AeCalcProgramLine / ...2 | 0xC05420B0 / 0xC05420DC | 100% |
+| AeSetSVTo | 0xC05426F8 | 100% |
+| LimitProgramLineMaxSV | 0xC0542788 | 50% |
+| CalcHandShakeTv256FromFL35 | 0xC05454F8 | 40% (to confirm) |
+| AeSetCaptureGain | 0xC03E5F7C | 26% (weak) |
+
+**Why this matters:** these are the functions that *decide* exposure (Tv256/Sv256),
+upstream of every copy we clamped before. The camera also has a built-in
+"hand-shake Tv" concept (minimum handheld shutter from focal length) — the same idea
+as the owner's min-shutter feature, so the feature may reduce to raising an existing
+floor rather than injecting new logic.
+
+**Next:** confirm the hand-shake function and read how AeReadPLParam /
+LimitProgramLineMaxSV apply limits; then design a clamp at the decision (Tv256 for
+1/60 = 6*256 = 1536) and test with the EXIF oracle.
