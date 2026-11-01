@@ -1845,3 +1845,7 @@ manual portrait toggle.
 6. Menu theming: backgrounds (bg_menu*.jpg) and layouts (the 7 XML documents).
 7. Reproducible patch script: one command rebuilds FAUXJI from Samsung's official file.
 8. (Last) Auto-rotate portraits from face detection (no orientation sensor).
+
+### FAUXJI15 field test: SUCCESS
+Owner: the cheat-sheet lines fit on screen and look great; Sepia previews correctly.
+UI steps 1 and the Sepia preview are done.
