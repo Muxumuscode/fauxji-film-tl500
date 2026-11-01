@@ -1123,3 +1123,20 @@ tables already use Sv150. Open risks: a separate max-ISO limiter
 (LimitProgramLineMaxSV) could cap at 800, and flash or slow-sync paths may bypass
 the table. Test: P and A in dim and very dark rooms, flash off -> expect 1/60 with
 ISO up to 1600, darker photos in very dark scenes.
+
+### HOLD60 field test (1 Nov 2026): SUCCESS — 1/60 floor works in P and A
+| photo | mode | shutter | ISO | aperture | brightness |
+|---|---|---|---|---|---|
+| SAM_0399 | A | 1/60 | 1600 | f/1.8 | 30 |
+| SAM_0400 | A | 1/60 | 1600 | f/1.8 | 55 |
+| SAM_0401 | P | 1/60 | 1600 | f/1.8 | 47 |
+| SAM_0402 | P | 1/60 | 200 | f/1.8 | 73 |
+| SAM_0403 | P | 1/60 | 640 | f/1.8 | 129 |
+
+All five carry Model `TL500-6`. Every shot is 1/60; ISO moves freely (200, 640,
+1600) to match the light, so the camera is doing auto-ISO with a minimum shutter
+speed. In the darkest scenes it stops at ISO1600 and underexposes instead of
+slowing down, as designed. ISO1600 is reached, so no hidden 800 limiter applies.
+**The owner's main feature is done: pure data edit, 13 bytes vs stock in total
+(3 cosmetic EXIF/day-name changes aside).** Not yet checked: flash-on behaviour.
+Next project: auto-ISO selectable in Manual mode.
