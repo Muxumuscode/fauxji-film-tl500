@@ -1437,3 +1437,39 @@ Neg."): JPEG full 3648x2736, contrast/clarity boost. Both wrote normal-size SRW 
 (24.9 / 24.3 MB) and the camera didn't hang. RAW cleanliness not yet viewed (no RAW
 decoder installed here). Sketch is a structural effect (edge hatching, reduced
 size), so a real film look in that slot means redirecting its processing.
+
+
+## FAUXJI colour decode (1 Nov 2026): every Photo Style is a 3x3 matrix + flags
+
+Capture pipeline order (TL `UpdateStillParams` 0xC0444A98): BNR 0xC0447DB0, LCA
+0xC04480E0, WBC 0xC0448128, CFAI 0xC0448420, PCSE 0xC04484B0, **CCMatrix
+0xC0448FF4**, **Gamma/tone 0xC0449730**, FC, CM, CS, ETC, HPF, EE, EGLUT, YCNR,
+**CLUT 0xC044A4F4**, **Mono 0xC044AD9C**, **Nega 0xC044AE1C**, Moire, CA. Live view
+has its own list at 0xC04449C8. The internal style number is `this+0xC`.
+
+- **Colour matrix:** final = sensor CCM (per ISO, 0xC07BB190, /128) x **style matrix
+  0xC07BB28C[style]** (3x3 int32, 256 = 1.0; live-view copy 0xC07B3C40). Each
+  stage builds a 64-bit key (byte 1 = style) and registers its parameter block with
+  0xC0444204; 0xC04446D8 = 3x3 multiply.
+  Stock style matrices, identified by character (internal order != menu order):
+  0 identity (Normal), 1 all rows (78,150,28) = B&W (Classic), 2 mild desat +12%
+  (Soft?), 3 blue +22% (Cool), 4 warm desat (Retro), 5 green up (Forest), 6
+  saturating (Vivid), 7 mild desat (Calm?), 8 near identity (Negative).
+- **Tone curve:** 9 curves of 256 bytes at 0xC07B9AD4 + n*256 (0-4 = Contrast -2..+2
+  via table 0xC07BB4DC; 2 is linear; 5-8 brighter variants). Code picks: style 1 ->
+  curve 4, styles 4/5/7 -> curve 5, special mode (this+0x44 == 3) -> this+0x54 + 5,
+  else Contrast. Per-style curves therefore need a code change (later).
+- **Mono stage** on only for style 1; **Nega (invert) stage** on only for style 8.
+
+### Build: FAUXJI3 (`extracted/tl500_008264_FAUXJI3/`, FAUXJI2 + 230 bytes, EXIF `TL500-H`)
+`tools/fauxji.py` writes the FAUXJI matrices (both copies) from readable knobs
+(per-row saturation, channel gains, hue cross-mixes, overall gain) and switches off
+the invert stage for the Sepia slot (0xC044AE2C `cmp lr,#8` -> `#0xFF`).
+PROVIA identity; ACROS mono (0.35R/0.55G/0.10B); ASTIA sat 1.0/1.1/1.1, slightly
+warm; Classic Neg. green sat 0.7, yellow-ish greens, cool; Classic Chrome sat
+0.7-0.8, cyan blues, -8%; Reala Ace sat 1.08; Velvia sat 1.2/1.4/1.4; Eterna sat
+0.65, teal; Sepia warm mono.
+Open: the menu-name -> style-number mapping is inferred from the stock matrices,
+so Soft/Calm (2/7) and Cool/Forest (3/5) need confirming with test shots.
+Bleach Bypass / Nostalgic Neg. (Sketch/Defog, styles 10/11) aren't in the matrix
+table (the CCMatrix switch only handles 0-7, default for others), so they still need a code change.
