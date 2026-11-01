@@ -1100,3 +1100,12 @@ Tv96 (1/60) from ISO100 up to ISO800 (Sv128); below that the shutter slows towar
 Brighter half of the table unchanged. Test: Program/A mode in a dim room -> expect
 1/60 with ISO rising to 800; only very dark scenes go slower. If capture still lands
 at 1/15, the half-press lock tables (PL_Lock_*) may also need the same edit.
+
+### MINSHUT field test #1 (1 Nov 2026): the table edit changes real exposure
+Photos SAM_0393-0398 carry EXIF Model `TL500-M` (build confirmed). In Program and
+Aperture modes the camera now uses **ISO 800** — it never exceeded ISO 400 in these
+modes before — so PL_Capt_Program is live and drives capture. Same dark spot:
+demo build 1/3 @ ISO400 (brightness 87) vs MINSHUT 1/3 @ ISO800 (brightness 126).
+All test scenes were very dark (1/3-1/6 even at ISO800), i.e. the 'ISO maxed, slow
+the shutter' segment, which is correct per the new table. Still to verify: the 1/60
+hold in moderately dim light (expect 1/60 with ISO 200-800).
