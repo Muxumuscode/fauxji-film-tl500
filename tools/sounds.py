@@ -44,6 +44,51 @@ def _impact(n, modes, rng, bounces=((0, 1.0),), click=0.0007):
     return out
 
 
+def _clack(n, rng, bright, size, rattle=4):
+    """One mechanical impact, v3: noisy, not tonal. Dense inharmonic modes that die in
+    1-4 ms (no pitch to hear), a broadband crack, a few rattle micro-hits, a short thump.
+    bright: centre of the metal band (Hz); size: 1 = small part, 2 = big part."""
+    t = np.arange(n) / RATE
+    exc = np.zeros(n)
+    hits = [(0.0, 1.0)] + [(rng.uniform(0.0012, 0.012) * size, rng.uniform(0.15, 0.5)) for _ in range(rattle)]
+    for d, a in hits:
+        k = int(d * RATE); m = int(0.0006 * RATE) + 2
+        if k + m < n:
+            exc[k:k + m] += a * rng.standard_normal(m)
+    out = np.zeros(n)
+    for _ in range(40):
+        f = np.exp(rng.uniform(np.log(bright / 3), np.log(bright * 2.5)))
+        decay = rng.uniform(0.0008, 0.004) * size
+        h = np.sin(2 * np.pi * f * t[:int(0.03 * RATE)] + rng.uniform(0, 6.28)) * np.exp(-t[:int(0.03 * RATE)] / decay)
+        out += rng.uniform(0.3, 1.0) * np.convolve(exc, h)[:n]
+    out /= np.abs(out).max() + 1e-9
+    crack = _bandpass_noise(n, 800, 12000, rng) * np.exp(-t / (0.0025 * size))
+    thump = np.sin(2 * np.pi * rng.uniform(110, 170) / size * t) * np.exp(-t / (0.006 * size))
+    return out + 0.9 * crack + 0.35 * thump
+
+
+SHUTTERS_V3 = {
+    # (event start s, level, brightness Hz, size)
+    'A': dict(events=((0.003, 1.0, 4500, 1.0), (0.030, 0.8, 5200, 0.9)), length=0.08),            # leaf
+    'B': dict(events=((0.003, 1.0, 3000, 1.3), (0.024, 0.5, 3600, 1.0), (0.070, 0.9, 2700, 1.4)),  # rangefinder
+              length=0.12),
+    'C': dict(events=((0.003, 1.0, 2000, 1.8), (0.034, 0.6, 3200, 1.2), (0.105, 0.9, 1800, 2.0),   # SLR
+                      (0.128, 0.4, 2400, 1.4)), length=0.19),
+}
+
+
+def shutter_v3(kind):
+    p = SHUTTERS_V3[kind]
+    rng = np.random.default_rng(11)
+    n = int(p['length'] * RATE)
+    out = np.zeros(n)
+    for start, level, bright, size in p['events']:
+        s = int(start * RATE)
+        out[s:] += level * _clack(n - s, rng, bright, size)
+    fade = np.ones(n); fade[-int(0.006 * RATE):] = np.linspace(1, 0, int(0.006 * RATE))
+    return out * fade / np.abs(out).max() * 22000
+
+
 SHUTTERS = {
     # leaf shutter: small blades, bright metallic modes, two quick events 28 ms apart
     'A': dict(events=((0.003, 1.0), (0.031, 0.75)),
@@ -104,6 +149,7 @@ if __name__ == '__main__':
         os.makedirs(sys.argv[2], exist_ok=True)
         clips = {'chime': chime()}
         clips.update({'shutter_%s' % k: shutter(k) for k in SHUTTERS})
+        clips.update({'shutter_v3_%s' % k: shutter_v3(k) for k in SHUTTERS_V3})
         for name, x in clips.items():
             w = wave.open(os.path.join(sys.argv[2], 'fauxji_%s.wav' % name), 'wb')
             w.setnchannels(1); w.setsampwidth(2); w.setframerate(RATE); w.writeframes(pcm(x)); w.close()
