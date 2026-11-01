@@ -1171,3 +1171,20 @@ If the M-mode menu still greys out Auto, there's a workaround: select Auto in P,
   ISO is Auto in Manual; a fixed ISO in Manual is untouched.
 - Test: M mode, ISO Auto, same shutter/aperture in brighter and darker spots ->
   EXIF ISO should change with the light and brightness should stay similar.
+
+### MAUTO field test (1 Nov 2026): SUCCESS — auto-ISO works in Manual
+Menu: Auto is still greyed out in M, but selecting Auto in another mode and turning
+to M keeps it (patch 1 works). All shots Manual, 1/60, f/1.8, model `TL500-A`:
+
+| photo | scene | ISO | brightness |
+|---|---|---|---|
+| SAM_0404 | room against bright windows | 200 | 48 (metered for windows; normal) |
+| SAM_0405 | dark under a desk | 1600 (cap) | 39 |
+| SAM_0406 | red wall / TV | 1600 | 105 |
+| SAM_0407 | floor and sofa | 640 | 112 |
+| SAM_0408 | legs on tiles | 1280 | 123 |
+
+ISO follows the light with the shutter and aperture fixed, and normal scenes land at
+brightness 105-123 (P-mode reference: 129), so the injected formula
+`Sv = Tv + Av - Ev + 80` has the right sign and scale. Remaining polish: un-grey
+Auto in the M-mode ISO menu (menu-disable mask; ISO's id still to identify).
