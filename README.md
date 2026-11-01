@@ -1723,3 +1723,12 @@ green 0.67, spring 0.83, cyan 0.97, azure 0.76, blue 0.69, violet 0.50, magenta
 desaturates yellow, so a **baseline shot without the cuts is needed** to separate the two.
 FAUXJI10 (`TL500-O`) = FAUXJI9 + Bleach Bypass sat ~0.30, PCSE tables stock: flash it,
 shoot the same chart the same way, then diff the two per patch.
+
+### Baseline (SAM_0468, FAUXJI10) vs CAL: saturation kept per patch
+yellow 0.39, lime 0.60, rose 0.66, green 0.71, blue 0.85, magenta 0.86, violet 0.87,
+orange 0.88, red 0.89, azure 0.89, spring 0.95, cyan 0.99 (red/cyan patches clip,
+hiding small cuts). Settled: **col5 (-1800) = yellow**, **col4 (-1500) = magenta/rose**,
+**col2 (-900) = blue** (matches Samsung cutting col2 at high ISO: the CCD's noisiest channel).
+Cols 0/1/3 (red/green/cyan, some order) still ambiguous.
+**CAL2** (`TL500-D`): AD8C rows = (-1800, +1200, 0, -600, 0, 0): big cut / boost / small
+cut on cols 0/1/3 only, which also checks that positive values add saturation.
