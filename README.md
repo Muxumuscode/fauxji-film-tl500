@@ -1764,3 +1764,22 @@ Skin sits in band R, so Velvia would push skin orange and Classic Chrome / Etern
 grey it. **FAUXJI12** (`TL500-Q`, PCSE copies only): Velvia R -550, B +600, G +400;
 Classic Chrome R -300, B +1000, C +450, M -400; Classic Neg. G -1100, Y -600, R -50;
 Eterna R -100, B +150, G 0, Y -150; ASTIA B +450, G +350.
+
+### FAUXJI12 field test: flowers / selfies (sky and no sky) / sunset, SAM_0488-0533
+Flowers (aligned, vs PROVIA): Velvia pink +35% orange +29% green +58%; Classic Chrome
+pink -35% yellow -49%; Classic Neg. pink -32% yellow -48% green -10%; Eterna -37..-65%;
+Bleach -58..-76%; Reala ~0..+8%; ASTIA ~-15% warm, +4% green. **Neutral road tinted**
+in strong looks (PROVIA sat 0.02 -> Velvia 0.13 green, Reala 0.08, ASTIA 0.07 yellow-green).
+Selfies (face pixels, centre crop): PROVIA skin hue ~22 sat 0.47 (warm evening light);
+Classic Chrome 0.45 (alive, not grey), Eterna 0.32, Classic Neg. hue 27 (slightly yellow);
+Velvia skin mostly beyond 0.58 sat, orange wall 0.51 -> 0.73 (too hot).
+Sunset (similar exposures except PROVIA/Bleach at 1/1500): sky sat Velvia 0.55,
+Reala 0.40, Classic Neg. 0.36, ASTIA 0.31, Classic Chrome 0.30, Nostalgic 0.26,
+Eterna 0.19; clipping lowest in Classic Chrome (0.4%), highest Classic Neg. (4.8%);
+sun halo PROVIA hue 50 (warm) vs 71-98 (yellow-green) in Reala/Neg/ASTIA/Velvia/Eterna,
+from red cuts plus green boosts acting on near-neutrals.
+**FAUXJI13** (`TL500-R`): Reala PCSE all 0; ASTIA (0,+450,+150,+200,0,0); Velvia
+(-750,+600,+250,+300,+150,-150) and matrix red row 1.2 -> 1.1; Classic Chrome
+B +1300, C +600. Bleach Bypass still 2592x1944: no other UI size rule found (the
+PSS==1/2 check at 0xC04D2D28 only resets the style in some modes); most likely the
+stored Photo Size is still 5M.

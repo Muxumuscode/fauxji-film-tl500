@@ -59,7 +59,8 @@ LOOKS = {
     4: look(sat=(0.55, 0.65, 0.70), gain=(1.02, 1, 0.97),       # Classic Chrome: muted, cyan blues
             mix=[(G, Bl, 0.06)], overall=0.97),                 #   (density comes from its curve)
     5: look(sat=(1.00, 1.00, 1.00)),                            # Reala Ace: PROVIA colour, crisper curve
-    6: look(sat=(1.20, 1.40, 1.40)),                            # Velvia: big greens/blues, reds held back
+    6: look(sat=(1.10, 1.40, 1.40)),                            # Velvia: big greens/blues, reds held back
+                                                                #   (red row 1.2 -> 1.1: skin/orange walls ran hot)
     7: look(sat=(1.00, 1.10, 1.10), gain=(1.01, 1, 0.99)),      # ASTIA: soft skin, clean sky/green
     8: look(mono=(0.33, 0.57, 0.10), gain=(1.08, 1.0, 0.80)),   # Sepia: warm-toned monochrome
     # styles 9/10 were Samsung's Sketch / Defog effects (art-effect engine switched off below)
@@ -124,15 +125,20 @@ PCSE_HOME_END = 0xC04260A0
 # blue; Classic Chrome blues -30% -> much more blue/cyan, lighter red cut (brown skin
 # went grey); Classic Neg. greens only -8% -> drain more; Eterna -45% everywhere ->
 # give some colour back; ASTIA ~= PROVIA -> a bit more sky/greenery.
+# Round 3 (flowers / selfies / sunset, SAM_0488-0533): grey road and sun halo drift
+# yellow-green where a red cut meets a green boost (PCSE also acts on near-neutrals),
+# Velvia's orange wall +43% and skin past 0.58 sat, Classic Chrome sky 0.30 (should be
+# deeper). So: fewer red cuts / green boosts on the natural looks, Velvia red/yellow
+# down, Classic Chrome blue/cyan up.
 #            R     B     G     C     M     Y
 HUE = {0:  (0,    0,    0,    0,    0,    0),      # PROVIA
        1:  (0,    0,    0,    0,    0,    0),      # ACROS (mono)
        2:  (-100, 150,  0,    250,  -200, -150),   # Eterna: teal cyan, quiet reds/yellows
        3:  (-50,  100,  -1100, 250, -300, -600),   # Classic Neg.: drained greens/yellows
-       4:  (-300, 1000, -350, 450,  -400, -400),   # Classic Chrome: muted reds, deep blues
-       5:  (-100, 100,  100,  0,    0,    0),      # Reala Ace: natural, gentle
-       6:  (-550, 600,  400,  300,  150,  250),    # Velvia: big greens/blues, skin held back
-       7:  (-150, 450,  350,  200,  0,    0),      # ASTIA: soft skin, vivid sky/greenery
+       4:  (-300, 1300, -350, 600,  -400, -400),   # Classic Chrome: muted reds, deep blues
+       5:  (0,    0,    0,    0,    0,    0),      # Reala Ace: PROVIA colour, crisper curve
+       6:  (-750, 600,  250,  300,  150,  -150),   # Velvia: big greens/blues, skin held back
+       7:  (0,    450,  150,  200,  0,    0),      # ASTIA: soft skin, vivid sky/greenery
        8:  (0,    0,    0,    0,    0,    0),      # Sepia (mono)
        9:  (0,    0,    0,    0,    0,    0),      # Bleach Bypass (matrix does it)
        10: (200,  -300, -250, -250, 0,    350),    # Nostalgic Neg.: amber, warm reds
