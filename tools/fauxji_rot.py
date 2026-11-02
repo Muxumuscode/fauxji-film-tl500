@@ -35,8 +35,8 @@ R1, R1_END = 0xC04260A0, 0xC042620C
 R2, R2_END = ui.ZOOM_HOOK + 16, ui.EXTRA_END
 STATE, FACE_ORI, FACE_TTL, KEY = R1, R1 + 4, R1 + 8, R1 + 12
 assert STATE == ui.ROT_STATE and KEY == ui.ROT_KEY
-KEY_DEFAULT = 0xFF                    # no learned key (set to the video button's number later)
-DIAG = True                           # FAUXJI41 test build: pop-up shows the number of any pressed key
+KEY_DEFAULT = 9                       # the VIDEO button (found with the FAUXJI41 test build)
+DIAG = False                          # True = FAUXJI41 test build: pop-up shows the number of any pressed key
 WRITER_SITE, WRITER_BACK = 0xC0385F00, 0xC0385F04
 FD_SITE, FD_BACK = 0xC058FA0C, 0xC058FA10
 KEY_SITE, KEY_STOCK = 0xC04C1A98, 0xC04C1414

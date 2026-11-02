@@ -2323,3 +2323,9 @@ is from a newer firmware and does not exist on the TL500 (the on/off item is Sma
 FAUXJI41 = FAUXJI40 + `DIAG` in tools/fauxji_rot.py: any key reaching the live-view dispatcher (except
 AE-L, key 0/14) pops up "Tilt key = NN" on press. Test: press VIDEO and read NN; if no pop-up, VIDEO does
 not pass the dispatcher. Next: hard-code NN as KEY_DEFAULT and set DIAG = False.
+
+## FAUXJI42: VIDEO button hard-coded as the tilt button (`TL-F42`, 2 Nov 2026)
+FAUXJI41 test: the VIDEO button's logical key is 9 (it does pass the live-view dispatcher). `KEY_DEFAULT = 9`,
+`DIAG = False` in tools/fauxji_rot.py. VIDEO now cycles Off / Auto / Auto flip / top right / top left / press-a-key
+with a pop-up and no longer starts a recording (state "press a key" can still re-learn another button).
+Unverified on camera.
