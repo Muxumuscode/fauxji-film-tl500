@@ -39,7 +39,7 @@ root (`E:` on the owner's PC). Commit and push after each build.
 **Current state (2 Nov 2026):**
 - On camera and confirmed: everything through FAUXJI34 (looks, menus, shooting screen,
   pop-ups, busy animation).
-- **FAUXJI37 built (NOT flashed): tilt tag = auto-rotate, see the section at the end.**
+- **FAUXJI38 built (NOT flashed): tilt tag = auto-rotate on a learnable button, see the section at the end.**
 - **FAUXJI36 built (text only, NOT flashed):** DR names (menu title "D-Range", options
   Off / DR200 / DR400 with matching help lines). Test: shoot a high-contrast scene at each
   setting and check whether highlights really differ; if Exp.1 is not ~1 stop, rename.
@@ -221,21 +221,24 @@ memory and merge code: research only.
   (B) automatic: face angle from the detector -> flag. B needs one on-camera fact first:
   does the face box appear when the camera is held vertically?
 
-## FAUXJI37: tilt tag (auto-rotate), `TL-F37` — test plan
-Rewrote the working notes above: the writers at 0xC03773E0 / 0xC0383120 / 0xC0388668 are dead code
-(`tools/liveness.py`); the live EXIF writer is 0xC0385868, whose Orientation case stores a constant 1
-(hook at 0xC0385F00). And the stock face detector (SDIC_FaceDetection 0xC058F798) already scans
-rotated faces in a 13-frame cycle (0, -30, +30, -90, +90, -60, +60 degrees), so sideways faces ARE
-detected; a hook at its end (0xC058FA0C) remembers a +-90 hit.
-Control: **AE-L button -> its "AE-L" option, now labelled TILT TAG** (set it in the menu: AE-L Button).
-Each press cycles a pop-up: Off / Auto / Auto flip / top right / top left. Power-on state: Off.
-Tests at home (Face Detection must be ON in the shooting menu for Auto):
-1. Press the button: pop-up text changes through the 5 states (and stock AE lock is gone).
-2. "top right" + a vertical shot (camera top to the right): EXIF Orientation 6; "top left": 8.
-   Check on the PC and in the camera's playback (does it show upright?).
-3. Auto: face in a vertically held frame. Expect a few seconds of aiming at the face before the shot
-   (the +-90 scan runs once per 13 detector frames). Report Orientation of the result; if it is the
-   wrong way round use "Auto flip" and tell me.
-4. Auto, upright shots with faces / no faces: must stay Orientation 1.
-Risks: pop-up text uses our own UTF-16 strings (if garbled, the string pointer format is wrong);
-face hook only runs if FD is on; stale tag if FD is switched off right after a sideways face.
+## FAUXJI38: tilt tag on any button (`TL-F38`) - test plan
+(FAUXJI37 + the video button.) How it works: the AE-L Button menu setting picks what the AE-L
+button does; its "TILT TAG" option (the old AE-L) cycles the tilt tag. That option and FILM SIM
+are different options of the same setting, so they do not coexist on AE-L; pick one in the menu.
+Better: any other button can be *learned* as the tilt button, so FILM SIM stays on AE-L:
+1. Menu > AE-L Button > pick the FILM SIM option for normal use; pick TILT TAG once to get to
+   the learn state: press the button repeatedly until the pop-up says "Tilt: press a key"
+   (order: Off, Auto, Auto flip, top right, top left, press a key).
+2. In that state press the VIDEO button: pop-up "Tilt key = NN" shows its logical key number
+   (tell me NN: I will hard-code it so it survives power-off; until then re-learn each boot).
+   If nothing happens, the video button does not go through the live-view key dispatcher.
+3. From then on the video button cycles the five tilt states with the pop-up, and no longer
+   starts a recording (its stock action is swallowed).
+Then the tests: states 3/4 tag vertical shots as Orientation 6 / 8 (check on PC and playback);
+Auto needs Face Detection ON and a few seconds aimed at the face (+-90 scan runs once per
+13 detector frames); Auto flip if Auto is backwards; upright shots stay 1.
+Facts behind it: live EXIF writer 0xC0385868 (constant 1 at 0xC0385F00), writers at 0xC03773E0,
+0xC0383120, 0xC0388668 are dead (tools/liveness.py); stock detector SDIC_FaceDetection
+0xC058F798 scans 0/-30/+30/-90/+90/-60/+60 degrees in a 13-call cycle (r6); hook at its end.
+Risks: pop-up text from our own UTF-16 strings; face tag can go stale if FD is switched off
+right after a sideways face.

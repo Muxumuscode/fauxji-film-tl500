@@ -2292,3 +2292,11 @@ armdis.py, xref.py, litref.py. Facts: live EXIF writer 0xC0385868 (Orientation c
 with 0xC0595A94). Hook at its end stores 6 (r6=+90) or 8 (r6=-90) for 60 upright scans. AE-L button
 option "AE-L" (logical key 0, call at 0xC04C1A98) cycles Off/Auto/Auto flip/top right/top left.
 Code in the dead factory function 0xC04260A0..0xC042620C. See FEATURES.md for the test plan.
+
+### FAUXJI38 (`TL-F38`): learnable tilt button
+Dispatcher hook at 0xC04C1944 (`bl 0xC04BFF98` "is this key handled", r1 = logical key, sl = event)
+swallows the learned key (ROT_KEY at 0xC04260AC, default 0xFF) and cycles the tilt state. State 5 =
+"press a key": the next released key is learned and its number shown ("Tilt key = NN"). The key
+hook (0xC04C1938) no longer hides the pop-up on release of keys 14, 0 and the learned key.
+Strings moved to the dead function at 0xC0426438. AE-L option "TILT TAG" and FILM SIM are still
+two options of one setting.

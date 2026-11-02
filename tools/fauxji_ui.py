@@ -46,7 +46,7 @@ GET_STRING, OSD_SET_UNICODE_TEXT, OSD_TEXT_PROPERTY, OSD_SET_VISIBLE = \
 #               PROVIA Bleach Nostalgic ASTIA Velvia Reala Chrome Neg. Eterna ACROS Sepia
 NAME_STRINGS = [182,   911,   986,      183,  184,   185,  186,   187, 188,   189,  190,
                 # tilt-tag states 11-15: 0xF000 + k = our own string k (see rot_strings)
-                0xF000, 0xF001, 0xF002, 0xF003, 0xF004]
+                0xF000, 0xF001, 0xF002, 0xF003, 0xF004, 0xF005, 0xF006]
 
 # PROVIA's live-view icon: the film item (7) draws child v of its OSD node but hides the
 # node for v = 0 (Samsung shows no icon for Standard). Child 0 is the STD canister.
@@ -76,7 +76,7 @@ FILM_KEY = 14
 NAME_TIMER, NAME_MS = 30, 2000
 TIMER_START, TIMER_CANCEL, TIMER_POST = 0xC048F3EC, 0xC048F37C, 0xC048F4E4
 TIMER_CALL = (0xC04C2188, 0xC04BF54C)
-ARM_NAME = KEYHOOK + 48
+ARM_NAME = KEYHOOK + 64
 TIMERHOOK = ARM_NAME + 40
 # Zoom hand-shake shift: AeCalcCaptureCommon (0xC053FAA8) shifts the program line's
 # shutter values by a zoom-dependent amount (sysinfo +0x12; +0x10 where the aperture
@@ -89,10 +89,12 @@ ZOOM_SITE, ZOOM_SKIP, ZOOM_BACK = 0xC053FDC4, 0xC053FF04, 0xC053FDCC
 
 # Tilt-tag pop-up texts: the toast's GetString call (code[12]) goes through STRWRAP, which
 # serves ids 0xF000+k from our own UTF-16 strings (40-byte slots) and passes the rest on.
-STRWRAP = ZOOM_HOOK + 16
+STRWRAP, STRWRAP_END = 0xC0426438, 0xC042661C     # dead factory function before the ISO routine
 STR_BASE = STRWRAP + 32
+ROT_STATE, ROT_KEY = 0xC04260A0, 0xC04260AC       # tilt-tag words (see fauxji_rot)
 ROT_TEXTS = ['Vertical tag: Off', 'Vertical tag: Auto', 'Vertical: Auto flip',
-             'Vertical: top right', 'Vertical: top left']
+             'Vertical: top right', 'Vertical: top left', 'Tilt: press a key',
+             'Tilt key = 00']
 STR_SLOT = 40
 
 #            PROVIA Chrome Velvia ASTIA ClassicNeg ACROS Nostalgic
@@ -268,22 +270,28 @@ def extra_routines():
     pc = lambda k: a + 4 * k
     hook = [0xE92D4013,                                 # 0 push {r0, r1, r4, lr}
             0xE3500000 | FILM_KEY,                      # 1 cmp r0,#14
-            None,                                       # 2 beq skip
-            None,                                       # 3 ldr r2,NAME_FLAG
-            0xE3520000,                                 # 4 cmp r2,#0
-            None,                                       # 5 beq skip
-            0xE3A02000,                                 # 6 mov r2,#0
-            None,                                       # 7 str r2,NAME_FLAG
-            0xE3A00000,                                 # 8 mov r0,#0
-            None,                                       # 9 bl stock item-44 draw(0): hide
-            0xE8BD4013,                                 # 10 skip: pop {r0, r1, r4, lr}
-            None]                                       # 11 b original call
-    hook[2] = _b(pc(2), pc(10), cond=0x0)
-    hook[3] = _ldr_pc(pc(3), 2, NAME_FLAG)
-    hook[5] = _b(pc(5), pc(10), cond=0x0)
-    hook[7] = _ldr_pc(pc(7), 2, NAME_FLAG, store=True)
-    hook[9] = _b(pc(9), ITEM44_DRAW, link=True)
-    hook[11] = _b(pc(11), KEY_CALL[1])
+            0x13500000,                                 # 2 cmpne r0,#0     (tilt tag on AE-L)
+            None,                                       # 3 beq skip
+            None,                                       # 4 ldr r2,ROT_KEY  (learned tilt key)
+            0xE1500002,                                 # 5 cmp r0,r2
+            None,                                       # 6 beq skip
+            None,                                       # 7 ldr r2,NAME_FLAG
+            0xE3520000,                                 # 8 cmp r2,#0
+            None,                                       # 9 beq skip
+            0xE3A02000,                                 # 10 mov r2,#0
+            None,                                       # 11 str r2,NAME_FLAG
+            0xE3A00000,                                 # 12 mov r0,#0
+            None,                                       # 13 bl stock item-44 draw(0): hide
+            0xE8BD4013,                                 # 14 skip: pop {r0, r1, r4, lr}
+            None]                                       # 15 b original call
+    hook[3] = _b(pc(3), pc(14), cond=0x0)
+    hook[4] = _ldr_pc(pc(4), 2, ROT_KEY)
+    hook[6] = _b(pc(6), pc(14), cond=0x0)
+    hook[7] = _ldr_pc(pc(7), 2, NAME_FLAG)
+    hook[9] = _b(pc(9), pc(14), cond=0x0)
+    hook[11] = _ldr_pc(pc(11), 2, NAME_FLAG, store=True)
+    hook[13] = _b(pc(13), ITEM44_DRAW, link=True)
+    hook[15] = _b(pc(15), KEY_CALL[1])
     out += b''.join(struct.pack('<I', x) for x in hook)
     a = ARM_NAME
     pc = lambda k: a + 4 * k
@@ -336,13 +344,20 @@ def extra_routines():
             _b(a + 8, ZOOM_SKIP, cond=0x0),             # beq skip the zoom shift
             _b(a + 12, ZOOM_BACK)]                      # b back
     out += b''.join(struct.pack('<I', x) for x in zoom)
-    assert EXTRA_CODE + len(out) == STRWRAP
+    assert EXTRA_CODE + len(out) <= EXTRA_END, hex(EXTRA_CODE + len(out))
+    return out
+
+
+
+def rot_strings():
+    """STRWRAP (serves ids 0xF000+k from our strings) followed by the 40-byte string slots."""
+    out = b''
     a = STRWRAP
-    wrap = [0xE3510A0F,                                 # 0 cmp r1,#0xF000  (0xF = 15 ror 20 -> 0xF000)
+    wrap = [0xE3510A0F,                                 # 0 cmp r1,#0xF000
             _b(a + 4, GET_STRING, cond=0x3),            # 1 blo stock GetString (tail call)
             0xE2411A0F,                                 # 2 sub r1,r1,#0xF000
             0xE0811101,                                 # 3 add r1,r1,r1,lsl #2   (x5)
-            0xE28F0000 | (STR_BASE - (a + 16 + 8)),     # 4 add r0,pc,#STR_BASE   (small offset)
+            0xE28F0000 | (STR_BASE - (a + 16 + 8)),     # 4 add r0,pc,#STR_BASE
             0xE0800181,                                 # 5 add r0,r0,r1,lsl #3   (x8 = slot 40)
             0xE1A0F00E]                                 # 6 mov pc,lr
     out += b''.join(struct.pack('<I', x) for x in wrap) + b'\0' * 4
@@ -350,7 +365,7 @@ def extra_routines():
         raw = t.encode('utf-16-le') + b'\0\0'
         assert len(raw) <= STR_SLOT, t
         out += raw + b'\0' * (STR_SLOT - len(raw))
-    assert EXTRA_CODE + len(out) <= EXTRA_END, hex(EXTRA_CODE + len(out))
+    assert STRWRAP + len(out) <= STRWRAP_END
     return out
 
 
@@ -367,6 +382,8 @@ def patch(d):
     struct.pack_into('<I', d, addr - B, new)
     x = extra_routines()
     d[EXTRA_CODE - B:EXTRA_CODE - B + len(x)] = x
+    x = rot_strings()
+    d[STRWRAP - B:STRWRAP - B + len(x)] = x
     entry, stock = ITEM44_ENTRY
     assert struct.unpack_from('<I', d, entry - B)[0] in (stock, WRAP44)
     struct.pack_into('<I', d, entry - B, WRAP44)
