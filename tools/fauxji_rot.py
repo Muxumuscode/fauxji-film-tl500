@@ -186,6 +186,7 @@ def build():
     a.str(0, FACE_TTL)
     a.emit(0xE2840000 | FIRST_TEXT)                # add r0,r4,#FIRST_TEXT
     a.br(0xE, 'ARM_NAME', link=True)
+    a.br(0xE, 'DRAW_ICONS', link=True)             # redraw the live-view icons first, as the FILM SIM routine does
     a.emit(0xE2840000 | FIRST_TEXT)
     a.br(0xE, 'TOAST', link=True)
     a.emit(0xE8BD8010)                             # pop {r4, pc}
@@ -254,7 +255,7 @@ def build():
         a.w[pool_load2] = ui._ldr_pc(R2 + 4 * pool_load2, 3, pool)
 
     ext = {'WRITER_BACK': WRITER_BACK, 'W2_BACK': W2_BACK, 'W3_BACK': W3_BACK, 'FD_BACK': FD_BACK, 'ARM_NAME': ui.ARM_NAME,
-           'TOAST': ui.TOAST_CODE, 'DISP_STOCK': DISP_STOCK,
+           'TOAST': ui.TOAST_CODE, 'DRAW_ICONS': ui.DRAW_ICONS, 'DISP_STOCK': DISP_STOCK,
            'GET_SYSVAL': GET_SYSVAL, 'EV_BACK': EV_BACK, 'MASK_BACK': MASK_BACK}
     blobs = []
     for a in (r1, r2):

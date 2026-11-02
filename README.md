@@ -2360,3 +2360,10 @@ FAUXJI46 field test PASSED: SAM_0634 (head left) = Orientation 6, SAM_0635 (head
 with Face Detection on and the tilt tag on Auto from power-on. Auto works; VIDEO (key 9) cycles the state.
 Open: VIDEO's pop-up shows only on the first press; "DR Auto" (ACB) is really a playback edit; three-step D-Range
 does not exist on the TL500 (FAUXJI36 renames are harmless dead text).
+
+## FAUXJI47: VIDEO pop-up fix attempt (`TL-F47`, 2 Nov 2026)
+Pop-up only showed on the first VIDEO press (the state itself always cycled). Difference from the FILM SIM routine:
+that one calls arm_name, then the live-view icon redraw (0xC04B7444), then the toast; `cycle` skipped the redraw.
+FAUXJI47 adds `bl DRAW_ICONS` to `cycle`. Test: press VIDEO 6 times, 5 s apart, note each pop-up.
+Plan after that (owner request): permanent on-screen tilt icon with an arrow for the frame's top, Auto from faces;
+non-face auto (horizon) needs image analysis since the camera has no tilt sensor.
