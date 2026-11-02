@@ -66,6 +66,16 @@ ITEM44_ENTRY = (0xC09BDF84, 0xC04B7BB8)       # viewfinder item table, item 44's
 ITEM44_DRAW = 0xC04B7BB8
 KEY_CALL = (0xC04C1938, 0xC04DE310)           # `bl 0xC04DE310` at the dispatcher's start
 FILM_KEY = 14
+# 2-second hide: the control timer service start(id, ms, cb, arg) 0xC048F3EC / cancel(id)
+# 0xC048F37C sits on the OS timers (ids 0-39; 0-24 control, 25, 27, 38, 39 taken). Stock
+# callback 0xC048F4E4 posts a timer event (class 0xC0759C48, id = arg) to the control app;
+# the live-view state's handler 0xC04C1F04 passes those to 0xC04BF54C (switch on id
+# < 0x19), in the same task as the key dispatcher. A hook on that call takes id 30.
+NAME_TIMER, NAME_MS = 30, 2000
+TIMER_START, TIMER_CANCEL, TIMER_POST = 0xC048F3EC, 0xC048F37C, 0xC048F4E4
+TIMER_CALL = (0xC04C2188, 0xC04BF54C)
+ARM_NAME = KEYHOOK + 48
+TIMERHOOK = ARM_NAME + 40
 
 #            PROVIA Chrome Velvia ASTIA ClassicNeg ACROS Nostalgic
 FAVOURITES = [0,    6,     4,     3,    7,         9,    2]
@@ -124,17 +134,17 @@ def film_routine():
             None,              # 37 bl notify1
             0xE3A00041,        # 38 mov r0,#0x41
             None,              # 39 bl notify2
-            0xE2840001,        # 40 add r0,r4,#1
-            None,              # 41 ldr r3,=NAME_FLAG
-            0xE5830000,        # 42 str r0,[r3]        name shows until another key
+            0xE1A00004,        # 40 mov r0,r4
+            None,              # 41 bl arm_name: name shows until a key or 2 s
+            0xE1A00000,        # 42 nop
             None,              # 43 bl redraw live-view icons
             0xE1A00004,        # 44 mov r0,r4
             None,              # 45 bl toast (look's name in the help-text box)
             0xE3A00000,        # 46 done: mov r0,#0
             0xE8BD8010]        # 47 pop {r4, pc}
-    lit, fav = pc(48), pc(50)
+    lit, fav = pc(48), pc(49)
     code[9] = _b(pc(9), pc(46), NE)
-    code[41] = 0xE59F3000 | (pc(49) - (pc(41) + 8))
+    code[41] = _b(pc(41), ARM_NAME, link=True)
     code[10] = 0xE59F3000 | (lit - (pc(10) + 8))
     code[12] = 0xE28F2000 | (fav - (pc(12) + 8))
     code[16] = _b(pc(16), pc(25), EQ)
@@ -149,7 +159,7 @@ def film_routine():
     code[39] = _b(pc(39), NOTIFY2, link=True)
     code[43] = _b(pc(43), DRAW_ICONS, link=True)
     code[45] = _b(pc(45), TOAST_CODE, link=True)
-    out = b''.join(struct.pack('<I', x) for x in code) + struct.pack('<2I', UI_CACHE, NAME_FLAG)
+    out = b''.join(struct.pack('<I', x) for x in code) + struct.pack('<I', UI_CACHE)
     out += bytes(FAVOURITES) + b'\xff'
     out += b'\0' * (-len(out) % 4)
     return out
@@ -257,6 +267,51 @@ def extra_routines():
     hook[9] = _b(pc(9), ITEM44_DRAW, link=True)
     hook[11] = _b(pc(11), KEY_CALL[1])
     out += b''.join(struct.pack('<I', x) for x in hook)
+    a = ARM_NAME
+    pc = lambda k: a + 4 * k
+    arm = [0xE92D4010,                                  # 0 push {r4, lr}
+           0xE2800001,                                  # 1 add r0,r0,#1
+           _ldr_pc(pc(2), 0, NAME_FLAG, store=True),    # 2 str r0,NAME_FLAG
+           0xE3A00000 | NAME_TIMER,                     # 3 mov r0,#30
+           0xE3A01E7D,                                  # 4 mov r1,#2000
+           None,                                        # 5 ldr r2,=post callback
+           0xE3A03000 | NAME_TIMER,                     # 6 mov r3,#30
+           None,                                        # 7 bl timer start
+           0xE8BD8010,                                  # 8 pop {r4, pc}
+           TIMER_POST]                                  # 9 literal
+    arm[5] = _ldr_pc(pc(5), 2, pc(9))
+    arm[7] = _b(pc(7), TIMER_START, link=True)
+    assert NAME_MS == 0x7D << 4
+    out += b''.join(struct.pack('<I', x) for x in arm)
+    a = TIMERHOOK
+    pc = lambda k: a + 4 * k
+    th = [0xE92D4013,                                   # 0 push {r0, r1, r4, lr}
+          0xE5913000,                                   # 1 ldr r3,[r1]      event vtable
+          0xE2832008,                                   # 2 add r2,r3,#8
+          0xE592C004,                                   # 3 ldr ip,[r2,#4]
+          0xE1D230F0,                                   # 4 ldrsh r3,[r2]
+          0xE0810003,                                   # 5 add r0,r1,r3
+          0xE1A0E00F,                                   # 6 mov lr,pc
+          0xE1A0F00C,                                   # 7 mov pc,ip        timer id
+          0xE3500000 | NAME_TIMER,                      # 8 cmp r0,#30
+          0x18BD4013,                                   # 9 popne {r0, r1, r4, lr}
+          None,                                         # 10 bne stock handler
+          0xE3A00000 | NAME_TIMER,                      # 11 mov r0,#30
+          None,                                         # 12 bl timer cancel
+          None,                                         # 13 ldr r2,NAME_FLAG
+          0xE3520000,                                   # 14 cmp r2,#0
+          0x08BD8013,                                   # 15 popeq {r0, r1, r4, pc}
+          0xE3A02000,                                   # 16 mov r2,#0
+          None,                                         # 17 str r2,NAME_FLAG
+          0xE3A00000,                                   # 18 mov r0,#0
+          None,                                         # 19 bl stock item-44 draw(0): hide
+          0xE8BD8013]                                   # 20 pop {r0, r1, r4, pc}
+    th[10] = _b(pc(10), TIMER_CALL[1], cond=0x1)
+    th[12] = _b(pc(12), TIMER_CANCEL, link=True)
+    th[13] = _ldr_pc(pc(13), 2, NAME_FLAG)
+    th[17] = _ldr_pc(pc(17), 2, NAME_FLAG, store=True)
+    th[19] = _b(pc(19), ITEM44_DRAW, link=True)
+    out += b''.join(struct.pack('<I', x) for x in th)
     assert EXTRA_CODE + len(out) <= EXTRA_END
     return out
 
@@ -281,6 +336,10 @@ def patch(d):
     assert struct.unpack_from('<I', d, site - B)[0] in (_b(site, target, link=True),
                                                           _b(site, KEYHOOK, link=True))
     struct.pack_into('<I', d, site - B, _b(site, KEYHOOK, link=True))
+    site, target = TIMER_CALL
+    assert struct.unpack_from('<I', d, site - B)[0] in (_b(site, target, link=True),
+                                                          _b(site, TIMERHOOK, link=True))
+    struct.pack_into('<I', d, site - B, _b(site, TIMERHOOK, link=True))
     site, old_target = KEY14_CALL
     cur = struct.unpack_from('<I', d, site - B)[0]
     assert cur in (_b(site, old_target, link=True), _b(site, FILM_CODE, link=True))

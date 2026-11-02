@@ -2109,3 +2109,19 @@ from the factory command switch (0xC0427870), the same switch as the E2PR.CSV du
 Timers were considered and dropped: the control timer service (0xC048F3EC id, ms, cb,
 arg; ids 0-24, bitmask 0xC09B622C) sits on 40 OS timers (0xC00DB0B8; 25, 27, 38, 39
 also taken) whose callbacks may not run in the GUI task.
+Flashed FAUXJI25: the name shows and a half-press hides it. Owner: move it off the
+centre, and hide it after ~2 s if that's safe.
+
+### FAUXJI26: 2-second name, lower and Fuji-styled (`TL-F26`)
+- **Timer**: timer events reach the live-view control state's handler 0xC04C1F04 (a
+  chain of class checks via 0xC06529C4; class 0xC0759C48 = timer) and go to 0xC04BF54C
+  (switch on id < 0x19), the same task as the key dispatcher, so hiding from there is
+  as safe as from a key. FILM SIM now calls arm_name: NAME_FLAG = look+1 and control
+  timer 30 for 2000 ms with the stock post callback 0xC048F4E4. A hook on the handler
+  call (0xC04C2188) takes id 30: cancel the timer, clear the flag, stock draw(0).
+  Other ids continue to 0xC04BF54C. Free OS timer ids: 26, 28-37 (30 used here).
+- **Box** (`tools/fauxji_layout.py`, layout nodes edited in place): group 990 to (100,360)
+  440x56 (was (100,158) 440x118), image 991 and text 992 to 56 px high; skin image 121
+  (the panel) redrawn as a 440x56 near-black strip at ~70% opacity; text node colours
+  at +44 (8 states) to white and the outline colours at +76 to black. Samsung's own
+  mode descriptions (Help Text) use the same box and change with it.
