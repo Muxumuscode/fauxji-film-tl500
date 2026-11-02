@@ -2249,3 +2249,15 @@ the owner's to pick there; the burst itself needs Drive Setting -> Bracketing.
   top-left) and show the look's name there.
 - Playback screens (not mapped yet).
 - Face-based auto-rotate.
+
+## FAUXJI35: P/A keep 1/60 when zoomed (`TL-F35`, 2 Nov 2026)
+Owner: zooming in A mode raised the slowest shutter to 1/125, useless in the dark.
+Card evidence (TL-F33 shots, A mode, ISO capped at 1600): 24 mm -> 1/60, 57 mm and
+72 mm -> 1/125 at the same ISO (one stop darker).
+Cause, in AeCalcCaptureCommon (TL 0xC053FAA8): after loading the program line, every
+row's shutter is shifted by a zoom amount from AE sysinfo +0x12 (rows where the aperture
+changes by +0x10), then clamped to [Tv[0], Tv max]. At the long end the shift is one
+stop (16), so HOLD60's 1/60 rows (Tv 96) became 1/125 (112). Stock already skips the
+shift for AE mode 3 (`cmp lr,#3; beq 0xC053FF04` at 0xC053FDC4); the A-mode shots were
+shifted, so A is mode 2. Hook at 0xC053FDC4 -> 0xC04262D0: `cmp lr,#3; cmpne lr,#2; beq
+skip; b back`. Other modes (Auto, scenes) keep Samsung's zoom protection.

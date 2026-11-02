@@ -76,6 +76,14 @@ TIMER_START, TIMER_CANCEL, TIMER_POST = 0xC048F3EC, 0xC048F37C, 0xC048F4E4
 TIMER_CALL = (0xC04C2188, 0xC04BF54C)
 ARM_NAME = KEYHOOK + 48
 TIMERHOOK = ARM_NAME + 40
+# Zoom hand-shake shift: AeCalcCaptureCommon (0xC053FAA8) shifts the program line's
+# shutter values by a zoom-dependent amount (sysinfo +0x12; +0x10 where the aperture
+# changes) before clamping; at the long end that is one stop, so P/A's 1/60 floor became
+# 1/125 (owner's SAM_0588-0594: 1/125 ISO1600 at 57-72 mm, 1/60 at 24 mm). Stock already
+# skips the shift for AE mode 3 (`cmp lr,#3; beq 0xC053FF04` at 0xC053FDC4); the hook skips
+# it for mode 2 as well (P and A share the program line), other modes unchanged.
+ZOOM_HOOK = TIMERHOOK + 84
+ZOOM_SITE, ZOOM_SKIP, ZOOM_BACK = 0xC053FDC4, 0xC053FF04, 0xC053FDCC
 
 #            PROVIA Chrome Velvia ASTIA ClassicNeg ACROS Nostalgic
 FAVOURITES = [0,    6,     4,     3,    7,         9,    2]
@@ -312,6 +320,12 @@ def extra_routines():
     th[17] = _ldr_pc(pc(17), 2, NAME_FLAG, store=True)
     th[19] = _b(pc(19), ITEM44_DRAW, link=True)
     out += b''.join(struct.pack('<I', x) for x in th)
+    a = ZOOM_HOOK
+    zoom = [0xE35E0003,                                 # cmp lr,#3     (stock)
+            0x135E0002,                                 # cmpne lr,#2
+            _b(a + 8, ZOOM_SKIP, cond=0x0),             # beq skip the zoom shift
+            _b(a + 12, ZOOM_BACK)]                      # b back
+    out += b''.join(struct.pack('<I', x) for x in zoom)
     assert EXTRA_CODE + len(out) <= EXTRA_END
     return out
 
@@ -336,6 +350,9 @@ def patch(d):
     assert struct.unpack_from('<I', d, site - B)[0] in (_b(site, target, link=True),
                                                           _b(site, KEYHOOK, link=True))
     struct.pack_into('<I', d, site - B, _b(site, KEYHOOK, link=True))
+    cur = struct.unpack_from('<I', d, ZOOM_SITE - B)[0]
+    assert cur in (0xE35E0003, _b(ZOOM_SITE, ZOOM_HOOK)), hex(cur)
+    struct.pack_into('<I', d, ZOOM_SITE - B, _b(ZOOM_SITE, ZOOM_HOOK))
     site, target = TIMER_CALL
     assert struct.unpack_from('<I', d, site - B)[0] in (_b(site, target, link=True),
                                                           _b(site, TIMERHOOK, link=True))
