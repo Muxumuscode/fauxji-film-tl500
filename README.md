@@ -1948,3 +1948,23 @@ Shutter Sound 3 didn't sound like F2.
   pop-up message event 0x0B (params 0x190+, flags in the upper bits; the AE-lock path
   already sends 0x1019E) and a GUI string-ID -> text-index table near 0xC07B67C0
   (3,090 entries). Not finished.
+
+
+## GUI skin decoded + FAUXJI film badges (FAUXJI20, `TL500-X`)
+**skin.bin** (SPID.Rom, 9.96 MB; `tools/skin.py`): header at +0 lists 6 section
+offsets (0x20, 0x662F8C, 0x87FF44, 0x945754, 0x9740F0, 0x974760). Section 0 = images:
+0x28-byte header (transparent key 0xFFFF00FF, ...), **711 images** with a u32 offset
+table at skin+0x50 (offsets from the table start). Image = u32 width, height, size
+(incl. the 16-byte header), type (3 = RLE). Each row: 0xFF + u16 row length (incl. 3),
+tokens `c < 0x80` = run of c x next RGBA pixel, `c >= 0x80` = c-0x80 literal RGBA
+pixels; magenta = transparent. All 711 decode with exact row widths; the encoder is
+Samsung's scheme.
+**Photo Style icons** (painter's palette + letters NOR V S F R CO CA CL N SK FD), three
+sets: large 115x115 images 72-82 (quick menu), white 64x64 **414-424** (live view;
+found by exact transparency outline against the grey set), grey 64x64 326/327/337-345
+(disabled). `tools/badges.py` draws Fuji-style badges: STD (PROVIA), V, S (ASTIA), RA,
+CC, NC, ET (Eterna), A (ACROS), SEP, EB (Bleach Bypass), NN (Nostalgic Neg.). The large
+set gets film-frame plates with sprocket holes; the 64 px sets are pixel-exact solid
+colours so the RLE fits (largest uses 95% of its slot). Written in place, offset table
+untouched; the other 678 images are verified unchanged; only skin.bin bytes change.
+Wired into `build_fauxji.py`. FAUXJI20 = FAUXJI19 + badges (label TL500-X).
