@@ -2315,3 +2315,11 @@ AeSystemEVCSetToAeEVCShift (0xC03ECCF8, x16 units) is the EV compensation the AE
 only caller is AeUpdateSysInfo (0xC03EEED0, forced to 0 in AE-manual) and the manual auto-ISO
 routine also uses it. Hook at its return (0xC03ECD54): subtract AE_BIAS (tools/fauxji_rot.py, 5 =
 -0.3 EV; 8 = -0.5 EV). The EV comp scale still shows 0. Trade-off: shadows get 0.3 EV noisier.
+
+## FAUXJI41: key-number test build (`TL-F41`, 2 Nov 2026)
+Field test of FAUXJI40: the AE-L Button menu item has never existed on this camera (the setting can't be
+changed in menus), so the learn state of the tilt button was unreachable. The D-Range Exp. 3-step setting
+is from a newer firmware and does not exist on the TL500 (the on/off item is Smart Range, renamed D-Range).
+FAUXJI41 = FAUXJI40 + `DIAG` in tools/fauxji_rot.py: any key reaching the live-view dispatcher (except
+AE-L, key 0/14) pops up "Tilt key = NN" on press. Test: press VIDEO and read NN; if no pop-up, VIDEO does
+not pass the dispatcher. Next: hard-code NN as KEY_DEFAULT and set DIAG = False.

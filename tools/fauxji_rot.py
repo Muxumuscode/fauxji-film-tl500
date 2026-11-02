@@ -36,6 +36,7 @@ R2, R2_END = ui.ZOOM_HOOK + 16, ui.EXTRA_END
 STATE, FACE_ORI, FACE_TTL, KEY = R1, R1 + 4, R1 + 8, R1 + 12
 assert STATE == ui.ROT_STATE and KEY == ui.ROT_KEY
 KEY_DEFAULT = 0xFF                    # no learned key (set to the video button's number later)
+DIAG = True                           # FAUXJI41 test build: pop-up shows the number of any pressed key
 WRITER_SITE, WRITER_BACK = 0xC0385F00, 0xC0385F04
 FD_SITE, FD_BACK = 0xC058FA0C, 0xC058FA10
 KEY_SITE, KEY_STOCK = 0xC04C1A98, 0xC04C1414
@@ -208,10 +209,28 @@ def build():
     label(a, 'dchk')
     a.ldr(3, KEY)
     a.emit(0xE1510003)                             # cmp r1,r3
-    a.br(0x1, 'pass')
+    a.br(0x1, 'diag' if DIAG else 'pass')
     a.emit(0xE3540001)                             # cmp r4,#1
     a.br(0x1, 'swallow')
     a.br(0xE, 'cycle', link=True)
+    if DIAG:                                       # test build: show the key number of every other press
+        label(a, 'diag')
+        a.emit(0xE3540001)                         # cmp r4,#1  (press only)
+        a.br(0x1, 'pass')
+        a.emit(0xE351000E)                         # cmp r1,#14 (AE-L = film sim: leave alone)
+        a.br(0x0, 'pass')
+        a.emit(0xE3510000)                         # cmp r1,#0
+        a.br(0x0, 'pass')
+        a.ldr(3, 0)
+        pool_load2 = len(a.w) - 1
+        a.emit(0xE3A02030,                         # mov r2,#'0'
+               0xE351000A, 0xA241100A, 0xA2822001, 0xAAFFFFFB,   # tens loop: cmp r1,#10; subge; addge; bge
+               0xE2811030, 0xE1C320B0, 0xE1C310B2)               # digits "NN" into the pop-up text
+        a.emit(0xE3A00000 | BUF_TEXT)
+        a.br(0xE, 'ARM_NAME', link=True)
+        a.emit(0xE3A00000 | BUF_TEXT)
+        a.br(0xE, 'TOAST', link=True)
+        a.br(0xE, 'pass')
     label(a, 'swallow')
     a.emit(0xE8BD4013, 0xE3A00000, 0xE1A0F00E)     # pop {r0,r1,r4,lr} ; mov r0,#0 ; mov pc,lr
     label(a, 'pass')
@@ -220,6 +239,8 @@ def build():
     pool = a.here()
     a.emit(BUF_DIGITS)
     a.w[pool_load] = ui._ldr_pc(R2 + 4 * pool_load, 3, pool)
+    if DIAG:
+        a.w[pool_load2] = ui._ldr_pc(R2 + 4 * pool_load2, 3, pool)
 
     ext = {'WRITER_BACK': WRITER_BACK, 'FD_BACK': FD_BACK, 'ARM_NAME': ui.ARM_NAME,
            'TOAST': ui.TOAST_CODE, 'DISP_STOCK': DISP_STOCK,
