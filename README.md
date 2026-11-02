@@ -2156,3 +2156,24 @@ a navy outline; values cyan (156,215,239) / cyan / grey with a white outline.
 - Selection bar 131 = white; labels white, **black when selected** (outline black / white);
   values the same (were cyan).
 - Row caps 132/133 (">") and 134/135 (">>"): white chevrons, black on white when selected.
+Flashed FAUXJI28: menus done ("good job"). Next: the shooting screen and the mode dial.
+
+### FAUXJI29: shooting screen and mode dial, first pass (`TL-F29`)
+`tools/fuji_lv.py`. Mapped by drawing every image node of the live-view tree (root 742)
+at its place, and the other top-level trees (scene picker 1751, guide screens 1768,
+1882, 1917, popups 1962, ...). Live view: mode icon group 803 at (5,426), bottom bar
+745 = image 119 at (0,426), aperture/shutter box 747 = 43, digits are images, exposure
+scale 312 under 278 at (260,436), AEL 561 at (404,436), film icon 1009 at (10,184).
+The mode dial wheel is SPID file gadget_modedial_bg.raw: 310x308 RGBA, no header
+(other gadget_*.raw files are the same kind: mf 199x199, lens01 225x225, ...).
+- Mode icons (115 SMART, 1 P, 8 A, 116 S, 9 M, 231 DUAL, 0 movie, 17 play): white Fuji
+  tags with a black letter (SR+ for Smart Auto); the dial's grey ones (107-111, 113) as
+  grey outline tags.
+- 119 and 92 (guide title bar): flat black at ~60%. 43: removed (numbers only).
+- Exposure scale: 278's cut-out numbers -> white, panel clear; 312's ticks -> white.
+  AEL: letters white, panel clear.
+- Mode dial: flat dark wheel (~88% opaque), grey rim with a dotted ring, grey selection
+  band, flat hub.
+Not touched yet: the mode description box on the dial screen (its white panel isn't
+an image found so far; its text is black, so it stays as is), right-column icons,
+the red/white digit sets, OIS and the other status icons.
