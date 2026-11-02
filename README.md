@@ -2011,3 +2011,24 @@ functions: get_child 0xC0200D84, get_item_visible 0xC0200AF4, clear_item 0xC0201
 set_item_visible 0xC0201CAC.
 The FILM SIM routine now ends with a direct `bl 0xC04B7444` (redraw every icon of the
 current live-view list), in place of the GUI event.
+Flashed: works, the canister now follows every press. Two issues: PROVIA showed no
+icon, and the owner (not a Fuji shooter) wants the look's name shown on each press.
+
+### FAUXJI24: PROVIA icon + name pop-up (`TL-F24`)
+**Layout tree** (skin.bin section at +0x945754: u32 size, u32 count 2034, offsets, node
+records): record = u16 length, u16 id, type, x, y, w, h, ..., parent id, ..., child count
+and child ids; image nodes end with the skin image index. Hash table at +0x974760
+((u32, hash, index) triples, 4177 = nodes + images + strings + ...). Film icon node
+0x0CB9A7B4 = id 0x3F1 at (10,184), 58x58, 12 children in menu order -> white images
+420 (STD), 422, 417, 423, 424, 418, 421, 416, 414, 415, 419, custom RGB 535.
+- **PROVIA**: item 7's draw 0xC04B9C3C hides the node for value 0 (Samsung shows nothing
+  for Standard); its `beq` at 0xC04B9C48 is now a nop, so child 0 (STD canister) shows.
+- **Name pop-up**: the live-view help-text box (the mode description, item 44, drawn by
+  0xC04B7BB8: frame nodes 0xCE12A81D + 0x49032BE5, text node 0x96879B21) is reused. New
+  routine at 0xC0426810 (tail of the factory E2PR.CSV function, after the matrices):
+  text property (0xC0202004, as stock), StringMgr_GetStaticString 0xC05BA87C(ctx
+  [0xC0CA6C90], string index) for the look's name in the current language,
+  osd_set_unicode_text 0xC0201488, then shows the three nodes (0xC0201CAC). Name indices
+  per menu value: 182, 911, 986, 183-190. The FILM SIM routine calls it after the icon
+  redraw. When the box hides is not known yet (stock hides it on a full live-view
+  redraw: item 40 clears the live-view root 0xAFB3FC35); to be seen on the camera.

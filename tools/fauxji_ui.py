@@ -36,6 +36,20 @@ SET_UI, APPLY, REFRESH_MASKS, GUI_EVENT, NOTIFY1, NOTIFY2 = \
     0xC048F630, 0xC04D2A18, 0xC04D2000, 0xC048FD5C, 0xC04DC174, 0xC04CDB70
 DRAW_ICONS = 0xC04B7444         # redraw every icon of the current live-view list
 
+# Name pop-up: the live-view help-text box (frame 0xCE12A81D, 0x49032BE5, text 0x96879B21)
+TOAST_CODE = 0xC0426810         # tail of the factory E2PR.CSV function, after the matrices
+TOAST_END = 0xC042689C
+TOAST_NODES = (0xCE12A81D, 0x49032BE5, 0x96879B21)
+STRING_CTX = 0xC0CA6C90
+GET_STRING, OSD_SET_UNICODE_TEXT, OSD_TEXT_PROPERTY, OSD_SET_VISIBLE = \
+    0xC05BA87C, 0xC0201488, 0xC0202004, 0xC0201CAC
+#               PROVIA Bleach Nostalgic ASTIA Velvia Reala Chrome Neg. Eterna ACROS Sepia
+NAME_STRINGS = [182,   911,   986,      183,  184,   185,  186,   187, 188,   189,  190]
+
+# PROVIA's live-view icon: the film item (7) draws child v of its OSD node but hides the
+# node for v = 0 (Samsung shows no icon for Standard). Child 0 is the STD canister.
+PROVIA_SHOW = (0xC04B9C48, 0x0A000004, 0xE1A00000)   # beq hide -> nop
+
 #            PROVIA Chrome Velvia ASTIA ClassicNeg ACROS Nostalgic
 FAVOURITES = [0,    6,     4,     3,    7,         9,    2]
 
@@ -94,10 +108,12 @@ def film_routine():
             0xE3A00041,        # 38 mov r0,#0x41
             None,              # 39 bl notify2
             None,              # 40 bl redraw live-view icons
-            0xE3A00000,        # 41 done: mov r0,#0
-            0xE8BD8010]        # 42 pop {r4, pc}
-    lit, fav = pc(43), pc(44)
-    code[9] = _b(pc(9), pc(41), NE)
+            0xE1A00004,        # 41 mov r0,r4
+            None,              # 42 bl toast (look's name in the help-text box)
+            0xE3A00000,        # 43 done: mov r0,#0
+            0xE8BD8010]        # 44 pop {r4, pc}
+    lit, fav = pc(45), pc(46)
+    code[9] = _b(pc(9), pc(43), NE)
     code[10] = 0xE59F3000 | (lit - (pc(10) + 8))
     code[12] = 0xE28F2000 | (fav - (pc(12) + 8))
     code[16] = _b(pc(16), pc(25), EQ)
@@ -111,17 +127,86 @@ def film_routine():
     code[37] = _b(pc(37), NOTIFY1, link=True)
     code[39] = _b(pc(39), NOTIFY2, link=True)
     code[40] = _b(pc(40), DRAW_ICONS, link=True)
+    code[42] = _b(pc(42), TOAST_CODE, link=True)
     out = b''.join(struct.pack('<I', x) for x in code) + struct.pack('<I', UI_CACHE)
     out += bytes(FAVOURITES) + b'\xff'
     out += b'\0' * (-len(out) % 4)
-    assert a + len(out) <= FILM_END
+    return out
+
+
+def toast_data_addr():
+    return FILM_CODE + len(film_routine())
+
+
+def toast_data():
+    """Name string index per menu value, then the help-box nodes to show (0-ended)."""
+    out = struct.pack('<%dH' % len(NAME_STRINGS), *NAME_STRINGS)
+    out += b'\0' * (-len(out) % 4)
+    return out + struct.pack('<4I', *TOAST_NODES, 0)
+
+
+def toast_routine():
+    """toast(v): put the look's name in the live-view help-text box and show it, as the
+    stock mode-description item (0xC04B7BB8) does with the mode's description."""
+    a = TOAST_CODE
+    pc = lambda k: a + 4 * k
+    names = toast_data_addr()
+    nodes = names + len(toast_data()) - 16
+    code = [0xE92D4010,        # 0  push {r4, lr}
+            0xE1A04000,        # 1  mov r4,r0
+            None,              # 2  ldr r0,=TEXT node
+            0xE3A01041,        # 3  mov r1,#0x41        text property, as stock (left-to-right)
+            0xE3A02000,        # 4  mov r2,#0
+            0xE3A03000,        # 5  mov r3,#0
+            None,              # 6  bl osd text property
+            None,              # 7  ldr r0,=string-manager context
+            0xE5900000,        # 8  ldr r0,[r0]
+            None,              # 9  ldr r1,=names
+            0xE0811084,        # 10 add r1,r1,r4,lsl #1
+            0xE1D110B0,        # 11 ldrh r1,[r1]
+            None,              # 12 bl StringMgr_GetStaticString  -> current-language text
+            0xE1A01000,        # 13 mov r1,r0
+            None,              # 14 ldr r0,=TEXT node
+            0xE3A02000,        # 15 mov r2,#0
+            0xE3A03000,        # 16 mov r3,#0
+            0xE92D000C,        # 17 push {r2, r3}        5th/6th strings: none
+            None,              # 18 bl osd_set_unicode_text
+            0xE28DD008,        # 19 add sp,sp,#8
+            None,              # 20 ldr r4,=nodes
+            0xE4940004,        # 21 loop: ldr r0,[r4],#4
+            0xE3500000,        # 22 cmp r0,#0
+            0x08BD8010,        # 23 popeq {r4, pc}
+            0xE3A01001,        # 24 mov r1,#1
+            0xE3A02001,        # 25 mov r2,#1
+            0xE3A03000,        # 26 mov r3,#0
+            None,              # 27 bl osd_set_item_visible
+            None]              # 28 b loop
+    lits = [TOAST_NODES[2], STRING_CTX, names, nodes]
+    L = lambda i: pc(len(code) + i)
+    ldr = lambda k, reg, i: 0xE59F0000 | (reg << 12) | (L(i) - (pc(k) + 8))
+    code[2], code[14] = ldr(2, 0, 0), ldr(14, 0, 0)
+    code[7], code[9], code[20] = ldr(7, 0, 1), ldr(9, 1, 2), ldr(20, 4, 3)
+    code[6] = _b(pc(6), OSD_TEXT_PROPERTY, link=True)
+    code[12] = _b(pc(12), GET_STRING, link=True)
+    code[18] = _b(pc(18), OSD_SET_UNICODE_TEXT, link=True)
+    code[27] = _b(pc(27), OSD_SET_VISIBLE, link=True)
+    code[28] = _b(pc(28), pc(21))
+    out = b''.join(struct.pack('<I', x) for x in code + lits)
+    assert a + len(out) <= TOAST_END
     return out
 
 
 def patch(d):
     d = bytearray(d)
     code = film_routine()
+    code += toast_data()
+    assert FILM_CODE + len(code) <= FILM_END
     d[FILM_CODE - B:FILM_CODE - B + len(code)] = code
+    t = toast_routine()
+    d[TOAST_CODE - B:TOAST_CODE - B + len(t)] = t
+    addr, old, new = PROVIA_SHOW
+    assert struct.unpack_from('<I', d, addr - B)[0] in (old, new), hex(addr)
+    struct.pack_into('<I', d, addr - B, new)
     site, old_target = KEY14_CALL
     cur = struct.unpack_from('<I', d, site - B)[0]
     assert cur in (_b(site, old_target, link=True), _b(site, FILM_CODE, link=True))
