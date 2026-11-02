@@ -2275,3 +2275,11 @@ No orientation sensor; owner's vertical shots (SAM_0588-0594) carry EXIF Orienta
 Plan: at capture, if a face was found at +-90 degrees, set `[sl+0xE4]` to 6 or 8 (and the
 same for the RAW writer). First check on the camera: hold it vertical facing a person;
 does the face box appear? If not, the detector runs upright only and this route is out.
+
+## FAUXJI36: D-Range names (`TL-F36`, 2 Nov 2026)
+Text only (patches/fauxji_text.json pass "FAUXJI36"): SPID 875 "D-Range Exp." -> "D-Range",
+877/878 "D-Range Exp.1/2" -> "DR200" / "DR400", help lines 1252-1255 reworded. "Off" is a shared
+string and stays. Unverified: that Exp.1 is about one stop of highlight protection.
+Batch review of FEATURES.md items 1-8: item 1 negative (no AUTO_ROTATE), item 5's 1/3/5/10 s are
+the slideshow, item 7's grid is code-drawn, item 4's stamp fonts are named in the WB850F map
+(gImprint*Font) but not yet found in the TL500 .elf. See FEATURES.md.

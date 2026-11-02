@@ -117,6 +117,18 @@
     "560": "Help Text",
     "1370": null
    }
+  },
+  {
+   "build": "FAUXJI36",
+   "changes": {
+    "875": "D-Range",
+    "877": "DR200",
+    "878": "DR400",
+    "1252": "Protect highlights (DR range).",
+    "1253": "Standard range (DR100).",
+    "1254": "DR200: protects highlights a little (about 1 stop).",
+    "1255": "DR400: protects highlights strongly."
+   }
   }
  ]
 }

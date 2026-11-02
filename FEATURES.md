@@ -39,6 +39,9 @@ root (`E:` on the owner's PC). Commit and push after each build.
 **Current state (2 Nov 2026):**
 - On camera and confirmed: everything through FAUXJI34 (looks, menus, shooting screen,
   pop-ups, busy animation).
+- **FAUXJI36 built (text only, NOT flashed):** DR names (menu title "D-Range", options
+  Off / DR200 / DR400 with matching help lines). Test: shoot a high-contrast scene at each
+  setting and check whether highlights really differ; if Exp.1 is not ~1 stop, rename.
 - **FAUXJI35 built and pushed, NOT flashed yet:** P/A keep 1/60 when zoomed (Samsung's
   zoom hand-shake shift skipped for AE modes 2 and 3). First thing next session: copy it
   to the card; test A mode, dark room, zoomed in: expect 1/60, not 1/125.
@@ -48,7 +51,10 @@ root (`E:` on the owner's PC). Commit and push after each build.
 
 ## Tier 1: quick wins (XS-S, low risk)
 
-### 1. Turn on what's already there: Auto Rotate setting check (XS)
+### 1. Auto Rotate setting check (XS): DONE, negative
+**Result:** the TL500 has no AUTO_ROTATE setting (only 29 `SETUP_MENU_*` names, none for it);
+the string is shared Samsung text. Item 13 stays open.
+
 The string table has an **"Auto Rotate"** setting (Settings menu). The strings are shared
 with other Samsung models, so it may not apply to the TL500, but if the menu shows it,
 switch it on and shoot a vertical frame: if the photo comes out tagged vertical, the
@@ -59,16 +65,29 @@ Samsung's **Special Effect -> Add Noise** already adds noise to the JPEG. Rename
 "Grain Effect" (half done: menu text exists) and tune its strength into Fuji-like
 Weak / Strong grain. Pairs well with ACROS and Classic Neg.
 
-### 3. Dynamic range modes (S)
+### 3. Dynamic range modes (S): names DONE in FAUXJI36, behaviour untested
 **D-Range Exp.** (Off / 1 / 2) exists: Samsung's highlight-protecting tone mode. Rename
 to Fuji's **DR100 / DR200 / DR400** and check what each step does to highlights.
 
-### 4. Orange date stamp, film-camera style (S)
+### 4. Orange date stamp, film-camera style (S): research, not done
+Findings (2 Nov): the WB850F link map (`extracted/wb850f/partialImage.o.map`) names the
+stamp fonts: `gImprint{1m,3m,5m,10m,16m,VGA}{0-9,A,P,M,Colon,Dot,Slash}Font` (+ `...FontTbl`),
+in Library_CaptureFramework; `mmfImPrint` draws them. Glyph sizes: 192 / 600 / 912 / 2400 /
+3264 / 72 bytes, which fits 1-bit bitmaps (32x48, 60x80, 76x96, 120x160, 136x192, 24x24).
+Not yet located in the TL500 .elf: a plain stride-pointer-table scan and an entropy scan found
+nothing, so the glyph tables are probably reached through structs. Next: find the code that
+reads `SETUP_MENU_IMPRINT`, or search the .elf for the WB850F glyph bytes (same library).
+Colour is probably set at draw time (mmfImPrint), not in the bitmaps, so orange may be a
+small code patch rather than art.
 **Imprint** (Off / Date / Date & Time) burns the date into the JPEG. Redraw its digit
 images as orange seven-segment digits and use a film-camera format (`'26 11 02`).
 JPEG only, RAW untouched. Best fun-per-effort item.
 
-### 5. Intervalometer upgrade (S)
+### 5. Intervalometer upgrade (S): premise corrected, not done
+The 1 / 3 / 5 / 10 s strings (SPID 359-363, help 1214-1218) are the **slideshow** interval, not
+the drive mode. The drive-mode Interval has its own setup screen (hours, minutes, shot count,
+start time: `CAPTURE_MENU_INTERVAL_*`), so it is already a time-lapse timer; a "30 s" step
+needs its screen code, not a table. Test on camera what the shortest interval is first.
 Drive mode **Interval** has 1 / 3 / 5 / 10 s. Find its small table and add 30 s, 1 min,
 5 min (and a shot count), for time-lapse, clouds, sunsets, stars.
 
@@ -78,11 +97,13 @@ recipes (Kodachrome-ish on Classic Chrome, Portra-ish on Classic Neg., Tri-X-ish
 ACROS: look + WB shift + tone + colour + sharpness) and show the recipe name with the
 film pop-up.
 
-### 7. Framing tools (XS-S)
+### 7. Framing tools (XS-S): no overlay image in skin.bin, lines are drawn by code (not done)
 **Grid Line 3x3** exists. Add a Fuji-style "24x36" frame guide and a centre cross; restyle
 the lines thin white.
 
-### 8. Higher ISO choices (XS)
+### 8. Higher ISO choices (XS): not done
+ISO 3200 already reachable in M auto-ISO (FAUXJI EVC build). ISO 4800/6400 strings are leftovers; a
+Sv 176 row would need the sensor-gain path checked first.
 Strings for **ISO 4800 / 6400 / 64** exist. Check whether the sensor path accepts them
 (EXIF oracle test); offer ISO 6400 as an "emergency" setting.
 
