@@ -18,7 +18,7 @@ Put the five output files in the root of an SD card and power the camera on to f
 import hashlib, json, os, shutil, sys
 
 sys.path.insert(0, os.path.dirname(__file__))
-import fauxji, fauxji_ui, fauxji_layout, spid_files, spid_strings, sounds, bootscreen, badges
+import fauxji, fauxji_ui, fauxji_layout, fuji_menu, spid_files, spid_strings, sounds, bootscreen, badges
 
 ELF, ROM = 'EX1-DSP-SR-008264.elf', 'SPID.Rom'
 STOCK_SHA256 = {
@@ -52,7 +52,9 @@ def build_rom(stock):
         d = spid_files.replace(d, sounds.SLOTS[name], sounds.pcm(fn()))
     # FAUXJI film-simulation badges in place of Samsung's Photo Style icons
     rec, off, size, slot = spid_files.directory(d)['skin.bin']
-    d = spid_files.replace(d, 'skin.bin', fauxji_layout.patch_skin(badges.patch_skin(d[off:off + size])))
+    d = spid_files.replace(d, 'skin.bin', fuji_menu.patch_skin(
+        fauxji_layout.patch_skin(badges.patch_skin(d[off:off + size]))))
+    d = fuji_menu.patch_rom(d)                     # Fuji-style menu background, tabs, animations
     return d
 
 

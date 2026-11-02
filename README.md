@@ -2125,3 +2125,20 @@ centre, and hide it after ~2 s if that's safe.
   (the panel) redrawn as a 440x56 near-black strip at ~70% opacity; text node colours
   at +44 (8 states) to white and the outline colours at +76 to black. Samsung's own
   mode descriptions (Help Text) use the same box and change with it.
+Flashed FAUXJI26: perfect; low on the screen, discreet, gone after 3-4 s (the OS
+timer works in whole seconds, so 2000 ms lands later than asked).
+
+### FAUXJI27: Fuji-style menus, first pass (`TL-F27`)
+`tools/fuji_menu.py`. The menu's left column and its animations live in SPID.Rom:
+bg_menu_<group>_0N.jpg (160x480, tab N selected) and 61 `menu_*.info` files that are
+animations: frame sizes as text, zero-padded to 2048, then 160x480 baseline JPEG frames
+(4:2:2, no APP0, padded to 8) back to back; the directory size field is the text length.
+`_0N` = opening on tab N (15 frames), `_ab` = tab a to b (15; first half shows a, second
+half b, so playing it either way ends right), `_roll_0N` = idle ring (5).
+- bg_menu.jpg: near-black, rows (70,70,71) between Samsung's row lines from x 155.
+- Tab column: 96 px, Fuji grey (99,100,102) cells of 58 px, own flat white glyphs (camera,
+  movie, sound, display, wrench for set-up, play, slideshow, edit, SP for scene, BKT,
+  printer); selected tab = white cell, dark glyph. All animation frames are still images.
+- skin.bin: selection bar 131 and pop-up option 585 = flat grey (128,128,130) with a white
+  left edge; option list 136 = (50,50,51) with grey border and black separators.
+The selected-row text colour is not known yet, so the bar is mid grey, not Fuji white.
