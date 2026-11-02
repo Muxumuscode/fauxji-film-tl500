@@ -2261,3 +2261,17 @@ stop (16), so HOLD60's 1/60 rows (Tv 96) became 1/125 (112). Stock already skips
 shift for AE mode 3 (`cmp lr,#3; beq 0xC053FF04` at 0xC053FDC4); the A-mode shots were
 shifted, so A is mode 2. Hook at 0xC053FDC4 -> 0xC04262D0: `cmp lr,#3; cmpne lr,#2; beq
 skip; b back`. Other modes (Auto, scenes) keep Samsung's zoom protection.
+
+## Auto-rotate research (2 Nov 2026)
+No orientation sensor; owner's vertical shots (SAM_0588-0594) carry EXIF Orientation 1.
+- EXIF writers switch on tag; Orientation (0x112) cases: 0xC03779B4 (writer 0xC03773E0)
+  takes the value from the info struct, `[sl+0xE4]`, so the main JPEG's orientation is
+  data-driven; 0xC0383448 (writer 0xC0383120) writes a constant 1 (second writer: RAW or
+  thumbnail, to check). Writers 0xC0385868 / 0xC0388668 also handle 0x112; 0xC03A7C28 =
+  PCBIEXIFParser::replaceOrientation (100% match; playback rotate).
+- Face detection: TL has the WB850F's 3-angle detector (SDIC_FaceDetection_3Angle ->
+  0xC05901D0, 41%; SDIC_FaceAngle -> 0xC0596C64, 36%), which searches upright, 90 left
+  and 90 right.
+Plan: at capture, if a face was found at +-90 degrees, set `[sl+0xE4]` to 6 or 8 (and the
+same for the RAW writer). First check on the camera: hold it vertical facing a person;
+does the face box appear? If not, the detector runs upright only and this route is out.
