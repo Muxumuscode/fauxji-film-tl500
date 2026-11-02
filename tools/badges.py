@@ -18,7 +18,7 @@ FONT = r'C:\Windows\Fonts\bahnschrift.ttf'
 KEY = (255, 0, 255, 255)                 # Samsung's transparent key colour
 
 # Samsung icon -> FAUXJI badge text, per set: {skin image index: text}
-CODES = {'NOR': 'STD', 'V': 'V', 'S': 'S', 'F': 'RA', 'R': 'CC', 'CO': 'NC',
+CODES = {'NOR': 'STD', 'V': 'V', 'S': 'S', 'F': 'RA', 'R': 'Cc', 'CO': 'Nc',
          'CA': 'ET', 'CL': 'A', 'N': 'SEP', 'SK': 'EB', 'FD': 'NN'}
 SETS = {
     'large': {72: 'V', 73: 'NOR', 74: 'CA', 75: 'CL', 76: 'CO', 77: 'F', 78: 'FD',
@@ -45,6 +45,61 @@ def _font(size):
     return f
 
 
+CANISTER = {  # canister fill, ink
+    'large': ((244, 244, 242), (18, 18, 20)),
+    'white': ((244, 244, 242), (18, 18, 20)),
+    'grey':  ((150, 150, 150), (60, 60, 60)),
+}
+
+
+def canister(size, text, style):
+    """Film-canister icon in the spirit of Fuji's film-simulation icons (own drawing):
+    canister body with a spool knob, film leader with sprocket holes to the right,
+    bold code on the body: big first letter, small second (C c, R a, N h ...)."""
+    fill, ink = CANISTER[style]
+    aa = size >= 100
+    s = 4 if aa else 1
+    W = size * s
+    im = Image.new('RGBA', (W, W), (0, 0, 0, 0) if aa else KEY)
+    d = ImageDraw.Draw(im)
+    if not aa:
+        d.fontmode = '1'
+    u = W / 64.0                                    # design grid: 64 units
+    F = lambda *v: [round(x * u) for x in v]
+    body = F(6, 14, 46, 54)
+    d.rectangle(F(13, 9, 21, 14), fill=fill + (255,))          # spool knob
+    d.rounded_rectangle(body, round(3 * u), fill=fill + (255,))  # canister body
+    d.polygon([tuple(F(45, 20)), tuple(F(58, 20)), tuple(F(58, 23)), tuple(F(56, 25)),
+               tuple(F(58, 27)), tuple(F(58, 47)), tuple(F(45, 47))], fill=fill + (255,))  # leader
+    for y in (23, 30, 37, 43):                                   # sprocket holes
+        d.rectangle(F(51, y, 54, y + 3), fill=(0, 0, 0, 0) if aa else KEY)
+    big, small = (text, '') if len(text) != 2 else (text[0], text[1])
+    if len(text) == 3:
+        f = _font(round(17 * u)); x0, y0 = 26, 34
+        l, t, r, b = d.textbbox((0, 0), text, font=f)
+        d.text((round(x0 * u) - (r - l) / 2 - l, round(y0 * u) - (b - t) / 2 - t), text, font=f, fill=ink + (255,))
+    else:
+        f = _font(round(34 * u))
+        l, t, r, b = d.textbbox((0, 0), big, font=f)
+        bx = round((22 if small else 26) * u) - (r - l) / 2 - l
+        d.text((bx, round(34 * u) - (b - t) / 2 - t), big, font=f, fill=ink + (255,))
+        if small:
+            f2 = _font(round(21 * u))
+            l2, t2, r2, b2 = d.textbbox((0, 0), small, font=f2)
+            d.text((round(38 * u) - (r2 - l2) / 2 - l2, round(46 * u) - (b2 - t2) - t2), small,
+                   font=f2, fill=ink + (255,))
+    if not aa:
+        return im
+    im = im.resize((size, size), Image.LANCZOS)
+    px = im.load(); out = Image.new('RGBA', (size, size), KEY); op = out.load()
+    for y in range(size):
+        for x in range(size):
+            r_, g_, b_, a_ = px[x, y]
+            if a_ >= 128:
+                op[x, y] = tuple(min(255, v * 255 // a_) // 16 * 16 for v in (r_, g_, b_)) + (255,)
+    return out
+
+
 def small_badge(size, text, style):
     """64 px badge drawn pixel-exact in a few solid colours (no anti-aliasing), so the
     RLE stays small enough for Samsung's slots."""
@@ -63,7 +118,12 @@ def small_badge(size, text, style):
 
 
 def badge(size, text, style):
-    """Film-frame badge: rounded plate with sprocket notches, short code in the middle."""
+    """Current design: film canister (owner's request, after Fuji's reference)."""
+    return canister(size, text, style)
+
+
+def plate_badge(size, text, style):
+    """First design (film-frame plate), kept for reference."""
     if size < 100:
         return small_badge(size, text, style)
     top, bottom, outline, ink = STYLE[style]

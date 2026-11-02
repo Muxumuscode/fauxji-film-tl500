@@ -1968,3 +1968,12 @@ set gets film-frame plates with sprocket holes; the 64 px sets are pixel-exact s
 colours so the RLE fits (largest uses 95% of its slot). Written in place, offset table
 untouched; the other 678 images are verified unchanged; only skin.bin bytes change.
 Wired into `build_fauxji.py`. FAUXJI20 = FAUXJI19 + badges (label TL500-X).
+
+### FAUXJI21: film-canister icons (`TL500-Y`)
+Owner sent a Fuji film-simulation menu for reference (white film-canister silhouettes:
+spool knob, film leader with sprocket holes, bold code with a big first letter and a
+small second one). `badges.canister()` is our own drawing in that spirit: canister body
++ spool knob + leader with four sprocket holes on a 64-unit grid; codes STD, V, S, C c,
+R a, N c, E t, A, SEP, E b, N n. The 115 px set is anti-aliased; the 64 px sets are
+pixel-exact. All 33 fit in under half of their slots. The plate design is kept as
+`plate_badge()`.
