@@ -2329,3 +2329,9 @@ FAUXJI41 test: the VIDEO button's logical key is 9 (it does pass the live-view d
 `DIAG = False` in tools/fauxji_rot.py. VIDEO now cycles Off / Auto / Auto flip / top right / top left / press-a-key
 with a pop-up and no longer starts a recording (state "press a key" can still re-learn another button).
 Unverified on camera.
+
+## FAUXJI43: tilt tag Auto by default (`TL-F43`, 2 Nov 2026)
+FAUXJI42 field test: a vertical portrait with Face Detection came out tagged Orientation 6 (correct: face
+sideways in the raw pixels, rotate CW to view); a vertical shot before it had no tag. The VIDEO button showed no
+visible pop-up and the stock recording did not start (unclear whether key 9 cycled the state).
+`STATE_DEFAULT = 1` (Auto) so the tag works from power-on without any button.
