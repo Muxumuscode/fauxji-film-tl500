@@ -19,8 +19,8 @@ import skin
 
 LAYOUT = 0x945754
 BOX, BOX_IMG, BOX_TEXT, BOX_IMAGE_INDEX = 990, 991, 992, 121
-BOX_POS = (100, 360, 440, 56)          # x, y, w, h  (stock 100, 158, 440, 118)
-TEXT_POS = (10, 0, 420, 56)
+BOX_POS = (84, 386, 230, 36)           # x, y, w, h  (stock 100, 158, 440, 118; FAUXJI26-48: 100, 360, 440, 56)
+TEXT_POS = (4, 0, 222, 36)
 PANEL = (20, 20, 20, 0xB0)             # near-black at ~70%, Fuji-like
 BLACK, WHITE = bytes.fromhex('000000ff'), bytes.fromhex('ffffffff')
 TEXT_STOCK = BLACK * 8 + WHITE * 8     # text colour x8 states, then outline colour x8

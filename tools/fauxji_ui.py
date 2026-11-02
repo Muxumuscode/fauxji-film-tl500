@@ -66,7 +66,8 @@ WRAP44 = EXTRA_CODE + 4
 KEYHOOK = EXTRA_CODE + 24
 ITEM44_ENTRY = (0xC09BDF84, 0xC04B7BB8)       # viewfinder item table, item 44's draw
 ITEM44_DRAW = 0xC04B7BB8
-TILT_DRAW = 0xC04262F0         # fauxji_rot: draws the tilt indicator, else the stock help text (r0 = value)
+TILT_FORCE = 0xC04262F0        # fauxji_rot: forget the cached text, then TILT_DRAW (used after a name pop-up ends)
+TILT_DRAW = 0xC04262F8         # fauxji_rot: draws the tilt indicator, else the stock help text (r0 = value)
 KEY_CALL = (0xC04C1938, 0xC04DE310)           # `bl 0xC04DE310` at the dispatcher's start
 FILM_KEY = 14
 # 2-second hide: the control timer service start(id, ms, cb, arg) 0xC048F3EC / cancel(id)
@@ -295,7 +296,7 @@ def extra_routines():
     hook[7] = _ldr_pc(pc(7), 2, NAME_FLAG)
     hook[9] = _b(pc(9), pc(14), cond=0x0)
     hook[11] = _ldr_pc(pc(11), 2, NAME_FLAG, store=True)
-    hook[13] = _b(pc(13), TILT_DRAW, link=True)
+    hook[13] = _b(pc(13), TILT_FORCE, link=True)
     hook[15] = _b(pc(15), KEY_CALL[1])
     out += b''.join(struct.pack('<I', x) for x in hook)
     a = ARM_NAME
@@ -341,7 +342,7 @@ def extra_routines():
     th[12] = _b(pc(12), TIMER_CANCEL, link=True)
     th[13] = _ldr_pc(pc(13), 2, NAME_FLAG)
     th[17] = _ldr_pc(pc(17), 2, NAME_FLAG, store=True)
-    th[19] = _b(pc(19), TILT_DRAW, link=True)
+    th[19] = _b(pc(19), TILT_FORCE, link=True)
     out += b''.join(struct.pack('<I', x) for x in th)
     a = ZOOM_HOOK
     zoom = [0xE35E0003,                                 # cmp lr,#3     (stock)

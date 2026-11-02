@@ -2378,3 +2378,15 @@ last face orientation and refreshes on redraws), else the stock help text. Off s
 the film-name geometry (440x56 low centre). Code space: names/nodes table moved to 0xC04261D0; EXIF shared routine in
 the spare end of the string area. Includes FAUXJI47's DRAW_ICONS in `cycle`. Unverified on camera.
 Non-face auto (horizon) is not possible without a tilt sensor; an edge-brightness "sky is up" fallback is possible later.
+
+## FAUXJI49: smaller, steadier tilt indicator (`TL-F49`, 2 Nov 2026)
+FAUXJI48 field test: works but laggy and intermittent, bar too big. Causes/fixes:
+- Intermittent: GUI event 0xC (live-view handler, Help Text setting) calls the stock help-text draw 0xC04B7BB8 directly
+  at 0xC04BA8E4 and 0xC04BA904 (r0 = setting value), bypassing the item-table wrapper and wiping the indicator. Both
+  BLs now call tiltdraw (0xC04262F8).
+- Lag: the indicator redrew its text (string lookup + OSD set text) on every live-view redraw. tiltdraw now caches the
+  drawn text index (LAST, R1+16) and, if unchanged, only re-shows the nodes (branch into the toast's node loop,
+  TOAST+80). The hide paths after a film-name pop-up call tiltforce (0xC04262F0) which invalidates the cache.
+- Size: box 440x56 -> 230x36 at (84,386) (tools/fauxji_layout.py BOX_POS/TEXT_POS); film names share it, so long
+  names may clip: tell me and I will widen. VIDEO press redraws via tiltforce (no DRAW_ICONS for the persistent states).
+Unverified on camera.

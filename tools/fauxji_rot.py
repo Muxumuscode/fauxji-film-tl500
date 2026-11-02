@@ -34,8 +34,8 @@ B = ui.B
 R1, R1_END = 0xC04260A0, ui.TOAST_DATA
 R2, R2_END = ui.ZOOM_HOOK + 16, ui.EXTRA_END
 R3, R3_END = ui.STR_BASE + len(ui.ROT_TEXTS) * ui.STR_SLOT, ui.STRWRAP_END    # spare end of the string area
-STATE, FACE_ORI, FACE_TTL, KEY = R1, R1 + 4, R1 + 8, R1 + 12
-assert STATE == ui.ROT_STATE and KEY == ui.ROT_KEY and R2 == ui.TILT_DRAW
+STATE, FACE_ORI, FACE_TTL, KEY, LAST = R1, R1 + 4, R1 + 8, R1 + 12, R1 + 16   # LAST: text index drawn by tiltdraw
+assert STATE == ui.ROT_STATE and KEY == ui.ROT_KEY and R2 == ui.TILT_FORCE
 KEY_DEFAULT = 9                       # the VIDEO button (found with the FAUXJI41 test build)
 DIAG = False                          # True = FAUXJI41 test build: pop-up shows the number of any pressed key
 STATE_DEFAULT = 1                     # tilt tag state at power-on: 1 = Auto (from sideways faces)
@@ -53,6 +53,7 @@ MASK_SITE, MASK_BACK, GET_SYSVAL = 0xC04CE844, 0xC04CE848, 0xC048F81C
 EV_SITE, EV_BACK = 0xC03ECD54, 0xC03ECD58
 AE_BIAS = 5                           # 1/16 EV steps: 5 = -0.3 EV, 8 = -0.5 EV
 DISP_SITE, DISP_STOCK = 0xC04C1944, 0xC04BFF98
+DIRECT_SITES = (0xC04BA8E4, 0xC04BA904)        # GUI event 0xC calls the stock help-text draw directly: route to tiltdraw
 TTL = 60
 STATES = 5
 FIRST_TEXT = 11                       # NAME_STRINGS index of the first tilt text
@@ -90,7 +91,7 @@ def build():
 
     # ---------------- region 1: data, writer hook, face hook, AE-L key routine -------------
     a = r1
-    a.emit(STATE_DEFAULT, 0, 0, KEY_DEFAULT)       # STATE, FACE_ORI, FACE_TTL, KEY
+    a.emit(STATE_DEFAULT, 0, 0, KEY_DEFAULT, 0xFFFFFFFF)   # STATE, FACE_ORI, FACE_TTL, KEY, LAST
 
     for wname, wstock, wback in WRITERS:           # stub at each EXIF orientation writer
         label(a, wname)
@@ -157,6 +158,9 @@ def build():
 
     # ---------------- region 2: indicator, EXIF routine, cycle(), dispatcher hook ------------
     a = r2
+    label(a, 'tiltforce')                          # forget the cached text, fall into tiltdraw
+    a.emit(0xE3E01000)                             # mvn r1,#0
+    a.str(1, LAST)
     label(a, 'tiltdraw')                           # item-44 draw (r0 = help value, kept): tilt indicator or stock
     assert a.here() == ui.TILT_DRAW
     a.emit(0xE92D4011)                             # push {r0, r4, lr}
@@ -175,9 +179,16 @@ def build():
     label(a, 'tcalc')
     a.emit(0xE284400C, 0xE3510002, 0x02844003)     # add r4,r4,#12 ; cmp r1,#2 ; addeq r4,r4,#3
     label(a, 'tshow')
+    a.ldr(1, LAST)
+    a.emit(0xE1510004)                             # cmp r1,r4
+    a.br(0x0, 'tvis')                              # same text as last time: only show the nodes again
+    a.str(4, LAST)
     a.emit(0xE1A00004)                             # mov r0,r4
     a.br(0xE, 'TOAST', link=True)
     a.emit(0xE8BD8011)                             # pop {r0, r4, pc}
+    label(a, 'tvis')
+    a.emit(0xE28DD004)                             # add sp,sp,#4      drop the saved r0: stack = {r4, lr} as the toast expects
+    a.br(0xE, 'TOAST_VIS')                         # toast's node loop (shows frame, panel and text), returns to our caller
     label(a, 'tstock')
     a.emit(0xE8BD4011)                             # pop {r0, r4, lr}
     a.br(0xE, 'ITEM44_DRAW')
@@ -220,9 +231,8 @@ def build():
     a.br(0xE, 'TOAST', link=True)
     a.emit(0xE8BD8010)                             # pop {r4, pc}
     label(a, 'cpersist')
-    a.br(0xE, 'DRAW_ICONS', link=True)             # redraw (item 44 wrapper draws the indicator) ...
     a.emit(0xE3A00000)                             # mov r0,#0
-    a.br(0xE, 'tiltdraw', link=True)               # ... and draw it directly as well
+    a.br(0xE, 'tiltforce', link=True)              # draw the indicator now (forgets the cached text)
     a.emit(0xE8BD8010)                             # pop {r4, pc}
 
     label(a, 'disp')                               # replaces `bl 0xC04BFF98` (r0 = state, r1 = key)
@@ -244,7 +254,7 @@ def build():
     a.br(0xE, 'DISP_STOCK')
 
     ext = {'WRITER_BACK': WRITER_BACK, 'W2_BACK': W2_BACK, 'W3_BACK': W3_BACK, 'FD_BACK': FD_BACK, 'ARM_NAME': ui.ARM_NAME,
-           'TOAST': ui.TOAST_CODE, 'DRAW_ICONS': ui.DRAW_ICONS, 'ITEM44_DRAW': ui.ITEM44_DRAW, 'DISP_STOCK': DISP_STOCK,
+           'TOAST': ui.TOAST_CODE, 'DRAW_ICONS': ui.DRAW_ICONS, 'ITEM44_DRAW': ui.ITEM44_DRAW, 'TOAST_VIS': ui.TOAST_CODE + 4 * 20, 'TILT_DRAW': ui.TILT_DRAW, 'DISP_STOCK': DISP_STOCK,
            'GET_SYSVAL': GET_SYSVAL, 'EV_BACK': EV_BACK, 'MASK_BACK': MASK_BACK}
     blobs = []
     for a in (r1, r2, r3):
@@ -274,6 +284,10 @@ def patch(d):
         cur = struct.unpack_from('<I', d, site - B)[0]
         assert cur in (stock, new), (hex(site), hex(cur))
         struct.pack_into('<I', d, site - B, new)
+    for site in DIRECT_SITES:
+        cur = struct.unpack_from('<I', d, site - B)[0]
+        assert cur in (ui._b(site, ui.ITEM44_DRAW, link=True), ui._b(site, ui.TILT_DRAW, link=True)), (hex(site), hex(cur))
+        struct.pack_into('<I', d, site - B, ui._b(site, ui.TILT_DRAW, link=True))
     return bytes(d)
 
 
