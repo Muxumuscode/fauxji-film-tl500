@@ -2213,3 +2213,15 @@ Flashed FAUXJI31: all good; the guide strip (~70% black) is too light for white 
   ...; 44-51, 218, 252, 542, 578, 591, 602, 617, 670): stored as **type 1** images, which
   decode with the same tokens (all 44 type-1 images do); rewritten as type 3: Fuji grey
   chip (143,145,147) with a dark legend.
+Flashed FAUXJI32 (photos of Format): pop-up panel and text fine, but its buttons and the
+menu's option list sit on their own images: unselected white rows, selected cyan.
+
+### FAUXJI33: option lists and dialog buttons (`TL-F33`)
+Menu option list (tree 0 group 32 at x 251): rows 33-39 = images 256/255 (328x58 white),
+selected = node 40 image 707 (cyan, type 1), edges 257/258 (328x11); labels nodes 41-47
+(type 2: 4d5052 / white / b3b3b3 grey ...). Dialog buttons: selected = image 238 (229x60
+cyan, type 1; also used by group 454), unselected on the same white rows.
+- 255/256 -> dark row (70,70,71) with a black separator; 257/258 -> (70,70,71);
+  707 and 238 -> white (written as type 3).
+- Option labels: white, black when selected, grey (7f7f7f) when disabled.
+- Pop-up buttons: white, black when selected.

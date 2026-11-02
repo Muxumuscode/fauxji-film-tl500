@@ -177,6 +177,10 @@ SEL_BAR = 131        # 485x58 menu row highlight (cyan gloss)
 POPUP = 136          # 236x321 option list panel, rows of 60 (separators at 70/130/190/250)
 POPUP_SEL = 585      # 200x60 selected option in that list (cyan button)
 ARROWS = {132: ('>', False), 133: ('>', True), 134: ('>>', False), 135: ('>>', True)}
+SUB_ROWS = (255, 256)   # 328x58 white rows of a menu item's option list (layout nodes 33-39)
+SUB_SEL = 707           # 328x58 cyan selected option (node 40), type 1
+SUB_CAPS = (257, 258)   # 328x11 top / bottom edges of that list
+BTN_SEL = 238           # 229x60 cyan selected pop-up / dialog button, type 1
 SEL = (128, 128, 130)
 POPUP_BG = (50, 50, 51)
 KEY = (255, 0, 255, 255)
@@ -205,6 +209,14 @@ def widgets():
     sel = Image.new('RGBA', (200, 60), SEL + (255,))
     ImageDraw.Draw(sel).rectangle([0, 0, 3, 59], fill=WHITE + (255,))
     out = {SEL_BAR: bar, POPUP: pop, POPUP_SEL: sel}
+    for i in SUB_ROWS:
+        row = Image.new('RGBA', (328, 58), ROW + (255,))
+        ImageDraw.Draw(row).line([0, 57, 327, 57], fill=BLACK + (255,), width=2)
+        out[i] = row
+    out[SUB_SEL] = Image.new('RGBA', (328, 58), WHITE + (255,))
+    for i in SUB_CAPS:
+        out[i] = Image.new('RGBA', (328, 11), ROW + (255,))
+    out[BTN_SEL] = Image.new('RGBA', (229, 60), WHITE + (255,))
     out.update({i: arrow(*a) for i, a in ARROWS.items()})
     return out
 
@@ -216,7 +228,7 @@ def patch_skin(k):
     for idx, im in widgets().items():
         a = offs[idx]
         w, h, size, typ = struct.unpack_from('<4I', k, a)
-        assert (w, h) == im.size and typ == 3, idx
+        assert (w, h) == im.size and typ in (1, 3), idx          # written back as type 3
         blk = skin.encode(w, h, im.tobytes())
         assert len(blk) <= size, (idx, len(blk), size)
         k[a:a + len(blk)] = blk

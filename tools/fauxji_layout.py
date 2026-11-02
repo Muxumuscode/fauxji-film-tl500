@@ -122,6 +122,16 @@ def patch_guides(k):
 # light grey; focused stays white (whatever highlight the code draws behind it).
 POPUP_TREE = 1785
 BTN_GREY = bytes.fromhex('aaaaacff')
+# FAUXJI33: the buttons sit on images after all (unselected = white row 255/256, selected =
+# 238 cyan), now dark grey / white: buttons white, black when selected.
+SUB_TEXTS = range(41, 48)       # option-list labels: 4d5052 / white / b3b3b3 / white ...
+SUB_FUJI = _c('ffffffff', '000000ff', '7f7f7fff', '000000ff') * 2
+
+
+def patch_options(k):
+    for i in SUB_TEXTS:
+        b, length = node_at(k, i)
+        k[b + 44:b + 76] = SUB_FUJI
 
 
 def patch_popups(k):
@@ -139,7 +149,7 @@ def patch_popups(k):
         elif typ == 2:
             cols = bytearray(k[b + 44:b + 108])
             for s in range(8):
-                cols[4 * s:4 * s + 4] = WHITE if s % 4 == 1 else BTN_GREY
+                cols[4 * s:4 * s + 4] = BLACK if s % 4 == 1 else WHITE
                 cols[32 + 4 * s:36 + 4 * s] = BLACK
             k[b + 44:b + 108] = bytes(cols)
 
@@ -175,6 +185,7 @@ def patch_skin(k):
     patch_menu_text(k)
     patch_guides(k)
     patch_popups(k)
+    patch_options(k)
     return bytes(k)
 
 
