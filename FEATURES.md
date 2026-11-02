@@ -39,6 +39,7 @@ root (`E:` on the owner's PC). Commit and push after each build.
 **Current state (2 Nov 2026):**
 - On camera and confirmed: everything through FAUXJI34 (looks, menus, shooting screen,
   pop-ups, busy animation).
+- **FAUXJI37 built (NOT flashed): tilt tag = auto-rotate, see the section at the end.**
 - **FAUXJI36 built (text only, NOT flashed):** DR names (menu title "D-Range", options
   Off / DR200 / DR400 with matching help lines). Test: shoot a high-contrast scene at each
   setting and check whether highlights really differ; if Exp.1 is not ~1 stop, rename.
@@ -219,3 +220,22 @@ memory and merge code: research only.
 - Two routes: (A) manual: a flag the user sets (Off / 90 CW / 90 CCW) feeds the writer;
   (B) automatic: face angle from the detector -> flag. B needs one on-camera fact first:
   does the face box appear when the camera is held vertically?
+
+## FAUXJI37: tilt tag (auto-rotate), `TL-F37` — test plan
+Rewrote the working notes above: the writers at 0xC03773E0 / 0xC0383120 / 0xC0388668 are dead code
+(`tools/liveness.py`); the live EXIF writer is 0xC0385868, whose Orientation case stores a constant 1
+(hook at 0xC0385F00). And the stock face detector (SDIC_FaceDetection 0xC058F798) already scans
+rotated faces in a 13-frame cycle (0, -30, +30, -90, +90, -60, +60 degrees), so sideways faces ARE
+detected; a hook at its end (0xC058FA0C) remembers a +-90 hit.
+Control: **AE-L button -> its "AE-L" option, now labelled TILT TAG** (set it in the menu: AE-L Button).
+Each press cycles a pop-up: Off / Auto / Auto flip / top right / top left. Power-on state: Off.
+Tests at home (Face Detection must be ON in the shooting menu for Auto):
+1. Press the button: pop-up text changes through the 5 states (and stock AE lock is gone).
+2. "top right" + a vertical shot (camera top to the right): EXIF Orientation 6; "top left": 8.
+   Check on the PC and in the camera's playback (does it show upright?).
+3. Auto: face in a vertically held frame. Expect a few seconds of aiming at the face before the shot
+   (the +-90 scan runs once per 13 detector frames). Report Orientation of the result; if it is the
+   wrong way round use "Auto flip" and tell me.
+4. Auto, upright shots with faces / no faces: must stay Orientation 1.
+Risks: pop-up text uses our own UTF-16 strings (if garbled, the string pointer format is wrong);
+face hook only runs if FD is on; stale tag if FD is switched off right after a sideways face.

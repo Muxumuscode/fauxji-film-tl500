@@ -44,7 +44,9 @@ STRING_CTX = 0xC0CA6C90
 GET_STRING, OSD_SET_UNICODE_TEXT, OSD_TEXT_PROPERTY, OSD_SET_VISIBLE = \
     0xC05BA87C, 0xC0201488, 0xC0202004, 0xC0201CAC
 #               PROVIA Bleach Nostalgic ASTIA Velvia Reala Chrome Neg. Eterna ACROS Sepia
-NAME_STRINGS = [182,   911,   986,      183,  184,   185,  186,   187, 188,   189,  190]
+NAME_STRINGS = [182,   911,   986,      183,  184,   185,  186,   187, 188,   189,  190,
+                # tilt-tag states 11-15: 0xF000 + k = our own string k (see rot_strings)
+                0xF000, 0xF001, 0xF002, 0xF003, 0xF004]
 
 # PROVIA's live-view icon: the film item (7) draws child v of its OSD node but hides the
 # node for v = 0 (Samsung shows no icon for Standard). Child 0 is the STD canister.
@@ -84,6 +86,14 @@ TIMERHOOK = ARM_NAME + 40
 # it for mode 2 as well (P and A share the program line), other modes unchanged.
 ZOOM_HOOK = TIMERHOOK + 84
 ZOOM_SITE, ZOOM_SKIP, ZOOM_BACK = 0xC053FDC4, 0xC053FF04, 0xC053FDCC
+
+# Tilt-tag pop-up texts: the toast's GetString call (code[12]) goes through STRWRAP, which
+# serves ids 0xF000+k from our own UTF-16 strings (40-byte slots) and passes the rest on.
+STRWRAP = ZOOM_HOOK + 16
+STR_BASE = STRWRAP + 32
+ROT_TEXTS = ['Vertical tag: Off', 'Vertical tag: Auto', 'Vertical: Auto flip',
+             'Vertical: top right', 'Vertical: top left']
+STR_SLOT = 40
 
 #            PROVIA Chrome Velvia ASTIA ClassicNeg ACROS Nostalgic
 FAVOURITES = [0,    6,     4,     3,    7,         9,    2]
@@ -226,7 +236,7 @@ def toast_routine():
     code[2], code[14] = ldr(2, 0, 0), ldr(14, 0, 0)
     code[7], code[9], code[20] = ldr(7, 0, 1), ldr(9, 1, 2), ldr(20, 4, 3)
     code[6] = _b(pc(6), OSD_TEXT_PROPERTY, link=True)
-    code[12] = _b(pc(12), GET_STRING, link=True)
+    code[12] = _b(pc(12), STRWRAP, link=True)
     code[18] = _b(pc(18), OSD_SET_UNICODE_TEXT, link=True)
     code[27] = _b(pc(27), OSD_SET_VISIBLE, link=True)
     code[28] = _b(pc(28), pc(21))
@@ -326,7 +336,21 @@ def extra_routines():
             _b(a + 8, ZOOM_SKIP, cond=0x0),             # beq skip the zoom shift
             _b(a + 12, ZOOM_BACK)]                      # b back
     out += b''.join(struct.pack('<I', x) for x in zoom)
-    assert EXTRA_CODE + len(out) <= EXTRA_END
+    assert EXTRA_CODE + len(out) == STRWRAP
+    a = STRWRAP
+    wrap = [0xE3510A0F,                                 # 0 cmp r1,#0xF000  (0xF = 15 ror 20 -> 0xF000)
+            _b(a + 4, GET_STRING, cond=0x3),            # 1 blo stock GetString (tail call)
+            0xE2411A0F,                                 # 2 sub r1,r1,#0xF000
+            0xE0811101,                                 # 3 add r1,r1,r1,lsl #2   (x5)
+            0xE28F0000 | (STR_BASE - (a + 16 + 8)),     # 4 add r0,pc,#STR_BASE   (small offset)
+            0xE0800181,                                 # 5 add r0,r0,r1,lsl #3   (x8 = slot 40)
+            0xE1A0F00E]                                 # 6 mov pc,lr
+    out += b''.join(struct.pack('<I', x) for x in wrap) + b'\0' * 4
+    for t in ROT_TEXTS:
+        raw = t.encode('utf-16-le') + b'\0\0'
+        assert len(raw) <= STR_SLOT, t
+        out += raw + b'\0' * (STR_SLOT - len(raw))
+    assert EXTRA_CODE + len(out) <= EXTRA_END, hex(EXTRA_CODE + len(out))
     return out
 
 

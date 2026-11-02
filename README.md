@@ -2283,3 +2283,12 @@ string and stays. Unverified: that Exp.1 is about one stop of highlight protecti
 Batch review of FEATURES.md items 1-8: item 1 negative (no AUTO_ROTATE), item 5's 1/3/5/10 s are
 the slideshow, item 7's grid is code-drawn, item 4's stamp fonts are named in the WB850F map
 (gImprint*Font) but not yet found in the TL500 .elf. See FEATURES.md.
+
+## FAUXJI37: tilt tag / auto-rotate (`TL-F37`, 2 Nov 2026)
+New: tools/fauxji_rot.py (+ STRWRAP and tilt texts in fauxji_ui.py), tools/liveness.py (dead-code finder),
+armdis.py, xref.py, litref.py. Facts: live EXIF writer 0xC0385868 (Orientation constant 1 at
+0xC0385F00); stock detector SDIC_FaceDetection 0xC058F798 scans rotated faces (r6 = 0/-30/+30/-90/+90/
+-60/+60 by a frame counter 0xC09F51F0; r6 = -90 rotates the luma image CCW with 0xC0595A18, +90 CW
+with 0xC0595A94). Hook at its end stores 6 (r6=+90) or 8 (r6=-90) for 60 upright scans. AE-L button
+option "AE-L" (logical key 0, call at 0xC04C1A98) cycles Off/Auto/Auto flip/top right/top left.
+Code in the dead factory function 0xC04260A0..0xC042620C. See FEATURES.md for the test plan.
