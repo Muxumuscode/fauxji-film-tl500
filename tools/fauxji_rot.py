@@ -37,8 +37,12 @@ STATE, FACE_ORI, FACE_TTL, KEY = R1, R1 + 4, R1 + 8, R1 + 12
 assert STATE == ui.ROT_STATE and KEY == ui.ROT_KEY
 KEY_DEFAULT = 9                       # the VIDEO button (found with the FAUXJI41 test build)
 DIAG = False                          # True = FAUXJI41 test build: pop-up shows the number of any pressed key
-STATE_DEFAULT = 3                     # FAUXJI44 test: always "top right" (Orientation 6) from power-on; normal build: 1 = Auto
+STATE_DEFAULT = 3                     # FAUXJI45 test: always "top right" (Orientation 6) from power-on; normal build: 1 = Auto
 WRITER_SITE, WRITER_BACK = 0xC0385F00, 0xC0385F04
+# The three EXIF writers' orientation sites (only one is live; FAUXJI44 showed 0xC0385F00 alone is not it)
+W2_SITE, W2_BACK = 0xC03779DC, 0xC03779E0      # ldr lr,[sl,#0xe4]
+W3_SITE, W3_BACK = 0xC0383470, 0xC0383474      # mov lr,#1
+WRITERS = [('writer', 0xE3A0E001, 'WRITER_BACK'), ('writer2', 0xE59AE0E4, 'W2_BACK'), ('writer3', 0xE3A0E001, 'W3_BACK')]
 FD_SITE, FD_BACK = 0xC058FA0C, 0xC058FA10
 KEY_SITE, KEY_STOCK = 0xC04C1A98, 0xC04C1414
 MASK_SITE, MASK_BACK, GET_SYSVAL = 0xC04CE844, 0xC04CE848, 0xC048F81C
@@ -89,24 +93,12 @@ def build():
     a = r1
     a.emit(STATE_DEFAULT, 0, 0, KEY_DEFAULT)       # STATE, FACE_ORI, FACE_TTL, KEY
 
-    label(a, 'writer')                             # replaces `mov lr,#1` at 0xC0385F00
-    a.emit(0xE3A0E001)                             # mov lr,#1        (stock)
-    a.ldr(12, STATE)                               # ldr ip,STATE
-    a.emit(0xE35C0003, 0x03A0E006)                 # cmp ip,#3 ; moveq lr,#6
-    a.br(0x0, 'wdone')
-    a.emit(0xE35C0004, 0x03A0E008)                 # cmp ip,#4 ; moveq lr,#8
-    a.br(0x0, 'wdone')
-    a.emit(0xE35C0002)                             # cmp ip,#2
-    a.br(0x8, 'wdone')                             # bhi wdone   (state 5: off)
-    a.emit(0xE35C0000)                             # cmp ip,#0
-    a.br(0x0, 'wdone')                             # beq wdone   (off)
-    a.ldr(3, FACE_ORI)                             # ldr r3,FACE_ORI
-    a.emit(0xE3530000)                             # cmp r3,#0
-    a.br(0x0, 'wdone')                             # no sideways face seen
-    a.emit(0xE35C0002, 0x0263300E)                 # cmp ip,#2 ; rsbeq r3,r3,#14   (6 <-> 8)
-    a.emit(0xE1A0E003)                             # mov lr,r3
-    label(a, 'wdone')
-    a.br(0xE, 'WRITER_BACK')
+    for wname, wstock, wback in WRITERS:           # stub at each EXIF orientation writer
+        label(a, wname)
+        a.emit(wstock)                             # stock: mov lr,#1  or  ldr lr,[sl,#0xe4]
+        a.emit(0xE28F3000)                         # add r3,pc,#0     return address = the `b wback` below
+        a.br(0xE, 'wcommon')
+        a.br(0xE, wback)
 
     label(a, 'face')                               # replaces `ldr r0,[r8,#0x2fc]` at 0xC058FA0C
     a.emit(0xE59802FC, 0xE3500000)                 # ldr r0,[r8,#0x2fc] ; cmp r0,#0   (face count)
@@ -166,6 +158,24 @@ def build():
 
     # ---------------- region 2: cycle(), dispatcher hook ------------------------------------
     a = r2
+    label(a, 'wcommon')                            # lr = orientation (stock); r3 = return address
+    a.emit(0xE92D0001)                             # push {r0}
+    a.ldr(12, STATE)                               # ldr ip,STATE
+    a.emit(0xE35C0003, 0x03A0E006)                 # cmp ip,#3 ; moveq lr,#6
+    a.br(0x0, 'wcdone')
+    a.emit(0xE35C0004, 0x03A0E008)                 # cmp ip,#4 ; moveq lr,#8
+    a.br(0x0, 'wcdone')
+    a.emit(0xE35C0002)                             # cmp ip,#2
+    a.br(0x8, 'wcdone')                            # bhi done   (state 5: off)
+    a.emit(0xE35C0000)                             # cmp ip,#0
+    a.br(0x0, 'wcdone')                            # beq done   (off)
+    a.ldr(0, FACE_ORI)                             # ldr r0,FACE_ORI
+    a.emit(0xE3500000)                             # cmp r0,#0
+    a.br(0x0, 'wcdone')                            # no sideways face seen
+    a.emit(0xE35C0002, 0x0260000E)                 # cmp ip,#2 ; rsbeq r0,r0,#14   (6 <-> 8)
+    a.emit(0xE1A0E000)                             # mov lr,r0
+    label(a, 'wcdone')
+    a.emit(0xE8BD0001, 0xE1A0F003)                 # pop {r0} ; mov pc,r3
     label(a, 'cycle')                              # state++, clear the face tag, show the pop-up
     a.emit(0xE92D4010)                             # push {r4, lr}
     a.ldr(4, STATE)
@@ -243,7 +253,7 @@ def build():
     if DIAG:
         a.w[pool_load2] = ui._ldr_pc(R2 + 4 * pool_load2, 3, pool)
 
-    ext = {'WRITER_BACK': WRITER_BACK, 'FD_BACK': FD_BACK, 'ARM_NAME': ui.ARM_NAME,
+    ext = {'WRITER_BACK': WRITER_BACK, 'W2_BACK': W2_BACK, 'W3_BACK': W3_BACK, 'FD_BACK': FD_BACK, 'ARM_NAME': ui.ARM_NAME,
            'TOAST': ui.TOAST_CODE, 'DISP_STOCK': DISP_STOCK,
            'GET_SYSVAL': GET_SYSVAL, 'EV_BACK': EV_BACK, 'MASK_BACK': MASK_BACK}
     blobs = []
@@ -264,6 +274,8 @@ def patch(d):
         d[base - B:base - B + len(blob)] = blob
     for site, stock, new in (
             (WRITER_SITE, 0xE3A0E001, ui._b(WRITER_SITE, lab['writer'])),
+            (W2_SITE, 0xE59AE0E4, ui._b(W2_SITE, lab['writer2'])),
+            (W3_SITE, 0xE3A0E001, ui._b(W3_SITE, lab['writer3'])),
             (FD_SITE, 0xE59802FC, ui._b(FD_SITE, lab['face'])),
             (KEY_SITE, ui._b(KEY_SITE, KEY_STOCK, link=True), ui._b(KEY_SITE, lab['key0'], link=True)),
             (EV_SITE, 0xE1A0080B, ui._b(EV_SITE, lab['evbias'])),

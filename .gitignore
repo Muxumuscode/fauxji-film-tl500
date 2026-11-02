@@ -4,3 +4,4 @@ extracted/
 ghidra-install/
 photos-test/
 research-out/
+__pycache__/

@@ -2342,3 +2342,10 @@ FAUXJI43 field test (Auto default, Face Detection on, face-lock icon shown): fou
 was rotated by the owner in playback, so nothing in the tilt chain is verified on camera yet.
 `STATE_DEFAULT = 3` (always 6) isolates the EXIF writer hook (0xC0385F00). Test: shot A, VIDEO, shot B, VIDEO,
 shot C expect tags 6, 8, 1 (this also tests the button without the pop-up). Restore STATE_DEFAULT = 1 afterwards.
+
+## FAUXJI45: all three EXIF orientation writers hooked (`TL-F45`, 2 Nov 2026)
+FAUXJI44 test (state forced to 3, button works: first press showed "top left" = state 4): SAM_0628-0630 all
+Orientation 1, so the writer at 0xC0385F00 is not the one that produces the JPEG tag. FAUXJI45 hooks all
+three candidates through short stubs + one shared routine (tools/fauxji_rot.py `wcommon`): 0xC0385F00 (mov lr,#1),
+0xC03779DC (ldr lr,[sl,#0xe4]), 0xC0383470 (mov lr,#1). Still STATE_DEFAULT = 3. Test: shot A, VIDEO, shot B,
+VIDEO, shot C = tags 6, 8, 1. If still all 1 the tag comes from somewhere else (0xC0388668 or a template).
