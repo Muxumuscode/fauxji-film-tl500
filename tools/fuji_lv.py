@@ -39,6 +39,22 @@ MODE_TAGS = {115: 'SR+', 1: 'P', 8: 'A', 116: 'S', 9: 'M', 231: 'DUAL', 0: 'movi
 DIAL_TAGS = {107: 'A', 108: 'DUAL', 109: 'M', 110: 'movie', 111: 'P', 113: 'S', 226: 'SR+',
              112: 'SCN'}
 ORANGE_TILES = tuple(range(140, 156)) + (316, 520)
+# Status icons of the live-view tree (58x58, 64x64, 58x54; grey-white shaded glyphs with a
+# dark edge, mean saturation <= 20): flattened to white with a near-black edge. Excludes
+# the film canisters (414-424) and the opaque scene tiles (239-251).
+FLAT_ICONS = (3, 10, 12, 15, 36, 37, 61, 63, 90, 141, 156, 211, 212, 213, 214, 215, 216, 217,
+              232, 319, 320, 321, 322, 323, 324, 325, 346, 347, 348, 349, 350, 351, 352, 353,
+              354, 355, 373, 374, 375, 376, 377, 378, 379, 380, 381, 382, 383, 385, 386, 387,
+              388, 396, 397, 398, 399, 400, 401, 402, 410, 411, 425, 426, 427, 428, 434, 439,
+              440, 444, 454, 455, 456, 457, 458, 459, 460, 461, 483, 484, 485, 535, 539, 541,
+              545, 546, 547, 551, 552, 553, 554, 555, 556, 582, 588, 589, 590, 596, 666, 667,
+              668, 672, 695)
+EDGE = (20, 20, 20)
+# Other 640x480 screens still in Samsung blue: desaturated and darkened
+NEUTRAL_BGS = ('bg_datetime_dmy.jpg', 'bg_datetime_mdy.jpg', 'bg_datetime_ymd.jpg',
+               'bg_facelist.jpg', 'bg_firmware_update_01.jpg', 'bg_firmware_update_02.jpg',
+               'bg_firmware_update_03.jpg', 'bg_language.jpg', 'bg_menu_hdmi_main.jpg',
+               'bg_menu_hdmi_slideshow.jpg', 'bg_timezone.jpg', 'bg_voicerecord.jpg')
 SCENE_CARDS = tuple(range(195, 207)) + (559,)
 STRIPS = {119: (640, 54), 92: (640, 46)}
 STRIP = (0, 0, 0, 150)                  # ~60% black
@@ -136,6 +152,33 @@ def ev_ticks(im):
     return out
 
 
+def flat_icon(im):
+    im = im.convert('RGBA')
+    p = im.load()
+    for y in range(im.height):
+        for x in range(im.width):
+            r, g, b, a = p[x, y]
+            if (r, g, b) == (255, 0, 255):
+                continue
+            p[x, y] = WHITE[:3] + (a,) if (r * 3 + g * 6 + b) / 10 >= 105 else EDGE + (a,)
+    return im
+
+
+def neutral(data):
+    """Samsung-blue JPEG -> neutral dark grey (luminance kept, scaled to 80%)."""
+    import io
+    im = Image.open(io.BytesIO(data)).convert('L').point(lambda v: int(v * 0.8)).convert('RGB')
+    for q in range(90, 30, -5):
+        b = io.BytesIO()
+        im.save(b, 'JPEG', quality=q, subsampling=1)
+        out = b.getvalue()
+        if out[2:4] == b'\xff\xe0':                       # stock files start with DQT
+            out = out[:2] + out[4 + int.from_bytes(out[4:6], 'big'):]
+        if len(out) <= len(data) + 2048:
+            return out
+    raise ValueError('cannot fit')
+
+
 def white_tile(im):
     """Orange tile with a white glyph -> white tile with a dark glyph (like 239-251)."""
     im = im.convert('RGBA')
@@ -206,6 +249,9 @@ def patch_skin(k):
         new[i] = tag(t, False)
     for i, (w, h) in STRIPS.items():
         new[i] = Image.new('RGBA', (w, h), STRIP)
+    for i in FLAT_ICONS:
+        w, h, typ, px = skin.decode(bytes(k), offs[i])
+        new[i] = flat_icon(Image.frombytes('RGBA', (w, h), px))
     for i in ORANGE_TILES + SCENE_CARDS:
         w, h, typ, px = skin.decode(bytes(k), offs[i])
         src = Image.frombytes('RGBA', (w, h), px)
@@ -234,6 +280,9 @@ def patch_skin(k):
 
 
 def patch_rom(d):
+    for name in NEUTRAL_BGS:
+        rec, off, size, slot = spid_files.directory(d)[name]
+        d = spid_files.replace(d, name, neutral(d[off:off + size]))
     data = dial().tobytes()
     rec, off, size, slot = spid_files.directory(d)[DIAL]
     assert len(data) == size

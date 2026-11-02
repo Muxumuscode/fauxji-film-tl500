@@ -74,6 +74,48 @@ def patch_menu_text(k):
         k[b + 44:b + 108] = _value_fuji(cur)
 
 
+# Guide screens (mode dial, scene picker, ...: trees 1751, 1768, 1882, 1917). At the bottom
+# a dark title bar (image 92 + white text) and the description. The description area is
+# a text list (type 6, e.g. node 1760) whose colours at +44..+108 are all white and whose
+# text colour at +132 is black (the title's list, 1759, has white text there), plus a
+# plain text node (e.g. 1765) in black. Assumed: +44..+108 = the list's background.
+GUIDE_TREES = (1751, 1768, 1882, 1917)
+GUIDE_BG = bytes.fromhex('141414b0') * 16
+GUIDE_TEXT = bytes.fromhex('ffffffff')
+
+
+def tree(k):
+    n = struct.unpack_from('<I', k, LAYOUT + 4)[0]
+    rec, kids = {}, {}
+    for i in range(n):
+        b, length = node_at(k, i)
+        typ = struct.unpack_from('<I', k, b + 4)[0]
+        x, y = struct.unpack_from('<2h', k, b + 8)
+        parent = struct.unpack_from('<h', k, b + 28)[0]
+        rec[i] = (typ, x, y, parent)
+        kids.setdefault(parent, []).append(i)
+    return rec, kids
+
+
+def patch_guides(k):
+    rec, kids = tree(k)
+    for root in GUIDE_TREES:
+        todo = [(root, 0)]
+        while todo:
+            i, y0 = todo.pop()
+            typ, x, y, parent = rec[i]
+            ay = y0 + y
+            todo += [(c, ay) for c in kids.get(i, [])]
+            b, length = node_at(k, i)
+            if ay < 400:
+                continue
+            if typ == 6 and length >= 136 and k[b + 132:b + 136] in (bytes.fromhex('000000ff'), GUIDE_TEXT):
+                k[b + 44:b + 108] = GUIDE_BG
+                k[b + 132:b + 136] = GUIDE_TEXT
+            elif typ == 9 and length >= 108 and k[b + 44:b + 48] == bytes.fromhex('000000ff'):
+                k[b + 44:b + 108] = WHITE * 8 + BLACK * 8
+
+
 def panel():
     w, h = BOX_POS[2], BOX_POS[3]
     im = Image.new('RGBA', (w, h), PANEL)
@@ -103,6 +145,7 @@ def patch_skin(k):
     assert len(blk) <= size and typ == 3
     k[a:a + len(blk)] = blk
     patch_menu_text(k)
+    patch_guides(k)
     return bytes(k)
 
 

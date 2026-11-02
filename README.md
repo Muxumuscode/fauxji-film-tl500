@@ -2187,3 +2187,17 @@ look: 317 SCENE (selected), 226 SMART and 112 SCENE (unselected) -> SCN / SR+ ta
 Smart Auto's orange scene tiles (140-155, 316, 520) -> white tiles with dark glyphs, like
 the scene-mode icons 239-251. Scene picker cards (195-206, 559, 256x285 photos) -> flat
 dark cards (50,50,51) with a grey edge and each photo's own corner icon, large, in white.
+
+### FAUXJI31: status icons, guide description box, neutral backgrounds (`TL-F31`)
+- **Status icons**: the 101 grey-white shaded glyphs used in the live-view tree (58x58,
+  64x64, 58x54, mean saturation <= 20; not the canisters or scene tiles) flattened: light
+  pixels white, the rest near-black (keeps a thin edge for bright scenes).
+- **Guide screens** (dial, scene picker; trees 1751/1768/1882/1917): below y 400, text
+  lists (type 6) with black text at +132 get white text and +44..+108 set to near-black
+  at ~70% (assumed to be the list's background: these are white in stock, behind the
+  black description); black text nodes get white text with a black outline.
+  Unconfirmed: if +44..+108 are not the background, the text is white on white.
+- **Backgrounds**: date/time, face list, firmware update, language, HDMI menus, world
+  map, voice memo: converted to neutral grey at 80% brightness.
+Remaining: pop-ups (565 glossy panel, black text), "Menu Exit / Move" help bar, playback
+screens, FILM BKT, face-based auto-rotate.
