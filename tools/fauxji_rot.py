@@ -37,7 +37,7 @@ STATE, FACE_ORI, FACE_TTL, KEY = R1, R1 + 4, R1 + 8, R1 + 12
 assert STATE == ui.ROT_STATE and KEY == ui.ROT_KEY
 KEY_DEFAULT = 9                       # the VIDEO button (found with the FAUXJI41 test build)
 DIAG = False                          # True = FAUXJI41 test build: pop-up shows the number of any pressed key
-STATE_DEFAULT = 1                     # tilt tag state at power-on: 1 = Auto (from sideways faces)
+STATE_DEFAULT = 3                     # FAUXJI44 test: always "top right" (Orientation 6) from power-on; normal build: 1 = Auto
 WRITER_SITE, WRITER_BACK = 0xC0385F00, 0xC0385F04
 FD_SITE, FD_BACK = 0xC058FA0C, 0xC058FA10
 KEY_SITE, KEY_STOCK = 0xC04C1A98, 0xC04C1414

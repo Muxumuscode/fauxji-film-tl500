@@ -2335,3 +2335,10 @@ FAUXJI42 field test: a vertical portrait with Face Detection came out tagged Ori
 sideways in the raw pixels, rotate CW to view); a vertical shot before it had no tag. The VIDEO button showed no
 visible pop-up and the stock recording did not start (unclear whether key 9 cycled the state).
 `STATE_DEFAULT = 1` (Auto) so the tag works from power-on without any button.
+
+## FAUXJI44: tilt-tag writer test (`TL-F44`, 2 Nov 2026)
+FAUXJI43 field test (Auto default, Face Detection on, face-lock icon shown): four sideways-face portraits
+(SAM_0624-0627, heads left x2 / right x2) all Orientation 1; VIDEO showed no pop-up in 7 presses. SAM_0622 (tag 6)
+was rotated by the owner in playback, so nothing in the tilt chain is verified on camera yet.
+`STATE_DEFAULT = 3` (always 6) isolates the EXIF writer hook (0xC0385F00). Test: shot A, VIDEO, shot B, VIDEO,
+shot C expect tags 6, 8, 1 (this also tests the button without the pop-up). Restore STATE_DEFAULT = 1 afterwards.
