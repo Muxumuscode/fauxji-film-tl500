@@ -1977,3 +1977,19 @@ small second one). `badges.canister()` is our own drawing in that spirit: canist
 R a, N c, E t, A, SEP, E b, N n. The 115 px set is anti-aliased; the 64 px sets are
 pixel-exact. All 33 fit in under half of their slots. The plate design is kept as
 `plate_badge()`.
+Flashed and confirmed: the canisters show in the quick menu and on the shooting screen.
+But the live-view icon only changed after leaving live view (playback, mode switch),
+not on each FILM SIM press.
+
+### FAUXJI22: live-view icon follows FILM SIM (`TL500-Z`)
+The menu commit sequence the FILM SIM routine copies never redraws live view: leaving a
+menu re-enters the live-view state, and that state's entry redraws every icon. WB850F
+symbols located the drawing: `CAPPGUIPreviewView::drawViewfinderIcon(bool)` walks the
+current viewfinder item list and calls each item's draw function with its system value.
+The TL500 copy is **0xC04B7444** (fuzzy match, same loop, without the blink timer); its
+helper getViewfinderSystemIndex is 0xC04B6EAC, and 0xC04B74B4 draws a single item. One of
+its callers is case 2 of the GUI handler **0xC049C1D4** (jump table 0xC049C270,
+switch on the event id). GUI event 2 is posted with param 0 from 28 places in the
+control layer, so the FILM SIM routine now ends with `0xC048FD5C(2, 0)` after its menu
+sequence. The event is queued to the GUI task, so no drawing happens from the key task.
+Only the routine (32 bytes) and the label differ from FAUXJI21; SPID.Rom is identical.
