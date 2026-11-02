@@ -2090,3 +2090,22 @@ sampled. The manual's screens are neutral greyscale:
 Mapping to the TL500: menu backgrounds -> flat near-black JPEGs (tab icons redrawn as
 white glyphs on grey); cyan/blue selection bars (123, 126, 312, 585, 136) -> white;
 glossy panels (13, 14, 256, 565) -> flat dark grey; menu text in capitals (strings).
+Flashed FAUXJI24: PROVIA's canister shows; no name appeared.
+
+### FAUXJI25: name box survives redraws, hides on the next key (`TL-F25`)
+The help box nodes sit where expected (frame 990 at (100,158) 440x118 under the
+live-view root 742; text node 992), so the box was most likely shown and then wiped:
+it is viewfinder item 44, whose draw 0xC04B7BB8 runs on every full redraw and on GUI
+event 0xC (live-view handler case 0xC: item 44 drawn with the Help Text setting,
+sysval 0x85). Changes:
+- item 44's entry in the item table (0xC09BDF84) now points at a wrapper: while
+  NAME_FLAG = look+1 it draws the name (the toast routine) instead of the stock box;
+- FILM SIM sets NAME_FLAG before the icon redraw;
+- key hook on the live-view dispatcher's first call (0xC04C1938 -> 0xC04DE310, r0 =
+  logical key): any key other than 14 clears NAME_FLAG and hides the box via the stock
+  draw(0), then continues as stock.
+Code space: factory "ChineseCheckAdjustment" function 0xC042620C-0xC0426438, called only
+from the factory command switch (0xC0427870), the same switch as the E2PR.CSV dump.
+Timers were considered and dropped: the control timer service (0xC048F3EC id, ms, cb,
+arg; ids 0-24, bitmask 0xC09B622C) sits on 40 OS timers (0xC00DB0B8; 25, 27, 38, 39
+also taken) whose callbacks may not run in the GUI task.

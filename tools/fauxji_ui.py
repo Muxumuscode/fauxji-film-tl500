@@ -50,6 +50,23 @@ NAME_STRINGS = [182,   911,   986,      183,  184,   185,  186,   187, 188,   18
 # node for v = 0 (Samsung shows no icon for Standard). Child 0 is the STD canister.
 PROVIA_SHOW = (0xC04B9C48, 0x0A000004, 0xE1A00000)   # beq hide -> nop
 
+# The help-text box is item 44 of the live-view list; its draw 0xC04B7BB8 runs on every
+# full redraw and on GUI event 0xC (value = Help Text setting), which wiped the name.
+# So item 44's table entry points at a wrapper: while NAME_FLAG holds look+1 it draws the
+# name instead. The live-view key dispatcher's first call (0xC04C1938, `bl 0xC04DE310`
+# with r0 = key) goes through a hook that, for any key but 14 (FILM SIM), clears the flag
+# and hides the box with the stock draw(0). All in the factory-only "ChineseCheck
+# Adjustment" function 0xC042620C (called only from the factory command switch at
+# 0xC0427870, like the E2PR.CSV function).
+EXTRA_CODE, EXTRA_END = 0xC042620C, 0xC0426438
+NAME_FLAG = EXTRA_CODE
+WRAP44 = EXTRA_CODE + 4
+KEYHOOK = EXTRA_CODE + 24
+ITEM44_ENTRY = (0xC09BDF84, 0xC04B7BB8)       # viewfinder item table, item 44's draw
+ITEM44_DRAW = 0xC04B7BB8
+KEY_CALL = (0xC04C1938, 0xC04DE310)           # `bl 0xC04DE310` at the dispatcher's start
+FILM_KEY = 14
+
 #            PROVIA Chrome Velvia ASTIA ClassicNeg ACROS Nostalgic
 FAVOURITES = [0,    6,     4,     3,    7,         9,    2]
 
@@ -107,13 +124,17 @@ def film_routine():
             None,              # 37 bl notify1
             0xE3A00041,        # 38 mov r0,#0x41
             None,              # 39 bl notify2
-            None,              # 40 bl redraw live-view icons
-            0xE1A00004,        # 41 mov r0,r4
-            None,              # 42 bl toast (look's name in the help-text box)
-            0xE3A00000,        # 43 done: mov r0,#0
-            0xE8BD8010]        # 44 pop {r4, pc}
-    lit, fav = pc(45), pc(46)
-    code[9] = _b(pc(9), pc(43), NE)
+            0xE2840001,        # 40 add r0,r4,#1
+            None,              # 41 ldr r3,=NAME_FLAG
+            0xE5830000,        # 42 str r0,[r3]        name shows until another key
+            None,              # 43 bl redraw live-view icons
+            0xE1A00004,        # 44 mov r0,r4
+            None,              # 45 bl toast (look's name in the help-text box)
+            0xE3A00000,        # 46 done: mov r0,#0
+            0xE8BD8010]        # 47 pop {r4, pc}
+    lit, fav = pc(48), pc(50)
+    code[9] = _b(pc(9), pc(46), NE)
+    code[41] = 0xE59F3000 | (pc(49) - (pc(41) + 8))
     code[10] = 0xE59F3000 | (lit - (pc(10) + 8))
     code[12] = 0xE28F2000 | (fav - (pc(12) + 8))
     code[16] = _b(pc(16), pc(25), EQ)
@@ -126,9 +147,9 @@ def film_routine():
     code[35] = _b(pc(35), GUI_EVENT, link=True)
     code[37] = _b(pc(37), NOTIFY1, link=True)
     code[39] = _b(pc(39), NOTIFY2, link=True)
-    code[40] = _b(pc(40), DRAW_ICONS, link=True)
-    code[42] = _b(pc(42), TOAST_CODE, link=True)
-    out = b''.join(struct.pack('<I', x) for x in code) + struct.pack('<I', UI_CACHE)
+    code[43] = _b(pc(43), DRAW_ICONS, link=True)
+    code[45] = _b(pc(45), TOAST_CODE, link=True)
+    out = b''.join(struct.pack('<I', x) for x in code) + struct.pack('<2I', UI_CACHE, NAME_FLAG)
     out += bytes(FAVOURITES) + b'\xff'
     out += b'\0' * (-len(out) % 4)
     return out
@@ -196,6 +217,50 @@ def toast_routine():
     return out
 
 
+def _ldr_pc(src, reg, target, store=False):
+    """ldr/str reg,[pc,#+-off] addressing `target` from the instruction at `src`."""
+    off = target - (src + 8)
+    base = 0xE50F0000 if store else 0xE51F0000          # P=1, W=0, U=0 (subtract)
+    if off >= 0:
+        base |= 1 << 23
+    return base | (reg << 12) | abs(off)
+
+
+def extra_routines():
+    """NAME_FLAG, the item-44 wrapper and the key hook (see EXTRA_CODE)."""
+    out = struct.pack('<I', 0)                          # NAME_FLAG: 0 = no name showing
+    a = WRAP44
+    wrap = [_ldr_pc(a, 2, NAME_FLAG),                   # ldr r2,NAME_FLAG
+            0xE3520000,                                 # cmp r2,#0
+            _b(a + 8, ITEM44_DRAW, cond=0x0),           # beq stock draw (help text)
+            0xE2420001,                                 # sub r0,r2,#1   look
+            _b(a + 16, TOAST_CODE)]                     # b toast        (returns to caller)
+    out += b''.join(struct.pack('<I', x) for x in wrap)
+    a = KEYHOOK
+    pc = lambda k: a + 4 * k
+    hook = [0xE92D4013,                                 # 0 push {r0, r1, r4, lr}
+            0xE3500000 | FILM_KEY,                      # 1 cmp r0,#14
+            None,                                       # 2 beq skip
+            None,                                       # 3 ldr r2,NAME_FLAG
+            0xE3520000,                                 # 4 cmp r2,#0
+            None,                                       # 5 beq skip
+            0xE3A02000,                                 # 6 mov r2,#0
+            None,                                       # 7 str r2,NAME_FLAG
+            0xE3A00000,                                 # 8 mov r0,#0
+            None,                                       # 9 bl stock item-44 draw(0): hide
+            0xE8BD4013,                                 # 10 skip: pop {r0, r1, r4, lr}
+            None]                                       # 11 b original call
+    hook[2] = _b(pc(2), pc(10), cond=0x0)
+    hook[3] = _ldr_pc(pc(3), 2, NAME_FLAG)
+    hook[5] = _b(pc(5), pc(10), cond=0x0)
+    hook[7] = _ldr_pc(pc(7), 2, NAME_FLAG, store=True)
+    hook[9] = _b(pc(9), ITEM44_DRAW, link=True)
+    hook[11] = _b(pc(11), KEY_CALL[1])
+    out += b''.join(struct.pack('<I', x) for x in hook)
+    assert EXTRA_CODE + len(out) <= EXTRA_END
+    return out
+
+
 def patch(d):
     d = bytearray(d)
     code = film_routine()
@@ -207,6 +272,15 @@ def patch(d):
     addr, old, new = PROVIA_SHOW
     assert struct.unpack_from('<I', d, addr - B)[0] in (old, new), hex(addr)
     struct.pack_into('<I', d, addr - B, new)
+    x = extra_routines()
+    d[EXTRA_CODE - B:EXTRA_CODE - B + len(x)] = x
+    entry, stock = ITEM44_ENTRY
+    assert struct.unpack_from('<I', d, entry - B)[0] in (stock, WRAP44)
+    struct.pack_into('<I', d, entry - B, WRAP44)
+    site, target = KEY_CALL
+    assert struct.unpack_from('<I', d, site - B)[0] in (_b(site, target, link=True),
+                                                          _b(site, KEYHOOK, link=True))
+    struct.pack_into('<I', d, site - B, _b(site, KEYHOOK, link=True))
     site, old_target = KEY14_CALL
     cur = struct.unpack_from('<I', d, site - B)[0]
     assert cur in (_b(site, old_target, link=True), _b(site, FILM_CODE, link=True))
