@@ -2349,3 +2349,9 @@ Orientation 1, so the writer at 0xC0385F00 is not the one that produces the JPEG
 three candidates through short stubs + one shared routine (tools/fauxji_rot.py `wcommon`): 0xC0385F00 (mov lr,#1),
 0xC03779DC (ldr lr,[sl,#0xe4]), 0xC0383470 (mov lr,#1). Still STATE_DEFAULT = 3. Test: shot A, VIDEO, shot B,
 VIDEO, shot C = tags 6, 8, 1. If still all 1 the tag comes from somewhere else (0xC0388668 or a template).
+
+## FAUXJI46: tilt tag Auto by default, writer fixed (`TL-F46`, 2 Nov 2026)
+FAUXJI45 field test PASSED: SAM_0631/0632/0633 = Orientation 6 / 8 / 1 (state 3, VIDEO -> 4, VIDEO -> 5),
+so the EXIF writer hooks work and VIDEO cycles the state (key 9). The pop-up shows only on the first press (open).
+FAUXJI43's Auto failure was the dead writer hook, so Auto (face detection) is untested with a working writer.
+FAUXJI46 = FAUXJI45 with STATE_DEFAULT = 1 (Auto). Test: vertical face shots, heads left/right, Face Detection on.

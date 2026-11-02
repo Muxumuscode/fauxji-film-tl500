@@ -37,7 +37,7 @@ STATE, FACE_ORI, FACE_TTL, KEY = R1, R1 + 4, R1 + 8, R1 + 12
 assert STATE == ui.ROT_STATE and KEY == ui.ROT_KEY
 KEY_DEFAULT = 9                       # the VIDEO button (found with the FAUXJI41 test build)
 DIAG = False                          # True = FAUXJI41 test build: pop-up shows the number of any pressed key
-STATE_DEFAULT = 3                     # FAUXJI45 test: always "top right" (Orientation 6) from power-on; normal build: 1 = Auto
+STATE_DEFAULT = 1                     # tilt tag state at power-on: 1 = Auto (from sideways faces)
 WRITER_SITE, WRITER_BACK = 0xC0385F00, 0xC0385F04
 # The three EXIF writers' orientation sites (only one is live; FAUXJI44 showed 0xC0385F00 alone is not it)
 W2_SITE, W2_BACK = 0xC03779DC, 0xC03779E0      # ldr lr,[sl,#0xe4]
