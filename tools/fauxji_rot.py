@@ -40,6 +40,11 @@ WRITER_SITE, WRITER_BACK = 0xC0385F00, 0xC0385F04
 FD_SITE, FD_BACK = 0xC058FA0C, 0xC058FA10
 KEY_SITE, KEY_STOCK = 0xC04C1A98, 0xC04C1414
 MASK_SITE, MASK_BACK, GET_SYSVAL = 0xC04CE844, 0xC04CE848, 0xC048F81C
+# Highlight bias: AeSystemEVCSetToAeEVCShift (0xC03ECCF8) returns the EV compensation x16 that
+# the AE adds (AeUpdateSysInfo; manual-mode ISO routine too). Subtracting AE_BIAS makes the
+# camera meter that much darker in every mode while the EV comp scale still shows 0.
+EV_SITE, EV_BACK = 0xC03ECD54, 0xC03ECD58
+AE_BIAS = 5                           # 1/16 EV steps: 5 = -0.3 EV, 8 = -0.5 EV
 DISP_SITE, DISP_STOCK = 0xC04C1944, 0xC04BFF98
 TTL = 60
 STATES = 6
@@ -138,6 +143,11 @@ def build():
     label(a, 'k0done')
     a.emit(0xE3A00000, 0xE8BD8010)                 # mov r0,#0 ; pop {r4, pc}
 
+    label(a, 'evbias')                             # replaces `lsl r0,fp,#16` at 0xC03ECD54
+    a.emit(0xE24BB000 | AE_BIAS)                   # sub fp,fp,#AE_BIAS
+    a.emit(0xE1A0080B)                             # lsl r0,fp,#16   (stock)
+    a.br(0xE, 'EV_BACK')
+
     label(a, 'unlock')                             # replaces `mov sl,r1` in the menu-mask setter
     a.emit(0xE92D000F, 0xE3A00003)                 # push {r0-r3} ; mov r0,#3  (shooting mode)
     a.br(0xE, 'GET_SYSVAL', link=True)
@@ -213,7 +223,7 @@ def build():
 
     ext = {'WRITER_BACK': WRITER_BACK, 'FD_BACK': FD_BACK, 'ARM_NAME': ui.ARM_NAME,
            'TOAST': ui.TOAST_CODE, 'DISP_STOCK': DISP_STOCK,
-           'GET_SYSVAL': GET_SYSVAL, 'MASK_BACK': MASK_BACK}
+           'GET_SYSVAL': GET_SYSVAL, 'EV_BACK': EV_BACK, 'MASK_BACK': MASK_BACK}
     blobs = []
     for a in (r1, r2):
         for idx, cond, name, link in a.fix:
@@ -234,6 +244,7 @@ def patch(d):
             (WRITER_SITE, 0xE3A0E001, ui._b(WRITER_SITE, lab['writer'])),
             (FD_SITE, 0xE59802FC, ui._b(FD_SITE, lab['face'])),
             (KEY_SITE, ui._b(KEY_SITE, KEY_STOCK, link=True), ui._b(KEY_SITE, lab['key0'], link=True)),
+            (EV_SITE, 0xE1A0080B, ui._b(EV_SITE, lab['evbias'])),
             (MASK_SITE, 0xE1A0A001, ui._b(MASK_SITE, lab['unlock'])),
             (DISP_SITE, ui._b(DISP_SITE, DISP_STOCK, link=True), ui._b(DISP_SITE, lab['disp'], link=True))):
         cur = struct.unpack_from('<I', d, site - B)[0]

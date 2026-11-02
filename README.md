@@ -2309,3 +2309,9 @@ bitmasks (setter 0xC04CE83C, switch on id 0x88-0x9C; defaults 0xFFFFFF = all all
 0 P, 2 A, 3 S, 4 M; 1 Auto, 5 Bulb, 8 Movie, 9 Smart Auto, 10+ scenes) is P/A/S/M the value
 becomes 0xFFFFFF. Other modes unchanged. Unverified on camera; other greying paths (not via
 these masks) would remain.
+
+## FAUXJI40: meter lower (`TL-F40`)
+AeSystemEVCSetToAeEVCShift (0xC03ECCF8, x16 units) is the EV compensation the AE applies; its
+only caller is AeUpdateSysInfo (0xC03EEED0, forced to 0 in AE-manual) and the manual auto-ISO
+routine also uses it. Hook at its return (0xC03ECD54): subtract AE_BIAS (tools/fauxji_rot.py, 5 =
+-0.3 EV; 8 = -0.5 EV). The EV comp scale still shows 0. Trade-off: shadows get 0.3 EV noisier.
