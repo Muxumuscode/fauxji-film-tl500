@@ -51,6 +51,13 @@ FLAT_ICONS = (3, 10, 12, 15, 36, 37, 61, 63, 90, 141, 156, 211, 212, 213, 214, 2
               668, 672, 695)
 EDGE = (20, 20, 20)
 POPUP_PANELS = (13, 14, 565)             # glossy white pop-up panels -> flat dark
+# Processing / formatting: 53 (4192x319, only x 0-523 used) = glossy white box; 38
+# (2168x51, x 0-541 used) = white | cyan 271x51 button pair; the busy animation = dark knob
+# 583 with cyan arcs 644-648 (the "blue eye"). Other leftover cyan: slider knobs and dots
+# 42, 103, 615, 689, focus frame 6, sliders 104, 710.
+WIDE_PANEL = (53, 524)                   # image, used width
+BUTTON_PAIR = (38, 542)
+DESAT = (644, 645, 646, 647, 648, 42, 103, 615, 689, 6, 104, 710)
 # Help bar key caps (tree 1941 and the menus' Menu / OK / Fn / move / zoom ... keys): 74x37
 # (542: 104x37) navy caps with a light edge and white legend, stored as type 1 images
 # (runs only, same token scheme). Fuji: grey chip, dark legend ("BACK" chip, (143,145,147)).
@@ -190,6 +197,37 @@ def _decode_any(k, a):
     return skin.decode(bytes(raw), 0)
 
 
+def desat(im):
+    """Cyan / blue -> neutral white-grey, same brightness (a little lifted), same alpha."""
+    im = im.convert('RGBA')
+    p = im.load()
+    for y in range(im.height):
+        for x in range(im.width):
+            r, g, b, a = p[x, y]
+            if (r, g, b) == (255, 0, 255):
+                continue
+            v = min(255, int(((r * 3 + g * 6 + b) / 10) * 1.2))
+            p[x, y] = (v, v, v, a)
+    return im
+
+
+def wide_panel(size, used):
+    w, h = size
+    im = Image.new('RGBA', size, KEY)
+    im.paste(popup_panel((used, h)), (0, 0))
+    return im
+
+
+def button_pair(size, used):
+    w, h = size
+    im = Image.new('RGBA', size, KEY)
+    d = ImageDraw.Draw(im)
+    half = used // 2
+    d.rectangle([0, 0, half - 2, h - 1], fill=(70, 70, 71, 255))
+    d.rectangle([half, 0, used - 1, h - 1], fill=WHITE)
+    return im
+
+
 def flat_icon(im):
     im = im.convert('RGBA')
     p = im.load()
@@ -293,6 +331,12 @@ def patch_skin(k):
     for i in POPUP_PANELS:
         w, h = struct.unpack_from('<2I', k, offs[i])
         new[i] = popup_panel((w, h))
+    for (i, used), fn in ((WIDE_PANEL, wide_panel), (BUTTON_PAIR, button_pair)):
+        w, h = struct.unpack_from('<2I', k, offs[i])
+        new[i] = fn((w, h), used)
+    for i in DESAT:
+        w, h, typ, px = _decode_any(bytes(k), offs[i])
+        new[i] = desat(Image.frombytes('RGBA', (w, h), px))
     for i in FLAT_ICONS:
         w, h, typ, px = skin.decode(bytes(k), offs[i])
         new[i] = flat_icon(Image.frombytes('RGBA', (w, h), px))

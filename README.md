@@ -2225,3 +2225,15 @@ cyan, type 1; also used by group 454), unselected on the same white rows.
   707 and 238 -> white (written as type 3).
 - Option labels: white, black when selected, grey (7f7f7f) when disabled.
 - Pop-up buttons: white, black when selected.
+Flashed FAUXJI33: option lists and Yes/No fine. Owner: the formatting box is still
+Samsung-like; a blue "eye" shows while processing; tried FILM BKT and got a picker with
+9 choices. Card photos SAM_0578-0581: all style 0 (PROVIA), two pairs: not a FILM BKT burst.
+The 9-choice picker fits the bracket's own style picker: 11 styles minus Sketch/Defog
+(the two FAUXJI added) = the 9 stock-era choices, so FILM BKT's three looks are already
+the owner's to pick there; the burst itself needs Drive Setting -> Bracketing.
+
+### FAUXJI34: busy animation, formatting box, leftover cyan (`TL-F34`)
+- 53 (4192x319 strip, x 0-523 used) = the formatting / processing box: flat dark panel.
+- 38 (2168x51, x 0-541 used) = button pair white | cyan (271x51 each): dark | white.
+- Busy animation ("blue eye"): dark knob 583 with cyan arcs 644-648 -> arcs neutral grey.
+- Other cyan left: knobs / dots 42, 103, 615, 689, frame 6, sliders 104, 710 -> neutral.
