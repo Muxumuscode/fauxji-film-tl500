@@ -2355,3 +2355,8 @@ FAUXJI45 field test PASSED: SAM_0631/0632/0633 = Orientation 6 / 8 / 1 (state 3,
 so the EXIF writer hooks work and VIDEO cycles the state (key 9). The pop-up shows only on the first press (open).
 FAUXJI43's Auto failure was the dead writer hook, so Auto (face detection) is untested with a working writer.
 FAUXJI46 = FAUXJI45 with STATE_DEFAULT = 1 (Auto). Test: vertical face shots, heads left/right, Face Detection on.
+
+FAUXJI46 field test PASSED: SAM_0634 (head left) = Orientation 6, SAM_0635 (head right) = 8, both the right direction
+with Face Detection on and the tilt tag on Auto from power-on. Auto works; VIDEO (key 9) cycles the state.
+Open: VIDEO's pop-up shows only on the first press; "DR Auto" (ACB) is really a playback edit; three-step D-Range
+does not exist on the TL500 (FAUXJI36 renames are harmless dead text).

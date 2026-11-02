@@ -36,7 +36,8 @@ root (`E:` on the owner's PC). Commit and push after each build.
 - Address rule: .elf runtime = file offset + 0xC0003FF5. Disassembler helpers lived in
   the old scratchpad (not in git): rebuild with capstone as needed.
 
-**Current state (2 Nov 2026):**
+**Current state (2 Nov 2026): FAUXJI46 (`TL-F46`) is the working build. Tilt tag Auto verified on camera (SAM_0634 tag 6, SAM_0635 tag 8); VIDEO = key 9 cycles states; the writer hooks are verified. Open: VIDEO pop-up shows only on the first press; rename "DR Auto" (playback ACB); AE-L Button menu and 3-step D-Range do not exist on this camera.**
+
 - On camera and confirmed: everything through FAUXJI34 (looks, menus, shooting screen,
   pop-ups, busy animation).
 - **FAUXJI38 built (NOT flashed): tilt tag = auto-rotate on a learnable button, see the section at the end.**
