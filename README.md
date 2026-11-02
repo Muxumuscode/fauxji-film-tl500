@@ -2237,3 +2237,15 @@ the owner's to pick there; the burst itself needs Drive Setting -> Bracketing.
 - 38 (2168x51, x 0-541 used) = button pair white | cyan (271x51 each): dark | white.
 - Busy animation ("blue eye"): dark knob 583 with cyan arcs 644-648 -> arcs neutral grey.
 - Other cyan left: knobs / dots 42, 103, 615, 689, frame 6, sliders 104, 710 -> neutral.
+
+## Later pile (owner, 2 Nov 2026)
+- **Names on the FILM BKT 9-look chooser.** Grid = layout group 1207 (live-view tree),
+  cells 1208-1216 (160x120 at x 40/240/440, y 30/160/290), empty groups filled by code;
+  cell hashes are consecutive (0xD1D86B7F + n) and appear nowhere in the program, so the
+  cursor code wasn't found statically. Order = internal style 0-8: PROVIA, ACROS, Eterna /
+  Classic Neg., Classic Chrome, Reala / Velvia, ASTIA, Sepia (matches the owner's photo).
+  Plan if resumed: a test build that shows logical key numbers in the name strip, to see
+  whether the chooser's keys pass the live-view key hook; then track the cursor (starts
+  top-left) and show the look's name there.
+- Playback screens (not mapped yet).
+- Face-based auto-rotate.
