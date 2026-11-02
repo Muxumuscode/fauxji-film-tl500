@@ -46,7 +46,7 @@ GET_STRING, OSD_SET_UNICODE_TEXT, OSD_TEXT_PROPERTY, OSD_SET_VISIBLE = \
 #               PROVIA Bleach Nostalgic ASTIA Velvia Reala Chrome Neg. Eterna ACROS Sepia
 NAME_STRINGS = [182,   911,   986,      183,  184,   185,  186,   187, 188,   189,  190,
                 # tilt-tag states 11-15: 0xF000 + k = our own string k (see rot_strings)
-                0xF000, 0xF001, 0xF002, 0xF003, 0xF004, 0xF005, 0xF006]
+                0xF000, 0xF001, 0xF002, 0xF003, 0xF004, 0xF005, 0xF006, 0xF007, 0xF008]
 
 # PROVIA's live-view icon: the film item (7) draws child v of its OSD node but hides the
 # node for v = 0 (Samsung shows no icon for Standard). Child 0 is the STD canister.
@@ -66,6 +66,7 @@ WRAP44 = EXTRA_CODE + 4
 KEYHOOK = EXTRA_CODE + 24
 ITEM44_ENTRY = (0xC09BDF84, 0xC04B7BB8)       # viewfinder item table, item 44's draw
 ITEM44_DRAW = 0xC04B7BB8
+TILT_DRAW = 0xC04262F0         # fauxji_rot: draws the tilt indicator, else the stock help text (r0 = value)
 KEY_CALL = (0xC04C1938, 0xC04DE310)           # `bl 0xC04DE310` at the dispatcher's start
 FILM_KEY = 14
 # 2-second hide: the control timer service start(id, ms, cb, arg) 0xC048F3EC / cancel(id)
@@ -92,9 +93,10 @@ ZOOM_SITE, ZOOM_SKIP, ZOOM_BACK = 0xC053FDC4, 0xC053FF04, 0xC053FDCC
 STRWRAP, STRWRAP_END = 0xC0426438, 0xC042661C     # dead factory function before the ISO routine
 STR_BASE = STRWRAP + 32
 ROT_STATE, ROT_KEY = 0xC04260A0, 0xC04260AC       # tilt-tag words (see fauxji_rot)
-ROT_TEXTS = ['Vertical tag: Off', 'Vertical tag: Auto', 'Vertical: Auto flip',
-             'Vertical: top right', 'Vertical: top left', 'Tilt: press a key',
-             'Tilt key = 00']
+ROT_TEXTS = ['Tilt: Off',                                       # 11 (shown for 2 s when switched off)
+             'Auto  ^', 'Auto  >', 'Auto  <',                   # 12-14 Auto: top of frame up / right / left
+             'Flip  ^', 'Flip  >', 'Flip  <',                   # 15-17 Auto flipped
+             'Tilt  >', 'Tilt  <']                              # 18-19 manual: top right / top left
 STR_SLOT = 40
 
 #            PROVIA Chrome Velvia ASTIA ClassicNeg ACROS Nostalgic
@@ -185,8 +187,11 @@ def film_routine():
     return out
 
 
+TOAST_DATA = 0xC04261D0         # names table + nodes (56 bytes), in the spare end of fauxji_rot's first region
+
+
 def toast_data_addr():
-    return FILM_CODE + len(film_routine())
+    return TOAST_DATA
 
 
 def toast_data():
@@ -262,7 +267,7 @@ def extra_routines():
     a = WRAP44
     wrap = [_ldr_pc(a, 2, NAME_FLAG),                   # ldr r2,NAME_FLAG
             0xE3520000,                                 # cmp r2,#0
-            _b(a + 8, ITEM44_DRAW, cond=0x0),           # beq stock draw (help text)
+            _b(a + 8, TILT_DRAW, cond=0x0),             # beq tilt indicator / stock draw (help text)
             0xE2420001,                                 # sub r0,r2,#1   look
             _b(a + 16, TOAST_CODE)]                     # b toast        (returns to caller)
     out += b''.join(struct.pack('<I', x) for x in wrap)
@@ -290,7 +295,7 @@ def extra_routines():
     hook[7] = _ldr_pc(pc(7), 2, NAME_FLAG)
     hook[9] = _b(pc(9), pc(14), cond=0x0)
     hook[11] = _ldr_pc(pc(11), 2, NAME_FLAG, store=True)
-    hook[13] = _b(pc(13), ITEM44_DRAW, link=True)
+    hook[13] = _b(pc(13), TILT_DRAW, link=True)
     hook[15] = _b(pc(15), KEY_CALL[1])
     out += b''.join(struct.pack('<I', x) for x in hook)
     a = ARM_NAME
@@ -336,7 +341,7 @@ def extra_routines():
     th[12] = _b(pc(12), TIMER_CANCEL, link=True)
     th[13] = _ldr_pc(pc(13), 2, NAME_FLAG)
     th[17] = _ldr_pc(pc(17), 2, NAME_FLAG, store=True)
-    th[19] = _b(pc(19), ITEM44_DRAW, link=True)
+    th[19] = _b(pc(19), TILT_DRAW, link=True)
     out += b''.join(struct.pack('<I', x) for x in th)
     a = ZOOM_HOOK
     zoom = [0xE35E0003,                                 # cmp lr,#3     (stock)
@@ -372,9 +377,11 @@ def rot_strings():
 def patch(d):
     d = bytearray(d)
     code = film_routine()
-    code += toast_data()
     assert FILM_CODE + len(code) <= FILM_END
     d[FILM_CODE - B:FILM_CODE - B + len(code)] = code
+    td = toast_data()
+    assert TOAST_DATA + len(td) <= EXTRA_CODE
+    d[TOAST_DATA - B:TOAST_DATA - B + len(td)] = td
     t = toast_routine()
     d[TOAST_CODE - B:TOAST_CODE - B + len(t)] = t
     addr, old, new = PROVIA_SHOW

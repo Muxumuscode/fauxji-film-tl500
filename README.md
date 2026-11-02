@@ -2367,3 +2367,14 @@ that one calls arm_name, then the live-view icon redraw (0xC04B7444), then the t
 FAUXJI47 adds `bl DRAW_ICONS` to `cycle`. Test: press VIDEO 6 times, 5 s apart, note each pop-up.
 Plan after that (owner request): permanent on-screen tilt icon with an arrow for the frame's top, Auto from faces;
 non-face auto (horizon) needs image analysis since the camera has no tilt sensor.
+
+## FAUXJI48: permanent tilt indicator (`TL-F48`, 2 Nov 2026)
+Owner request: an on-screen indicator that always shows the tilt mode and an arrow for the frame's top, adjustable on
+the fly with VIDEO. Built on the proven help-text box (item 44 wrapper): the wrapper, the key hook's hide and the timer
+hide now call `tiltdraw` (0xC04262F0, tools/fauxji_rot.py) instead of the stock draw: in states Auto / Auto flip / top
+right / top left it draws a text strip ("Auto  ^ > <", "Flip  ^ > <", "Tilt  > <"; ASCII arrows; Auto's arrow follows the
+last face orientation and refreshes on redraws), else the stock help text. Off shows "Tilt: Off" for 2 s. Cycle is now
+5 states (Off, Auto, Auto flip, top right, top left); the learn-a-key state is gone (key 9 is hard-coded). The box keeps
+the film-name geometry (440x56 low centre). Code space: names/nodes table moved to 0xC04261D0; EXIF shared routine in
+the spare end of the string area. Includes FAUXJI47's DRAW_ICONS in `cycle`. Unverified on camera.
+Non-face auto (horizon) is not possible without a tilt sensor; an edge-brightness "sky is up" fallback is possible later.
