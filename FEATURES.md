@@ -207,3 +207,15 @@ memory and merge code: research only.
 2. **Item 1** (Auto Rotate setting check) + the face-box test for item 13.
 3. **Items 2-5** (grain, DR names, orange date, intervals): a fun batch.
 4. **Item 13** auto-rotate, then **item 17** lightning trigger.
+
+## Auto-rotate working notes (2 Nov, remote session)
+- New helpers: `tools/armdis.py ADDR [n]` (disassemble at a runtime address; instruction
+  addresses are file offset + 0xC0003FF5 with offset = 3 mod 4), `tools/xref.py ADDR` (BL/B callers).
+- JPEG EXIF writer 0xC03773E0 is called only from 0xC0377F00 (r3 there = the info struct whose
+  +0xE4 is the Orientation); 0xC0377F00 has no direct callers or pointer-table entries (reached
+  via a computed call). The orientation read is `ldr lr,[sl,#0xe4]` at 0xC03779DC: patchable
+  to read our own global instead (deterministic, needs no face detection).
+- Face detectors 0xC05901D0 / 0xC0596C64 also have no direct callers.
+- Two routes: (A) manual: a flag the user sets (Off / 90 CW / 90 CCW) feeds the writer;
+  (B) automatic: face angle from the detector -> flag. B needs one on-camera fact first:
+  does the face box appear when the camera is held vertically?
