@@ -10,6 +10,10 @@ Found by drawing the live-view layout tree (root node 742) image by image:
 - 278 / 312: exposure scale, stacked at (260,436): 278 is a light panel with the numbers
   -2..2 cut out (y 3-20) and a window over 312, which holds a darker band and the ticks
   (y 21-33). 561: AEL tag (50x38, light panel with the letters cut out).
+- 317 SCENE (selected, blue text), 226 SMART and 112 SCENE (grey, unselected): dial icons.
+- 140-155, 316, 520: orange scene icons Smart Auto shows when it detects a scene; the
+  scene-mode ones (239-251) are already white tiles with dark glyphs.
+- 195-206, 559: the scene picker's sample photos (256x285, own icon top left).
 - gadget_modedial_bg.raw (SPID.Rom): the mode dial wheel, 310x308 straight RGBA, no
   header (white gear-edged disc, white selection band from the left edge to the hub).
 Fuji (X-T20 manual): no panels over the picture, thin black strips, flat white marks,
@@ -30,8 +34,12 @@ GREY = (150, 150, 152, 255)
 INK = (34, 31, 31, 255)
 FONT = r'C:\Windows\Fonts\bahnschrift.ttf'
 
-MODE_TAGS = {115: 'SR+', 1: 'P', 8: 'A', 116: 'S', 9: 'M', 231: 'DUAL', 0: 'movie', 17: 'play'}
-DIAL_TAGS = {107: 'A', 108: 'DUAL', 109: 'M', 110: 'movie', 111: 'P', 113: 'S'}
+MODE_TAGS = {115: 'SR+', 1: 'P', 8: 'A', 116: 'S', 9: 'M', 231: 'DUAL', 0: 'movie', 17: 'play',
+             317: 'SCN'}
+DIAL_TAGS = {107: 'A', 108: 'DUAL', 109: 'M', 110: 'movie', 111: 'P', 113: 'S', 226: 'SR+',
+             112: 'SCN'}
+ORANGE_TILES = tuple(range(140, 156)) + (316, 520)
+SCENE_CARDS = tuple(range(195, 207)) + (559,)
 STRIPS = {119: (640, 54), 92: (640, 46)}
 STRIP = (0, 0, 0, 150)                  # ~60% black
 CLEARED = (43,)                          # aperture/shutter box: numbers only
@@ -128,6 +136,45 @@ def ev_ticks(im):
     return out
 
 
+def white_tile(im):
+    """Orange tile with a white glyph -> white tile with a dark glyph (like 239-251)."""
+    im = im.convert('RGBA')
+    src = im.load()
+    for y in range(im.height):
+        for x in range(im.width):
+            r, g, b, a = src[x, y]
+            if (r, g, b) == (255, 0, 255):
+                continue
+            if r > 180 and 70 < g < 200 and b < 90:                       # orange
+                src[x, y] = WHITE
+            elif r > 200 and g > 200 and b > 200:                         # white glyph
+                src[x, y] = INK
+    return im
+
+
+def scene_card(im):
+    """Sample photo -> flat dark card with the photo's own corner icon, large and white."""
+    W, H = im.size
+    corner = im.convert('RGBA').crop((0, 0, 48, 44))
+    mask = Image.new('L', corner.size, 0)
+    cp, mp = corner.load(), mask.load()
+    for y in range(corner.height):
+        for x in range(corner.width):
+            r, g, b, a = cp[x, y]
+            if (r, g, b) != (255, 0, 255) and (r * 3 + g * 6 + b) / 10 > 105:
+                mp[x, y] = 255
+    card = Image.new('RGBA', (W, H), (50, 50, 51, 255))
+    d = ImageDraw.Draw(card)
+    d.rectangle([0, 0, W - 1, H - 1], outline=(99, 100, 102, 255), width=2)
+    box = mask.getbbox()
+    if box:
+        g = mask.crop(box)
+        s = 120 / max(g.width, g.height)
+        g = g.resize((round(g.width * s), round(g.height * s)), Image.LANCZOS).point(lambda v: 255 if v > 110 else 0)
+        card.paste(WHITE, ((W - g.width) // 2, (H - g.height) // 2 - 10), g)
+    return card
+
+
 def dial():
     """Flat dark wheel, grey ring with white dots, grey selection band, flat hub."""
     W, H = DIAL_SIZE
@@ -159,6 +206,10 @@ def patch_skin(k):
         new[i] = tag(t, False)
     for i, (w, h) in STRIPS.items():
         new[i] = Image.new('RGBA', (w, h), STRIP)
+    for i in ORANGE_TILES + SCENE_CARDS:
+        w, h, typ, px = skin.decode(bytes(k), offs[i])
+        src = Image.frombytes('RGBA', (w, h), px)
+        new[i] = white_tile(src) if i in ORANGE_TILES else scene_card(src)
     for i in CLEARED + LINE_ART + (EV_NUMBERS, EV_TICKS, AEL):
         w, h, typ, px = skin.decode(bytes(k), offs[i])
         src = Image.frombytes('RGBA', (w, h), px)

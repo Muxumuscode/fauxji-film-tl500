@@ -2177,3 +2177,13 @@ The mode dial wheel is SPID file gadget_modedial_bg.raw: 310x308 RGBA, no header
 Not touched yet: the mode description box on the dial screen (its white panel isn't
 an image found so far; its text is black, so it stays as is), right-column icons,
 the red/white digit sets, OIS and the other status icons.
+Flashed FAUXJI29: "looking good". Left: the blue SCENE (and grey SMART) on the dial, and
+the scene picker's sample photos (Beauty Shot, fireworks...): the stock Scene picker,
+shown when the dial is on SCENE.
+
+### FAUXJI30: scene icons and the scene picker (`TL-F30`)
+The dial's icons are not layout nodes (the dial is drawn by code), so they were found by
+look: 317 SCENE (selected), 226 SMART and 112 SCENE (unselected) -> SCN / SR+ tags.
+Smart Auto's orange scene tiles (140-155, 316, 520) -> white tiles with dark glyphs, like
+the scene-mode icons 239-251. Scene picker cards (195-206, 559, 256x285 photos) -> flat
+dark cards (50,50,51) with a grey edge and each photo's own corner icon, large, in white.
