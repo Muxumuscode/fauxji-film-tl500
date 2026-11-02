@@ -2142,3 +2142,17 @@ half b, so playing it either way ends right), `_roll_0N` = idle ring (5).
 - skin.bin: selection bar 131 and pop-up option 585 = flat grey (128,128,130) with a white
   left edge; option list 136 = (50,50,51) with grey border and black separators.
 The selected-row text colour is not known yet, so the bar is mid grey, not Fuji white.
+Flashed FAUXJI27 (owner's photos): tab column and greys work; the list really has seven
+rows from y 9 (the first sat on black), and the mid-grey bar looks almost white on the
+AMOLED, so the white selected text vanished.
+
+### FAUXJI28: menu rows aligned, Fuji white bar with black text (`TL-F28`)
+Menu list layout (group 1 at x 65): row buttons nodes 3-9 at (113, 9 + 58n) 475x61, row
+caps 588-635, values nodes 17-23 at x 468, selection bar node 2 = image 131. Text nodes
+hold 8 text colours (+44) and 8 outline colours (+76): states normal, focused,
+disabled, pressed, twice. Stock labels pale blue-grey (197,212,223) / white / grey with
+a navy outline; values cyan (156,215,239) / cyan / grey with a white outline.
+- Background rows now 113-635 x seven rows (9-415); tab cells stay at 67-357.
+- Selection bar 131 = white; labels white, **black when selected** (outline black / white);
+  values the same (were cyan).
+- Row caps 132/133 (">") and 134/135 (">>"): white chevrons, black on white when selected.

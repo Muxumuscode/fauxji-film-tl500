@@ -1,9 +1,9 @@
 """FAUXJI menu look for the TL500: Fuji-style flat greys instead of Samsung's blue swoosh.
 
 What the menu is made of (all in SPID.Rom):
-- bg_menu.jpg, 640x480: the list background. Samsung draws row lines at y = 67, 125,
-  183, 241, 299, 357 (rows 58 px, the height of the selection bar, skin image 131,
-  485x58 at x = 155) and a footer line at 427.
+- bg_menu.jpg, 640x480: the list background. The list (layout group 1 at x 65) has seven
+  rows of 58 px from y 9 (row buttons, nodes 3-9, x 113-588; arrow caps 588-635; the
+  selection bar is skin image 131); footer line at 427.
 - bg_menu_<group>_0N.jpg, 160x480: the tab column on the left with tab N selected.
 - menu_<group>_*.info: animations. Text = one frame size per line, zero-padded to 2048
   bytes, then the frames (baseline JPEGs, 160x480, each padded to a multiple of 8)
@@ -27,8 +27,9 @@ ROW = (70, 70, 71)
 TABCOL = (99, 100, 102)
 WHITE = (240, 240, 240)
 FOOT = (90, 90, 92)
-LINES = (67, 125, 183, 241, 299, 357)
-LIST_X = 155
+LINES = (9, 67, 125, 183, 241, 299, 357, 415)   # menu rows: layout nodes 3-9 (y 9 + 58n)
+TAB_LINES = LINES[1:7]                          # five tab cells, 67-357
+LIST_X, LIST_X1 = 113, 635                      # row buttons 113-588, arrow caps 588-635
 TAB_W = 96
 FONT = r'C:\Windows\Fonts\bahnschrift.ttf'
 
@@ -120,7 +121,7 @@ def _rows(d, x0, x1):
 def background():
     im = Image.new('RGB', (640, 480), BLACK)
     d = ImageDraw.Draw(im)
-    _rows(d, LIST_X, 639)
+    _rows(d, LIST_X, LIST_X1)
     d.line([0, 427, 639, 427], fill=FOOT, width=1)
     return im
 
@@ -131,7 +132,7 @@ def panel(tabs, sel):
     d = ImageDraw.Draw(im)
     _rows(d, LIST_X, 159)
     d.line([0, 427, 159, 427], fill=FOOT, width=1)
-    for i, (a, b) in enumerate(zip(LINES, LINES[1:])):
+    for i, (a, b) in enumerate(zip(TAB_LINES, TAB_LINES[1:])):
         cell = [0, a + 1, TAB_W - 1, b - 1]
         on = i == sel
         d.rectangle(cell, fill=WHITE if on else TABCOL)
@@ -175,13 +176,27 @@ def _put(d, name, blob, size_field):
 SEL_BAR = 131        # 485x58 menu row highlight (cyan gloss)
 POPUP = 136          # 236x321 option list panel, rows of 60 (separators at 70/130/190/250)
 POPUP_SEL = 585      # 200x60 selected option in that list (cyan button)
+ARROWS = {132: ('>', False), 133: ('>', True), 134: ('>>', False), 135: ('>>', True)}
 SEL = (128, 128, 130)
 POPUP_BG = (50, 50, 51)
+KEY = (255, 0, 255, 255)
+
+
+def arrow(text, focused):
+    """47x58 row-end cap: white chevron(s) on the key, or black on the white bar."""
+    im = Image.new('RGBA', (47, 58), WHITE + (255,) if focused else KEY)
+    d = ImageDraw.Draw(im)
+    d.fontmode = '1'
+    ink = BLACK + (255,) if focused else WHITE + (255,)
+    n = len(text)
+    for j in range(n):
+        x = 23 - 5 * (n - 1) + 10 * j
+        d.line([(x - 4, 21), (x + 4, 29), (x - 4, 37)], fill=ink, width=3)
+    return im
 
 
 def widgets():
-    bar = Image.new('RGBA', (485, 58), SEL + (255,))
-    ImageDraw.Draw(bar).rectangle([0, 0, 3, 57], fill=WHITE + (255,))      # white edge
+    bar = Image.new('RGBA', (485, 58), WHITE + (255,))                       # Fuji: white
     pop = Image.new('RGBA', (236, 321), POPUP_BG + (255,))
     d = ImageDraw.Draw(pop)
     d.rectangle([0, 0, 235, 320], outline=TABCOL + (255,), width=2)
@@ -189,7 +204,9 @@ def widgets():
         d.line([2, y, 233, y], fill=BLACK + (255,), width=2)
     sel = Image.new('RGBA', (200, 60), SEL + (255,))
     ImageDraw.Draw(sel).rectangle([0, 0, 3, 59], fill=WHITE + (255,))
-    return {SEL_BAR: bar, POPUP: pop, POPUP_SEL: sel}
+    out = {SEL_BAR: bar, POPUP: pop, POPUP_SEL: sel}
+    out.update({i: arrow(*a) for i, a in ARROWS.items()})
+    return out
 
 
 def patch_skin(k):

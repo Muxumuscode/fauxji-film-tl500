@@ -41,6 +41,39 @@ def set_rect(k, i, rect):
     struct.pack_into('<4h', k, b + 8, *rect)
 
 
+# Menu list text (layout nodes): 8 text colours (+44) and 8 outline colours (+76); the
+# first four are the states normal, focused, disabled, pressed, repeated once.
+# Row labels (nodes 3-9): pale blue-grey / white / grey, navy outline. Values (17-24):
+# cyan / cyan / grey, white outline. Fuji: white text, black on the white selection bar.
+def _c(*hexes):
+    return b''.join(bytes.fromhex(h) for h in hexes)
+
+
+ROW_LABELS = range(3, 10)
+ROW_STOCK = _c('c5d4dfff', 'ffffffff', '686868ff', 'ffffffff') * 2 +     _c('0a2231ff', '0a2231ff', '0a2231ff', '000000ff') * 2
+ROW_FUJI = _c('ffffffff', '000000ff', '686868ff', '000000ff') * 2 +     _c('000000ff', 'ffffffff', '000000ff', 'ffffffff') * 2
+ROW_VALUES = range(17, 25)
+
+
+def _value_fuji(stock):
+    cols = bytearray(stock)
+    cols[0:4], cols[4:8] = bytes.fromhex('ffffffff'), bytes.fromhex('000000ff')       # text
+    cols[32:36], cols[36:40] = bytes.fromhex('000000ff'), bytes.fromhex('ffffffff')   # outline
+    return bytes(cols)
+
+
+def patch_menu_text(k):
+    for i in ROW_LABELS:
+        b, length = node_at(k, i)
+        assert k[b + 44:b + 108] in (ROW_STOCK, ROW_FUJI), i
+        k[b + 44:b + 108] = ROW_FUJI
+    for i in ROW_VALUES:
+        b, length = node_at(k, i)
+        cur = bytes(k[b + 44:b + 108])
+        assert cur[0:4] in (bytes.fromhex('9cd7efff'), bytes.fromhex('ffffffff')), i
+        k[b + 44:b + 108] = _value_fuji(cur)
+
+
 def panel():
     w, h = BOX_POS[2], BOX_POS[3]
     im = Image.new('RGBA', (w, h), PANEL)
@@ -69,6 +102,7 @@ def patch_skin(k):
     blk = skin.encode(im.width, im.height, im.tobytes())
     assert len(blk) <= size and typ == 3
     k[a:a + len(blk)] = blk
+    patch_menu_text(k)
     return bytes(k)
 
 
