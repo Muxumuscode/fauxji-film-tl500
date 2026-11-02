@@ -80,7 +80,7 @@ def patch_menu_text(k):
 # text colour at +132 is black (the title's list, 1759, has white text there), plus a
 # plain text node (e.g. 1765) in black. Assumed: +44..+108 = the list's background.
 GUIDE_TREES = (1751, 1768, 1882, 1917)
-GUIDE_BG = bytes.fromhex('141414b0') * 16
+GUIDE_BG = bytes.fromhex('0a0a0ae6') * 16          # near-black, ~90% (owner: ~70% too light)
 GUIDE_TEXT = bytes.fromhex('ffffffff')
 
 
@@ -116,6 +116,34 @@ def patch_guides(k):
                 k[b + 44:b + 108] = WHITE * 8 + BLACK * 8
 
 
+# Pop-ups (tree 1785: warning / confirm / info windows on glossy panels 13, 14, 565): the
+# message text is black or dark grey (373737), buttons (type 2) black with white when
+# focused. With the panels made dark (fuji_lv), messages go white and unfocused buttons
+# light grey; focused stays white (whatever highlight the code draws behind it).
+POPUP_TREE = 1785
+BTN_GREY = bytes.fromhex('aaaaacff')
+
+
+def patch_popups(k):
+    rec, kids = tree(k)
+    todo = [POPUP_TREE]
+    while todo:
+        i = todo.pop()
+        todo += kids.get(i, [])
+        typ = rec[i][0]
+        b, length = node_at(k, i)
+        if length < 108:
+            continue
+        if typ == 9:
+            k[b + 44:b + 108] = WHITE * 8 + BLACK * 8
+        elif typ == 2:
+            cols = bytearray(k[b + 44:b + 108])
+            for s in range(8):
+                cols[4 * s:4 * s + 4] = WHITE if s % 4 == 1 else BTN_GREY
+                cols[32 + 4 * s:36 + 4 * s] = BLACK
+            k[b + 44:b + 108] = bytes(cols)
+
+
 def panel():
     w, h = BOX_POS[2], BOX_POS[3]
     im = Image.new('RGBA', (w, h), PANEL)
@@ -146,6 +174,7 @@ def patch_skin(k):
     k[a:a + len(blk)] = blk
     patch_menu_text(k)
     patch_guides(k)
+    patch_popups(k)
     return bytes(k)
 
 

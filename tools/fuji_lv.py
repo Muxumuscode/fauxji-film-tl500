@@ -50,6 +50,12 @@ FLAT_ICONS = (3, 10, 12, 15, 36, 37, 61, 63, 90, 141, 156, 211, 212, 213, 214, 2
               545, 546, 547, 551, 552, 553, 554, 555, 556, 582, 588, 589, 590, 596, 666, 667,
               668, 672, 695)
 EDGE = (20, 20, 20)
+POPUP_PANELS = (13, 14, 565)             # glossy white pop-up panels -> flat dark
+# Help bar key caps (tree 1941 and the menus' Menu / OK / Fn / move / zoom ... keys): 74x37
+# (542: 104x37) navy caps with a light edge and white legend, stored as type 1 images
+# (runs only, same token scheme). Fuji: grey chip, dark legend ("BACK" chip, (143,145,147)).
+KEY_CAPS = (44, 45, 46, 47, 48, 49, 50, 51, 670, 602, 617, 578, 542, 218, 252, 591)
+CHIP = (143, 145, 147, 255)
 # Other 640x480 screens still in Samsung blue: desaturated and darkened
 NEUTRAL_BGS = ('bg_datetime_dmy.jpg', 'bg_datetime_mdy.jpg', 'bg_datetime_ymd.jpg',
                'bg_facelist.jpg', 'bg_firmware_update_01.jpg', 'bg_firmware_update_02.jpg',
@@ -152,6 +158,38 @@ def ev_ticks(im):
     return out
 
 
+def popup_panel(size):
+    w, h = size
+    im = Image.new('RGBA', size, KEY)
+    d = ImageDraw.Draw(im)
+    d.rounded_rectangle([0, 0, w - 1, h - 1], 10, fill=(50, 50, 51, 245), outline=(99, 100, 102, 255),
+                        width=2)
+    return im
+
+
+def key_chip(im):
+    im = im.convert('RGBA')
+    p = im.load()
+    W, H = im.size
+    for y in range(H):
+        for x in range(W):
+            r, g, b, a = p[x, y]
+            if (r, g, b) == (255, 0, 255):
+                continue
+            edge = x < 2 or y < 2 or x >= W - 2 or y >= H - 2
+            glyph = min(r, g, b) > 150 and not edge
+            p[x, y] = INK[:3] + (a,) if glyph else CHIP[:3] + (a,)
+    return im
+
+
+def _decode_any(k, a):
+    """Decode a type 1 or 3 image (same tokens)."""
+    w, h, size, typ = struct.unpack_from('<4I', k, a)
+    raw = bytearray(k[a:a + size])
+    struct.pack_into('<I', raw, 12, 3)
+    return skin.decode(bytes(raw), 0)
+
+
 def flat_icon(im):
     im = im.convert('RGBA')
     p = im.load()
@@ -249,6 +287,12 @@ def patch_skin(k):
         new[i] = tag(t, False)
     for i, (w, h) in STRIPS.items():
         new[i] = Image.new('RGBA', (w, h), STRIP)
+    for i in KEY_CAPS:
+        w, h, typ, px = _decode_any(bytes(k), offs[i])
+        new[i] = key_chip(Image.frombytes('RGBA', (w, h), px))
+    for i in POPUP_PANELS:
+        w, h = struct.unpack_from('<2I', k, offs[i])
+        new[i] = popup_panel((w, h))
     for i in FLAT_ICONS:
         w, h, typ, px = skin.decode(bytes(k), offs[i])
         new[i] = flat_icon(Image.frombytes('RGBA', (w, h), px))
@@ -272,7 +316,7 @@ def patch_skin(k):
     for i, im in new.items():
         a = offs[i]
         w, h, size, typ = struct.unpack_from('<4I', k, a)
-        assert (w, h) == im.size and typ == 3, (i, (w, h), im.size)
+        assert (w, h) == im.size and typ in (1, 3), (i, (w, h), im.size)   # written as type 3
         blk = skin.encode(w, h, im.tobytes())
         assert len(blk) <= size, (i, len(blk), size)
         k[a:a + len(blk)] = blk

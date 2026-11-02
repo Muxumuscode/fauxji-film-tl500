@@ -2201,3 +2201,15 @@ dark cards (50,50,51) with a grey edge and each photo's own corner icon, large, 
   map, voice memo: converted to neutral grey at 80% brightness.
 Remaining: pop-ups (565 glossy panel, black text), "Menu Exit / Move" help bar, playback
 screens, FILM BKT, face-based auto-rotate.
+Flashed FAUXJI31: all good; the guide strip (~70% black) is too light for white text.
+
+### FAUXJI32: darker guide strip, dark pop-ups, grey key chips (`TL-F32`)
+- Guide description strip: near-black at ~90%.
+- **Pop-ups** (tree 1785: windows on panels 13 524x260, 14 524x319, 565 604x384, icons
+  100-102): panels flat (50,50,51) with a grey edge; message texts (black / 373737) white
+  with a black outline; buttons (type 2) light grey, white when focused (the focus
+  highlight behind them is drawn by code and was left alone).
+- **Key chips** of the help bars (tree 1941: Menu, OK, Fn, Shutter, Zoom, d-pad, play,
+  ...; 44-51, 218, 252, 542, 578, 591, 602, 617, 670): stored as **type 1** images, which
+  decode with the same tokens (all 44 type-1 images do); rewritten as type 3: Fuji grey
+  chip (143,145,147) with a dark legend.
