@@ -12,6 +12,11 @@ CW) and then detect upright faces. A face found with r6 = +90 was rotated CCW in
 end (0xC058FA0C, r6 = scan angle, r8 = result block with the face count at +0x2FC) a hook
 remembers that (FACE_ORI) for 60 upright scans.
 
+Menu unlock: the menu's per-setting "allowed options" masks (21 words, 0xFFFFFF = all allowed,
+set through 0xC04CE83C by ~117 call sites, mostly 0xC04D2000) are forced to all-allowed while
+the shooting mode (sysvalue 3, the AE sysmode enum: 0 P, 1 Auto, 2 A, 3 S, 4 M, 5 Bulb, 8 Movie,
+9 Smart Auto, 10+ scenes) is P, A, S or M.
+
 Control: a state STATE cycles on a button press and shows a pop-up (fauxji_ui.ROT_TEXTS):
 0 Off, 1 Auto (from faces), 2 Auto flipped (6 <-> 8), 3 always 6 (top right), 4 always 8,
 5 "press a key": the next key pressed and released is learned (ROT_KEY) as the tilt key.
@@ -34,6 +39,7 @@ KEY_DEFAULT = 0xFF                    # no learned key (set to the video button'
 WRITER_SITE, WRITER_BACK = 0xC0385F00, 0xC0385F04
 FD_SITE, FD_BACK = 0xC058FA0C, 0xC058FA10
 KEY_SITE, KEY_STOCK = 0xC04C1A98, 0xC04C1414
+MASK_SITE, MASK_BACK, GET_SYSVAL = 0xC04CE844, 0xC04CE848, 0xC048F81C
 DISP_SITE, DISP_STOCK = 0xC04C1944, 0xC04BFF98
 TTL = 60
 STATES = 6
@@ -132,6 +138,20 @@ def build():
     label(a, 'k0done')
     a.emit(0xE3A00000, 0xE8BD8010)                 # mov r0,#0 ; pop {r4, pc}
 
+    label(a, 'unlock')                             # replaces `mov sl,r1` in the menu-mask setter
+    a.emit(0xE92D000F, 0xE3A00003)                 # push {r0-r3} ; mov r0,#3  (shooting mode)
+    a.br(0xE, 'GET_SYSVAL', link=True)
+    a.emit(0xE1A0C000, 0xE8BD000F)                 # mov ip,r0 ; pop {r0-r3}
+    a.emit(0xE35C0004)                             # cmp ip,#4
+    a.br(0x8, 'mkeep')                             # bhi: scenes, movie, smart auto ...
+    a.emit(0xE35C0001)                             # cmp ip,#1  (auto)
+    a.br(0x0, 'mkeep')
+    a.emit(0xE3E0A4FF)                             # mvn sl,#0xff000000  = 0xFFFFFF: all options allowed
+    a.br(0xE, 'MASK_BACK')
+    label(a, 'mkeep')
+    a.emit(0xE1A0A001)                             # mov sl,r1  (stock)
+    a.br(0xE, 'MASK_BACK')
+
     # ---------------- region 2: cycle(), dispatcher hook ------------------------------------
     a = r2
     label(a, 'cycle')                              # state++, clear the face tag, show the pop-up
@@ -192,7 +212,8 @@ def build():
     a.w[pool_load] = ui._ldr_pc(R2 + 4 * pool_load, 3, pool)
 
     ext = {'WRITER_BACK': WRITER_BACK, 'FD_BACK': FD_BACK, 'ARM_NAME': ui.ARM_NAME,
-           'TOAST': ui.TOAST_CODE, 'DISP_STOCK': DISP_STOCK}
+           'TOAST': ui.TOAST_CODE, 'DISP_STOCK': DISP_STOCK,
+           'GET_SYSVAL': GET_SYSVAL, 'MASK_BACK': MASK_BACK}
     blobs = []
     for a in (r1, r2):
         for idx, cond, name, link in a.fix:
@@ -213,6 +234,7 @@ def patch(d):
             (WRITER_SITE, 0xE3A0E001, ui._b(WRITER_SITE, lab['writer'])),
             (FD_SITE, 0xE59802FC, ui._b(FD_SITE, lab['face'])),
             (KEY_SITE, ui._b(KEY_SITE, KEY_STOCK, link=True), ui._b(KEY_SITE, lab['key0'], link=True)),
+            (MASK_SITE, 0xE1A0A001, ui._b(MASK_SITE, lab['unlock'])),
             (DISP_SITE, ui._b(DISP_SITE, DISP_STOCK, link=True), ui._b(DISP_SITE, lab['disp'], link=True))):
         cur = struct.unpack_from('<I', d, site - B)[0]
         assert cur in (stock, new), (hex(site), hex(cur))

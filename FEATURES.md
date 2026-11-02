@@ -242,3 +242,9 @@ Facts behind it: live EXIF writer 0xC0385868 (constant 1 at 0xC0385F00), writers
 0xC058F798 scans 0/-30/+30/-90/+90/-60/+60 degrees in a 13-call cycle (r6); hook at its end.
 Risks: pop-up text from our own UTF-16 strings; face tag can go stale if FD is switched off
 right after a sideways face.
+
+## FAUXJI39: menu unlock (`TL-F39`)
+Everything in the menus should now be selectable in P, A, S and M (scene, movie and Smart Auto keep
+Samsung's limits). Test: switch P -> A -> M -> back, open the shooting menu: RAW, Face Detection,
+the AE-L Button item etc. should never be grey. Report anything still grey (mode + item) or
+any strange behaviour from an option that used to be blocked (e.g. RAW with burst).

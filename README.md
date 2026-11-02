@@ -2300,3 +2300,12 @@ swallows the learned key (ROT_KEY at 0xC04260AC, default 0xFF) and cycles the ti
 hook (0xC04C1938) no longer hides the pop-up on release of keys 14, 0 and the learned key.
 Strings moved to the dead function at 0xC0426438. AE-L option "TILT TAG" and FILM SIM are still
 two options of one setting.
+
+## FAUXJI39: menu unlock in P/A/S/M (`TL-F39`)
+Owner: RAW, face detect etc. grey out depending on mode. The menu keeps 21 "allowed options"
+bitmasks (setter 0xC04CE83C, switch on id 0x88-0x9C; defaults 0xFFFFFF = all allowed, set up by
+0xC04CE714; refreshed mainly by 0xC04D2000 with a big per-mode switch, ~117 callers). Hook at
+0xC04CE844 (`mov sl,r1`): when the shooting mode (sysvalue 3 via 0xC048F81C: AE sysmode enum,
+0 P, 2 A, 3 S, 4 M; 1 Auto, 5 Bulb, 8 Movie, 9 Smart Auto, 10+ scenes) is P/A/S/M the value
+becomes 0xFFFFFF. Other modes unchanged. Unverified on camera; other greying paths (not via
+these masks) would remain.
