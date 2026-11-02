@@ -2075,5 +2075,18 @@ date/time and language screens, and the beeps.
 Menu structure from its text: a full-screen list with the section title on top in
 capitals (e.g. IMAGE QUALITY SETTING), items in capitals (IMAGE SIZE, IMAGE QUALITY,
 RAW RECORDING, FILM SIMULATION, GRAIN EFFECT, DYNAMIC RANGE, WHITE BALANCE, HIGHLIGHT
-TONE...), tabs in a column on the left, EXIT bottom right. Pictures (colours) not yet
-seen: no PDF renderer here.
+TONE...), tabs in a column on the left, EXIT bottom right. Pictures rendered with PyMuPDF (installed with the owner's OK) and
+sampled. The manual's screens are neutral greyscale:
+- **Menu**: near-black frame and title bar (34,31,31); list rows dark grey (70,70,71),
+  white capital text, thin separators; **selected row solid white with black text** and
+  a right arrow for sub-menus; tab column on the left mid grey (99,100,102) with white
+  glyph icons; page count "1/3" top right; "BACK EXIT" chip (143,145,147) bottom right.
+- **Quick menu (Q)**: 4x4 grid of tiles (87,88,91) on (64,64,65), each a flat white
+  glyph + value; the selected tile turns near-black with an inverted label; title top
+  left ("SELECT CUSTOM SETTING"), "SET" bar at the bottom.
+- **Shooting screen**: no panels over the picture, thin black strips top and bottom,
+  flat white glyphs and plain numbers (S.S. 12000, F 5.6, ISO 51200), exposure scale
+  bottom, histogram right.
+Mapping to the TL500: menu backgrounds -> flat near-black JPEGs (tab icons redrawn as
+white glyphs on grey); cyan/blue selection bars (123, 126, 312, 585, 136) -> white;
+glossy panels (13, 14, 256, 565) -> flat dark grey; menu text in capitals (strings).
