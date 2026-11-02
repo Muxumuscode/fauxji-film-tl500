@@ -1930,3 +1930,21 @@ Bracketing, Start Image -> Startup Screen, Function Description -> Help Text.
   #0xFF. (The owner setting 10M couldn't stick because this rule re-applied.)
 Build **FAUXJI18** (`TL500-V`) = everything so far (FAUXJI16 + renames + FILM SIM +
 5 MP fix). Not flashed. Test: Setup > AE-L Button > FILM SIM, press AE-L in P mode.
+
+
+## FAUXJI18 field test + FAUXJI19
+Owner: FILM SIM cycling **works**, but nothing on screen says which look is active;
+Shutter Sound 3 didn't sound like F2.
+- **Why the shutter didn't change:** the shutter sounds the camera plays are built into
+  the program: pointer tables at 0xC0477E24 (copy at 0xC04781EC) -> `[u32 length][PCM]`
+  blocks Shutter1 0xC095DBA8, Shutter2 0xC096B3E8, **Shutter3 0xC097CE4C** (64,474 B),
+  plus AF OK/fail and warning cues. The SPID.Rom copies of the shutter sounds aren't used
+  (start-up sounds aren't built in, so the chime in SPID.Rom is right).
+  `sounds.patch_elf()` writes F2 into the built-in Shutter3 block (length 8068, rest
+  zero); wired into the builder. **FAUXJI19** (`TL500-W`).
+- **Which look is active:** the routine already calls 0xC04DC174(0x41), which reads the
+  Photo Style and redraws its icon, but the icons are Samsung's style pictures (in
+  `skin.bin`, a 9.9 MB custom bitmap container, not decoded). Leads for a text read-out:
+  pop-up message event 0x0B (params 0x190+, flags in the upper bits; the AE-lock path
+  already sends 0x1019E) and a GUI string-ID -> text-index table near 0xC07B67C0
+  (3,090 entries). Not finished.

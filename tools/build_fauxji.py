@@ -37,7 +37,7 @@ def build_elf(stock):
     for run in json.load(open(os.path.join(PATCHES, 'fauxji_elf_runs.json')))['runs']:
         b = bytes.fromhex(run['bytes'])
         d[run['offset']:run['offset'] + len(b)] = b
-    return fauxji_ui.patch(fauxji.patch(bytes(d)))
+    return sounds.patch_elf(fauxji_ui.patch(fauxji.patch(bytes(d))))
 
 
 def build_rom(stock):

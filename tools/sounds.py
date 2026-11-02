@@ -168,6 +168,28 @@ def shutter_f2():
 
 SOUNDS = {'shutter': shutter_f2, 'chime': chime}
 
+# The shutter sounds the camera actually plays are built into the program, not read
+# from SPID.Rom: a table at 0xC0477E24 (and a copy at 0xC04781EC) points at
+# [u32 length][PCM] blocks for Shutter1/2/3 (0xC095DBA8, 0xC096B3E8, 0xC097CE4C), plus
+# AF OK/fail and warning cues. Start-up sounds are not built in (SPID.Rom is right).
+ELF_B = 0xC0003FF5
+ELF_SHUTTER3 = 0xC097CE4C
+ELF_SHUTTER3_SIZE = 64474           # stock length = the slot we may use
+
+
+def patch_elf(d):
+    """Write the FAUXJI shutter into the program's built-in Shutter 3 block."""
+    import struct
+    d = bytearray(d)
+    o = ELF_SHUTTER3 - ELF_B
+    cur = struct.unpack_from('<I', d, o)[0]
+    assert cur in (ELF_SHUTTER3_SIZE, len(pcm(shutter_f2()))), 'unexpected Shutter3 header %d' % cur
+    data = pcm(shutter_f2())
+    assert len(data) <= ELF_SHUTTER3_SIZE
+    struct.pack_into('<I', d, o, len(data))
+    d[o + 4:o + 4 + ELF_SHUTTER3_SIZE] = data + b'\0' * (ELF_SHUTTER3_SIZE - len(data))
+    return bytes(d)
+
 if __name__ == '__main__':
     cmd = sys.argv[1]
     if cmd == 'preview':
