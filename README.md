@@ -1993,3 +1993,21 @@ switch on the event id). GUI event 2 is posted with param 0 from 28 places in th
 control layer, so the FILM SIM routine now ends with `0xC048FD5C(2, 0)` after its menu
 sequence. The event is queued to the GUI task, so no drawing happens from the key task.
 Only the routine (32 bytes) and the label differ from FAUXJI21; SPID.Rom is identical.
+Flashed: Shutter Sound 3 = F2 confirmed, Bleach Bypass now saves full size (FAUXJI18
+fix confirmed). The live-view icon still stayed on the first-drawn look.
+
+### FAUXJI23: draw the icons directly (`TL-F23`)
+Why event 2 (and the menu's 0x42) did nothing: the GUI states were identified by their
+vtables. The live-view state is onEnter 0xC049FAF0 / onExit 0xC049FBC0 / handle
+0xC049F1CC; its handler switches on event ids 0..0x2D and only redraws fixed items.
+The handlers that answer events 2 and 0x42 with drawViewfinderIcon belong to other
+states (vtables 0xC07C5048 and 0xC07C4EC8, the latter CAPPGUIPictbridgeState). Only the
+live-view onEnter calls the redraw loop, hence "updates after playback/mode change".
+The icon path itself is sound: GUI value 0x47 maps to UI 0x41 (table 0xC09B7420),
+item 7 of the viewfinder list (table 0xC09BDE20) draws with 0xC04B9C3C(v) ->
+0xC04B7550, which takes child v of the OSD item, hides the item's children if that
+child isn't showing, then shows it; the value is read live via 0xC048F74C. TL osd
+functions: get_child 0xC0200D84, get_item_visible 0xC0200AF4, clear_item 0xC0201694,
+set_item_visible 0xC0201CAC.
+The FILM SIM routine now ends with a direct `bl 0xC04B7444` (redraw every icon of the
+current live-view list), in place of the GUI event.

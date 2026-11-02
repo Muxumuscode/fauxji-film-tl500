@@ -13,9 +13,12 @@ Photo Style menu values are quick-menu positions (0 PROVIA, 1 Bleach Bypass,
 2 Nostalgic Neg., 3 ASTIA, 4 Velvia, 5 Reala Ace, 6 Classic Chrome, 7 Classic Neg.,
 8 Eterna, 9 ACROS, 10 Sepia); the cached value is at 0xC0D7F300+0x40.
 The menu sequence doesn't touch the live-view icons (leaving the menu re-enters the
-live-view state, which redraws them), so the routine then posts GUI event 2: the
-live-view GUI handler 0xC049C1D4 answers it with the redraw-all-icons loop 0xC04B7444
-(WB850F's CAPPGUIPreviewView::drawViewfinderIcon).
+live-view state, whose onEnter 0xC049FAF0 redraws them), so the routine then calls the
+redraw-all-icons loop 0xC04B7444 itself (WB850F's CAPPGUIPreviewView::drawViewfinderIcon).
+GUI events don't help: the live-view GUI handler 0xC049F1CC only redraws fixed items,
+and the handlers that answer events 2 / 0x42 with a full redraw belong to other states
+(0x42: CAPPGUIPictbridgeState). Item 7 (GUI value 0x47 = UI 0x41) is the film icon;
+its draw 0xC04B9C3C shows child v of the OSD item, hiding the old child first.
 
 Also: the Photo-Style apply function 0xC04D1538 forces settings for Sketch (1) and
 Defog (2): photo size >= index 5 (the Bleach Bypass 5 MP) and two more minimums;
@@ -31,6 +34,7 @@ UI_CACHE = 0xC0D7F300
 PSS_ID = 0x41
 SET_UI, APPLY, REFRESH_MASKS, GUI_EVENT, NOTIFY1, NOTIFY2 = \
     0xC048F630, 0xC04D2A18, 0xC04D2000, 0xC048FD5C, 0xC04DC174, 0xC04CDB70
+DRAW_ICONS = 0xC04B7444         # redraw every icon of the current live-view list
 
 #            PROVIA Chrome Velvia ASTIA ClassicNeg ACROS Nostalgic
 FAVOURITES = [0,    6,     4,     3,    7,         9,    2]
@@ -89,13 +93,11 @@ def film_routine():
             None,              # 37 bl notify1
             0xE3A00041,        # 38 mov r0,#0x41
             None,              # 39 bl notify2
-            0xE3A00002,        # 40 mov r0,#2            GUI event 2: live view redraws its icons
-            0xE3A01000,        # 41 mov r1,#0
-            None,              # 42 bl GUI event
-            0xE3A00000,        # 43 done: mov r0,#0
-            0xE8BD8010]        # 44 pop {r4, pc}
-    lit, fav = pc(45), pc(46)
-    code[9] = _b(pc(9), pc(43), NE)
+            None,              # 40 bl redraw live-view icons
+            0xE3A00000,        # 41 done: mov r0,#0
+            0xE8BD8010]        # 42 pop {r4, pc}
+    lit, fav = pc(43), pc(44)
+    code[9] = _b(pc(9), pc(41), NE)
     code[10] = 0xE59F3000 | (lit - (pc(10) + 8))
     code[12] = 0xE28F2000 | (fav - (pc(12) + 8))
     code[16] = _b(pc(16), pc(25), EQ)
@@ -108,7 +110,7 @@ def film_routine():
     code[35] = _b(pc(35), GUI_EVENT, link=True)
     code[37] = _b(pc(37), NOTIFY1, link=True)
     code[39] = _b(pc(39), NOTIFY2, link=True)
-    code[42] = _b(pc(42), GUI_EVENT, link=True)
+    code[40] = _b(pc(40), DRAW_ICONS, link=True)
     out = b''.join(struct.pack('<I', x) for x in code) + struct.pack('<I', UI_CACHE)
     out += bytes(FAVOURITES) + b'\xff'
     out += b'\0' * (-len(out) % 4)
