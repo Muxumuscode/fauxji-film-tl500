@@ -2032,3 +2032,21 @@ and child ids; image nodes end with the skin image index. Hash table at +0x97476
   per menu value: 182, 911, 986, 183-190. The FILM SIM routine calls it after the icon
   redraw. When the box hides is not known yet (stock hides it on a full live-view
   redraw: item 40 clears the live-view root 0xAFB3FC35); to be seen on the camera.
+
+## Theming survey (for the Fuji look)
+What draws the GUI, and what we can change (all in SPID.Rom; nothing is shipped):
+- **Full-screen backgrounds**: 36 JPEGs, Samsung's blue glow and swoosh. 640x480:
+  bg_menu, bg_language, bg_datetime_*, bg_timezone, bg_facelist, bg_firmware_update_*,
+  bg_menu_hdmi_*, bg_voicerecord, bg_power_on_off (boot, done). 160x480 menu side panels
+  with the tab icons baked in: bg_menu_{shooting 1-5, movie 1-4, playback 1-5, scene
+  1-5, setting, bkt, pictbridge}. Each is replaced in its slot (sizes 9.6-41 KB). Plain
+  dark designs compress far below that.
+- **skin.bin images**: 711 RLE images, magenta = transparent. About 560 icons (live-view
+  status, quick menu, settings values); widgets that set the Samsung look: cyan and blue
+  selection bars and buttons (123, 126, 136, 312, 585), glossy grey panels (13, 14, 256,
+  565), sliders and scales (219-223, 257/258, 627), dials (583, 613), popup frames,
+  swirl animations (644-648), the scene-mode photos (195-206, 559). New images must
+  fit the original byte block; flat colour designs do.
+- **Layout tree** (2034 nodes, decoded above): positions and sizes; text colours and
+  fonts not decoded yet. **Font**: section 1 of skin.bin is a TrueType font.
+- **Strings**: renames done (FAUXJI17).
