@@ -2050,3 +2050,30 @@ What draws the GUI, and what we can change (all in SPID.Rom; nothing is shipped)
 - **Layout tree** (2034 nodes, decoded above): positions and sizes; text colours and
   fonts not decoded yet. **Font**: section 1 of skin.bin is a TrueType font.
 - **Strings**: renames done (FAUXJI17).
+
+### What can go (room audit)
+New pictures normally must fit the block of the one they replace. Two ways to get
+more room:
+1. **Inside skin.bin** (where every icon and widget lives): section 0 holds 711 images
+   back to back (6.69 MB, offsets strictly increasing, no gaps), addressed only through
+   the offset table at +0x50 (layout nodes refer to image numbers, not addresses). So
+   section 0 can be **repacked**: shrink what we don't want to a 1x1 transparent image,
+   write the rest one after another, rewrite the offset table. Total must stay under
+   0x662F8C so the font, layout and hash sections stay where they are. Untested on the
+   camera; one build will tell.
+   Candidates: the 13 scene-mode photos (195-206, 559): **1.83 MB**; glossy panels,
+   dials, colour wheel (13, 14, 557, 565, 583, 592): **0.69 MB**; swirl animations
+   (644-648): **0.21 MB**. About 2.7 MB in all, 40% of the section.
+2. **Whole files in SPID.Rom**: `cd.iso` (24.2 MB, the Samsung PC-software CD the camera
+   shows over USB when "PC Software" is on) and the five slideshow music tracks
+   (Slide_*.snd, 14.4 MB). Blanking them is easy; using the space means moving other
+   files' directory offsets, which needs its own test.
+Keep: calibration masks/RAWs (Mask_*, MASK_FOR_LSC_*, RAW_FOR_LSC_*), Ace.*, the
+date/time and language screens, and the beeps.
+
+### Fuji reference: X-T20 manual (owner's copy, not stored here)
+Menu structure from its text: a full-screen list with the section title on top in
+capitals (e.g. IMAGE QUALITY SETTING), items in capitals (IMAGE SIZE, IMAGE QUALITY,
+RAW RECORDING, FILM SIMULATION, GRAIN EFFECT, DYNAMIC RANGE, WHITE BALANCE, HIGHLIGHT
+TONE...), tabs in a column on the left, EXIT bottom right. Pictures (colours) not yet
+seen: no PDF renderer here.
