@@ -36,6 +36,15 @@ root (`E:` on the owner's PC). Commit and push after each build.
 - Address rule: .elf runtime = file offset + 0xC0003FF5. Disassembler helpers lived in
   the old scratchpad (not in git): rebuild with capstone as needed.
 
+**Latest (2 Nov 2026, end of day):** FAUXJI49 (`TL-F49`) is on the owner's SD card, NOT yet flashed/tested. It is
+FAUXJI46 (verified: Auto tilt tag works, VIDEO = logical key 9 cycles states) plus a permanent tilt indicator (small
+230x36 text strip, bottom-left, ASCII arrows ^ > <; states Off / Auto / Auto flip / top right / top left). FAUXJI48
+(big 440x56 bar) was flashed: worked but laggy/intermittent, so FAUXJI49 added a text cache (lag), routes the two direct
+stock help-text draws (0xC04BA8E4/904) through our routine (intermittent) and shrinks the box. To check next: indicator
+steady? lag gone? film names clipped in the small box? Then: rename "DR Auto" (it is a playback ACB edit), optional
+"sky is up" fallback for non-face Auto. Manual (ec5171) text is kept OUTSIDE the repo (C:\dev\TL-500\manual).
+Stock files live in extracted/tl500_008264/ (not in git; owner supplied them split, SPID.Rom joined from 3 parts).
+
 **Current state (2 Nov 2026): FAUXJI46 (`TL-F46`) is the working build. Tilt tag Auto verified on camera (SAM_0634 tag 6, SAM_0635 tag 8); VIDEO = key 9 cycles states; the writer hooks are verified. Open: VIDEO pop-up shows only on the first press; rename "DR Auto" (playback ACB); AE-L Button menu and 3-step D-Range do not exist on this camera.**
 
 - On camera and confirmed: everything through FAUXJI34 (looks, menus, shooting screen,
