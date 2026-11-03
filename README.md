@@ -15,6 +15,10 @@ Current version: **TL-F59**, built on firmware **008264** only.
 **Film looks**
 - Eleven Fuji-style looks in the Photo Style slots (PROVIA, ACROS, Classic Chrome, Classic Neg., Velvia, ASTIA, Eterna, Sepia
   and more): colour matrices, tone curves and per-hue colour tuned for this sensor, for live view and for captured JPEGs.
+![The film canister icons drawn for each look: large, small and greyed-out versions](docs/images/canisters.png)
+
+*The canister icons the camera shows for each look (selected, small, and unselected). Drawn for this project.*
+
 - A **FILM SIM** button (the AE-L button menu gets a FILM SIM option) that cycles your looks, with a film-canister icon and a
   name pop-up on the shooting screen.
 - Looks that Samsung blocked with RAW+JPEG now work, and Bleach Bypass saves at full size.
