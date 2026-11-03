@@ -1,6 +1,8 @@
-# FAUXJI FILM PRO for the Samsung TL500 (EX1)
+# FAUXJI for the Samsung TL500 (EX1)
 
-A homemade firmware mod that gives the Samsung TL500 / EX1 a Fujifilm-style film look and a handful of quality-of-life fixes.
+**Quality-of-life fixes the TL500 should have shipped with: an exposure system that stops fighting you, unlocked menus, auto-ISO in
+manual and a tilt tag that rotates your sideways shots. Plus a set of optional Fuji-style extras.**
+
 It is a **build tool**, not a firmware download: it patches *your own* copy of Samsung's official firmware on your own computer.
 Nothing of Samsung's is included in this repository.
 
@@ -10,40 +12,41 @@ Nothing of Samsung's is included in this repository.
 
 Current version: **TL-F59**, built on firmware **008264** only.
 
-## What you get
+## The main event: fixes that make the camera better to use
 
-**Film looks**
-- Eleven Fuji-style looks in the Photo Style slots (PROVIA, ACROS, Classic Chrome, Classic Neg., Velvia, ASTIA, Eterna, Sepia
-  and more): colour matrices, tone curves and per-hue colour tuned for this sensor, for live view and for captured JPEGs.
+- **Shutter that stays usable.** In P, A and S the slowest shutter stays at 1/60 s. Zooming in no longer pushes it up to 1/125 s
+  or faster, and the flash no longer raises it either. Stock, the camera quietly raised the minimum as you zoomed.
+- **Auto-ISO in manual.** Manual mode gets automatic ISO, so you set shutter and aperture and the camera picks the ISO.
+- **Highlight-friendly metering.** Metering is biased -0.3 EV in every mode, so skies and lamps blow out less. The exposure scale
+  still reads 0.
+- **Menus open in P, A, S and M.** In those modes every menu option is available. Stock, some were greyed out depending on the mode.
+- **Tilt tag.** The camera has no tilt sensor, so vertical shots always came out sideways. Now it writes the EXIF orientation:
+  from faces looking sideways, or (Auto+) from where the sky or the ceiling light is in the live-view brightness. The VIDEO button
+  cycles Off, Auto, Auto+, always right, always left, and an arrow on the shooting screen shows what it will do. Auto+ is a guess and
+  can be fooled by lamps and windows, so rotate in playback when it is wrong.
+- **Looks work with RAW+JPEG.** The looks Samsung blocked when you shoot RAW+JPEG now work, and Bleach Bypass saves at full size.
+
+## The extras: Fuji-style looks and interface
+
+If you like the Fuji feel, the same build also has these. They come with the fixes for now; a switch to leave them out is the next thing
+planned (see Coming up).
+
+- **Film looks.** Eleven Fuji-style looks in the Photo Style slots (PROVIA, ACROS, Classic Chrome, Classic Neg., Velvia, ASTIA, Eterna,
+  Sepia and more): colour, tone curves and per-hue colour tuned for this sensor, in live view and in captured JPEGs.
+- **FILM SIM button.** The AE-L button menu gets a FILM SIM option that cycles your looks, with a film-canister icon and a name pop-up.
+- **Fuji-style interface.** Flat white icons, and Fuji-style menus, shooting screen, mode dial, pop-ups, playback edit screens, boot
+  screen, shutter sound and menu names (Image Quality, AE-L Button, Framing Guide and so on).
+
 ![The film canister icons drawn for each look: large, small and greyed-out versions](docs/images/canisters.png)
 
 *The canister icons the camera shows for each look (selected, small, and unselected). Drawn for this project.*
-
-- A **FILM SIM** button (the AE-L button menu gets a FILM SIM option) that cycles your looks, with a film-canister icon and a
-  name pop-up on the shooting screen.
-- Looks that Samsung blocked with RAW+JPEG now work, and Bleach Bypass saves at full size.
-
-**Fuji-style interface**
-- Flat white icons and Fuji-style menus, shooting screen, mode dial, pop-ups, playback edit screens, boot screen and shutter sound.
-- Fuji-style menu names (Image Quality, AE-L Button, Framing Guide, Drive Setting and so on).
-
-**Quality-of-life fixes**
-- P, A and S keep a 1/60 s minimum shutter, no matter how far you zoom or whether the flash is on.
-- Manual mode gets auto-ISO, and metering is biased -0.3 EV to protect highlights.
-- The menus are fully unlocked in P, A, S and M.
-- **Tilt tag** (the camera has no tilt sensor): it writes EXIF orientation on sideways shots, from faces facing sideways or from
-  "where the sky is" in the live-view brightness. The VIDEO button cycles Off, Auto, Auto+, always right, always left.
-  Auto+ is a guess and gets fooled by lamps and windows, so rotate in playback when it is wrong.
-
-The quality-of-life fixes and the Fuji look are not yet separate options. A pick-what-you-want build is on the
-[roadmap](docs/ROADMAP.md).
 
 ## Coming up
 
 Development is paused for a few days and should pick up again around the end of the week. Next on the list, no promises on order:
 
-- **Pick what you want.** Separate options for the quality-of-life fixes and the Fuji look, so you can take the fixes without the
-  film looks and the new interface, or the other way round.
+- **Pick what you want.** Separate options for the fixes and the Fuji extras, so you can take just the fixes (the main point) and
+  leave the looks and the new interface out, or the other way round.
 - **Film camera mode.** The SCENE spot on the mode dial becomes a film-camera mode: a simpler screen with a big roll counter, no
   picture review after each shot, a film-stock picker in place of the scene picker, and the front scroll wheel winding the film
   between shots. This one needs a few test builds, so it will take a while.
