@@ -1,0 +1,9 @@
+firmware-original/
+docs-original/
+extracted/
+ghidra-install/
+photos-test/
+research-out/
+__pycache__/
+tools/.cache/
+ghidra-project/
