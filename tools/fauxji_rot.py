@@ -56,6 +56,11 @@ SKY_COLOUR_CHECK_UNUSED = True                # FAUXJI57: the brighter side must
 # stub runs (`wcommon`, once per JPEG). 0 = film roll off (stock counter).
 ROLL_SIZE = 0                          # film roll (FAUXJI58): off
 ROLL_SITE, ROLL_BACK = 0xC047B6B8, 0xC047B6BC
+# FAUXJI62: the name / tilt box now sits top left, where the movie timer is shown: in movie mode (AE sysmode 8) nothing is drawn there.
+# Three gates in front of the box code: the tilt-indicator entries (TILT_FORCE, TILT_DRAW: hide the box with the stock draw(0)) and the
+# toast (film name / tilt pop-up: return without showing). Each replaces the entry's first instruction with a branch to a gate in R5.
+MOVIE_MODE = 8
+MOVIE_HIDE = True
 STATE_DEFAULT = 2                     # tilt tag state at power-on: 2 = Auto+ (sideways faces, else sky is up)
 # Sky is up (FAUXJI53): the AE's live preview statistics, 17 x 13 cells of u16 (planes Y, R, G, B at +0, +0x1BA, +0x374,
 # +0x52E; getter 0xC03EDB04 = 0xC0CFA7A8, same layout as WB850F's AeDebugDisplayYRGB), row 0 = top of the frame.
@@ -440,6 +445,36 @@ def build():
     # fails, a window onto the sky may still pass. Fail = no tag (r0 = 0), the stock Orientation 1.
     a = r5
     a.emit(0, ROLL_SIZE, 0)                        # ROLL_COUNT, ROLL_N, SKY_LATCH
+
+    def movie_check():                             # sets the flags: Z = movie mode; keeps r0-r3 and lr
+        a.emit(0xE92D400F, 0xE3A00003)             # push {r0-r3, lr} ; mov r0,#3  (shooting mode)
+        a.br(0xE, 'GET_SYSVAL', link=True)
+        a.emit(0xE1A0C000, 0xE8BD400F)             # mov ip,r0 ; pop {r0-r3, lr}
+        a.emit(0xE35C0000 | MOVIE_MODE)            # cmp ip,#8
+
+    label(a, 'gate1')                              # entry of tiltforce (first word was `mvn r1,#0`)
+    movie_check()
+    a.br(0x1, 'g1ok')                              # bne
+    a.emit(0xE3A00000)                             # mov r0,#0
+    a.br(0xE, 'ITEM44_DRAW')                       # stock draw(0): hide the box, return to the caller
+    label(a, 'g1ok')
+    a.emit(0xE3E01000)                             # mvn r1,#0   (the replaced word)
+    a.br(0xE, 'TILTFORCE4')
+    label(a, 'gate2')                              # entry of tiltdraw (first word was `push {r0, r4, lr}`)
+    movie_check()
+    a.br(0x1, 'g2ok')
+    a.emit(0xE3A00000)
+    a.br(0xE, 'ITEM44_DRAW')
+    label(a, 'g2ok')
+    a.emit(0xE92D4011)                             # push {r0, r4, lr}   (the replaced word)
+    a.br(0xE, 'TILTDRAW4')
+    label(a, 'gate3')                              # entry of the toast (first word was `push {r4, lr}`)
+    movie_check()
+    a.br(0x1, 'g3ok')
+    a.emit(0xE1A0F00E)                             # mov pc,lr: no pop-up in movie mode
+    label(a, 'g3ok')
+    a.emit(0xE92D4010)                             # push {r4, lr}   (the replaced word)
+    a.br(0xE, 'TOAST4')
     label(a, 'skycol')                             # r0 = 6 (sky left) or 8 (sky right) -> r0 = same or 0
     a.emit(0xE92D43FE)                             # push {r1-r9, lr}
     a.emit(0xE1A09000, 0xE3500006)                 # mov r9,r0 ; cmp r0,#6
@@ -480,7 +515,7 @@ def build():
     a.emit(0xE28DD058)                             # add sp,sp,#0x58   (stock)
     a.br(0xE, 'ROLL_BACK')
 
-    ext = {'ROLL_BACK': ROLL_BACK, 'PLZ_BACK': PLZ_BACK, 'TIMERHOOK': ui.TIMERHOOK, 'TIMER_START': ui.TIMER_START, 'WRITER_BACK': WRITER_BACK, 'W2_BACK': W2_BACK, 'W3_BACK': W3_BACK, 'FD_BACK': FD_BACK, 'ARM_NAME': ui.ARM_NAME,
+    ext = {'TILTFORCE4': ui.TILT_FORCE + 4, 'TILTDRAW4': ui.TILT_DRAW + 4, 'TOAST4': ui.TOAST_CODE + 4, 'ROLL_BACK': ROLL_BACK, 'PLZ_BACK': PLZ_BACK, 'TIMERHOOK': ui.TIMERHOOK, 'TIMER_START': ui.TIMER_START, 'WRITER_BACK': WRITER_BACK, 'W2_BACK': W2_BACK, 'W3_BACK': W3_BACK, 'FD_BACK': FD_BACK, 'ARM_NAME': ui.ARM_NAME,
            'TOAST': ui.TOAST_CODE, 'DRAW_ICONS': ui.DRAW_ICONS, 'ITEM44_DRAW': ui.ITEM44_DRAW, 'TOAST_VIS': ui.TOAST_CODE + 4 * 20, 'TILT_DRAW': ui.TILT_DRAW, 'DISP_STOCK': DISP_STOCK,
            'GET_SYSVAL': GET_SYSVAL, 'EV_BACK': EV_BACK, 'MASK_BACK': MASK_BACK}
     blobs = []
@@ -519,6 +554,12 @@ def patch(d):
         cur = struct.unpack_from('<I', d, site - B)[0]
         assert cur in (stock, new), (hex(site), hex(cur))
         struct.pack_into('<I', d, site - B, new)
+    if MOVIE_HIDE:
+        for site, stock, gate in ((ui.TILT_FORCE, 0xE3E01000, 'gate1'), (ui.TILT_DRAW, 0xE92D4011, 'gate2'),
+                                  (ui.TOAST_CODE, 0xE92D4010, 'gate3')):
+            cur = struct.unpack_from('<I', d, site - B)[0]
+            assert cur in (stock, ui._b(site, lab[gate])), (hex(site), hex(cur))
+            struct.pack_into('<I', d, site - B, ui._b(site, lab[gate]))
     for site in DIRECT_SITES:
         cur = struct.unpack_from('<I', d, site - B)[0]
         assert cur in (ui._b(site, ui.ITEM44_DRAW, link=True), ui._b(site, ui.TILT_DRAW, link=True)), (hex(site), hex(cur))

@@ -19,8 +19,8 @@ import skin
 
 LAYOUT = 0x945754
 BOX, BOX_IMG, BOX_TEXT, BOX_IMAGE_INDEX = 990, 991, 992, 121
-BOX_POS = (84, 386, 120, 36)          # FAUXJI52: half again (owner: text uses < half of 230); was 230 in FAUXJI49-51           # x, y, w, h  (stock 100, 158, 440, 118; FAUXJI26-48: 100, 360, 440, 56)
-TEXT_POS = (4, 0, 112, 36)
+BOX_POS = (8, 8, 164, 36)           # FAUXJI62: top left corner (owner: empty, balances the screen), 164 x 36 sized from the owner's photo of FAUXJI61 (Classic Chrome, the longest name, ~142 px); was (84, 386) at the bottom; FAUXJI61: 248 x 48 (too big), FAUXJI60: 196 x 36, FAUXJI52-59: 120 x 36
+TEXT_POS = (4, 0, 156, 36)
 PANEL = (20, 20, 20, 0xB0)             # near-black at ~70%, Fuji-like
 BLACK, WHITE = bytes.fromhex('000000ff'), bytes.fromhex('ffffffff')
 TEXT_STOCK = BLACK * 8 + WHITE * 8     # text colour x8 states, then outline colour x8

@@ -32,7 +32,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 PATCHES = os.path.join(HERE, '..', 'patches')
 
 
-LABEL_AT, LABEL = 0x792493, b'TL-F59\0\0'          # version string the camera shows (8 bytes; stock 'TL500-U')
+LABEL_AT, LABEL = 0x792493, b'TL-F62\0\0'          # version string the camera shows (8 bytes; stock 'TL500-U')
 
 
 def build_elf(stock):

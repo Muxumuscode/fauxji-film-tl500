@@ -10,7 +10,7 @@ Nothing of Samsung's is included in this repository.
 > trademarks. They are used here only to say which look each setting imitates.
 > **Flash at your own risk.** See [Safety](#safety) first. You are changing the software of a camera that is out of production.
 
-Current version: **TL-F59**, built on firmware **008264** only.
+Current version: **TL-F62**, built on firmware **008264** only.
 
 ## The main event: fixes that make the camera better to use
 
@@ -24,6 +24,8 @@ Current version: **TL-F59**, built on firmware **008264** only.
   from faces looking sideways, or (Auto+) from where the sky or the ceiling light is in the live-view brightness. The VIDEO button
   cycles Off, Auto, Auto+, always right, always left, and an arrow on the shooting screen shows what it will do. Auto+ is a guess and
   can be fooled by lamps and windows, so rotate in playback when it is wrong.
+- **Clear shooting screen.** The film-name and tilt pop-up box sits in the top-left corner, sized to fit "Classic Chrome" on one line, and
+  stays out of the way in movie mode, where that corner shows the recording timer.
 - **Looks work with RAW+JPEG.** The looks Samsung blocked when you shoot RAW+JPEG now work, and Bleach Bypass saves at full size.
 
 ## The extras: Fuji-style looks and interface
@@ -92,7 +94,7 @@ The bootloader files (`ONBL1.bin`, `ONBL2.bin`) and `FWUP` are copied unchanged.
    `DSC: FULL <current> -> <new>`). Start the update as Samsung's own firmware instructions for the TL500 describe.
 3. Do not switch the camera off or remove the battery until it finishes. Remove the card afterwards.
 
-The camera's version screen should now read **TL-F59**.
+The camera's version screen should now read **TL-F62**.
 
 ## Safety
 

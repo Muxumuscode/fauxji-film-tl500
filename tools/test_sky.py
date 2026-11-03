@@ -10,7 +10,7 @@ import fauxji_rot as R
 M32=0xFFFFFFFF
 class CPU:
     def __init__(s,blobs):
-        s.mem={}
+        s.mem={}; s.stubs={}
         for base,b in blobs:
             for i in range(0,len(b),4): s.set32(base+i,struct.unpack_from('<I',b,i)[0])
         s.r=[0]*16; s.N=s.Z=s.C=s.V=0
@@ -41,7 +41,11 @@ class CPU:
         n=0
         while s.r[15]!=ret:
             n+=1; assert n<limit,'runaway'
-            pc=s.r[15]; w=s.get32(pc)
+            pc=s.r[15]
+            if pc in s.stubs:                       # an outside function: python stand-in, then return to lr
+                if s.stubs[pc](s)=='stop': return s
+                s.r[15]=s.r[14]; continue
+            w=s.get32(pc)
             if pc not in s.cache: s.cache[pc]=next(s.md.disasm(struct.pack('<I',w),pc))
             i=s.cache[pc]; ops=i.operands; s.r[15]=pc+4
             if not s.cond(i.cc): continue
@@ -50,7 +54,7 @@ class CPU:
                 pass
             base=m
             import re
-            mm=re.match(r'^(push|pop|stmdb|ldm|mov|add|cmp|ldrh|ldr|str|umull|orr|sub|and|lsl|lsr)',m); base=mm.group(1) if mm else None
+            mm=re.match(r'^(push|pop|stmdb|ldm|mvn|mov|add|cmp|ldrh|ldr|str|umull|orr|sub|and|lsl|lsr)',m); base=mm.group(1) if mm else None
             if i.id==ARM_INS_B: base='b'
             if i.id==ARM_INS_BL: base='bl'
             if i.id==ARM_INS_LSL: base='lsl'
@@ -64,6 +68,8 @@ class CPU:
                 for op in sorted(ops,key=lambda o:s.ri(o.reg)):
                     v=s.get32(s.r[13]); s.r[13]+=4
                     s.r[s.ri(op.reg)]=v if s.ri(op.reg)!=15 else v
+            elif base=='mvn':
+                s.r[s.ri(ops[0].reg)]=(~s.val(ops[1],pc))&M32
             elif base in('mov','add','orr','sub') and m.endswith('s') and base in('add','sub') and i.update_flags:
                 rd=s.ri(ops[0].reg); a,b=s.val(ops[1],pc),s.val(ops[2],pc)
                 res=((a-b) if base=='sub' else (a+b))&M32
@@ -145,6 +151,33 @@ def test_latch():
     print('latch: live guess stored, writer uses it, face still wins: ok')
 
 
+def test_gates():
+    # movie-mode gates in front of the name / tilt box (top left corner = where the movie timer shows)
+    def setup(mode):
+        c,lab=make([100]*221,[100]*221,[100]*221)
+        log=[]
+        c.stubs[R.GET_SYSVAL]=lambda cpu: (cpu.r.__setitem__(0,mode) or None)
+        c.stubs[R.ui.ITEM44_DRAW]=lambda cpu: log.append(('item44',cpu.r[0]))
+        for name,a in (('tf4',R.ui.TILT_FORCE+4),('td4',R.ui.TILT_DRAW+4),('t4',R.ui.TOAST_CODE+4)):
+            c.stubs[a]=(lambda n: lambda cpu: (log.append((n,cpu.r[0],cpu.r[1])) or 'stop'))(name)
+        return c,lab,log
+    for mode,movie in ((8,True),(0,False),(4,False),(9,False)):
+        for gate,tag in (('gate1','tf4'),('gate2','td4'),('gate3','t4')):
+            c,lab,log=setup(mode)
+            c.r[0]=0x55; c.r[1]=7; c.r[4]=0x44
+            c.run(lab[gate],ret=0xDEAD0000,lr=0xDEAD0000)
+            if movie:
+                want=[] if gate=='gate3' else [('item44',0)]
+                assert log==want and c.r[15]==0xDEAD0000 and c.r[13]==0x10000000,(mode,gate,log,hex(c.r[15]))
+            else:
+                assert log and log[-1][0]==tag,(mode,gate,log)
+                if gate=='gate1': assert log[-1][2]==0xFFFFFFFF
+                if gate=='gate2':   # push {r0,r4,lr} done, r0 intact
+                    assert c.r[13]==0x10000000-12 and c.get32(c.r[13])==0x55
+                if gate=='gate3': assert c.r[13]==0x10000000-8
+    print('movie gates: hidden/skipped in movie mode, normal path otherwise: ok')
+
+
 def test_roll():
     import random
     random.seed(3); bad=0
@@ -168,6 +201,7 @@ def test_roll():
 
 if __name__=='__main__':
     test_latch()
+    test_gates()
     test_roll()
     random.seed(7); bad=0; stats={0:0,6:0,8:0}
     for t in range(1500):

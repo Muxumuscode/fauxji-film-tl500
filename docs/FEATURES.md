@@ -35,7 +35,26 @@ root (for example `E:` on Windows). Commit and push after each build.
 - Address rule: .elf runtime = file offset + 0xC0003FF5. Disassembler helpers lived in
   the old scratchpad (not in git): rebuild with capstone as needed.
 
-**FAUXJI59 (`TL-F59`, 3 Nov 2026, flashed, checked good by the owner): auto-rotate fix from the owner's night photos.** Owner: Auto+ worse indoors at night.
+**FAUXJI62 (`TL-F62`, 3 Nov 2026, flashed, checked good by the owner): name / tilt box sized from a photo, top left, hidden in movie mode.** Owner flashed FAUXJI61 (248 x 48): "Classic Chrome"
+fits on one line but the box is too big. Measured on the owner's photo of the screen: box 527 px wide, "Classic Chrome" (the longest name)
+302 px, so about 142 screen px of text in a 248 px box; box height was fine for one line. Now 164 x 36, text area 156 x 36
+(about 10 % spare), moved to the TOP LEFT corner (8, 8) at the owner's request (empty in P/A/S/M, balances the screen). Movie mode (AE sysmode 8, read with GET_SYSVAL(3) as the menu unlock does) hides the box and skips the pop-ups, because the movie
+timer uses that corner: three gates in fauxji_rot.py (`gate1`/`gate2` hide with the stock draw(0), `gate3` skips the toast), tested
+in `tools/test_sky.py`; that movie is mode 8 is from the research notes, not yet seen on the camera. Caveat: in
+Smart Auto / scene modes the stock top-left status icons (live-view nodes 1001-1008, 1155-1162 ...) can appear under it; the 172 px
+right edge stays clear of the text node at x 172. Only SPID.Rom changes; the .elf differs in the label only. If "Classic Chrome" wraps, add ~10 px.
+
+**Earlier: FAUXJI61 (`TL-F61`, 3 Nov 2026, flashed: too big): name / tilt box wider AND taller.** FAUXJI60's 196 x 36 box still cut names off
+(owner: "needs to be taller or longer still"). `BOX_POS` is now (84, 374) 248 x 48, text area 240 x 48: room for the longest names on one
+line and for two lines if one still wraps. Same bottom edge (y 422). Only SPID.Rom changes; the .elf differs in the label only.
+
+**Earlier: FAUXJI60 (`TL-F60`, 3 Nov 2026, built, NOT flashed): wider name / tilt box.** Owner: two-word film names (Classic Chrome, Nostalgic Neg.,
+Bleach Bypass, Classic Neg.) wrapped onto two lines and got cut off in the 120 px box. `BOX_POS` in fauxji_layout.py is now 196 x 36
+(text area 188), estimated from the 23 px text size (node 992 trailer) and font metrics: the longest name needs about 150-175 px.
+Only the SPID.Rom layout and the panel image change; the .elf differs in the label only. If a name still wraps, widen BOX_POS further
+(the box starts at x 84 and the area to its right is free up to about x 250). FAUXJI59 was flashed and checked good by the owner.
+
+**FAUXJI59 (`TL-F59`, 3 Nov 2026, built, NOT flashed): auto-rotate fix from the owner's night photos.** Owner: Auto+ worse indoors at night.
 Analysis of SAM_0640-0653 (card, FAUXJI54; raw pixels viewed unrotated): the camera's tags were right on 8 of 14 (4 sideways shots
 missed: 642, 647, 649, 653 + 651; 1 false tag: 646 upright tagged 6), but replaying the SAME band rules on each photo's own 17 x 13 luma
 (linear light) gives 13 of 14. So the rules are fine and the AE grid read at EXIF-write time is not the frame that was shot (the live
