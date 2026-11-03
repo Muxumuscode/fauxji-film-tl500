@@ -1,5 +1,12 @@
 # Safe test plan — modifying Samsung TL500 / EX1 firmware
 
+> **Historical note (written 31 Oct 2026, before any firmware was flashed).** This plan was made when only
+> one camera and no restore files were available. Since then the author has flashed and run dozens of builds on
+> that camera; the stock files can be kept as your own backup (see README.md). The caution below still applies
+> to anyone trying this for the first time: keep your own untouched copies of the official files and use a
+> fully charged battery.
+
+
 Goal: prove we can put custom firmware on the camera **without ever risking a
 camera you care about**, and with a recovery path ready before any flash.
 

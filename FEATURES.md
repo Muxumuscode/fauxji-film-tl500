@@ -16,8 +16,8 @@ Owner: economist, not a programmer: explain in plain language. Owner flashes; ne
 flash for them. Never redistribute Samsung firmware: share only tools and patches.
 Ask before downloading anything.
 
-**Repo:** github.com/Muxumuscode/fauxji-film-tl500 (private). Full log of findings:
-`README.md` (long, chronological). Ideas summary: `ROADMAP.md`. This file: the plan.
+**Repo:** github.com/Muxumuscode/fauxji-film-tl500 (public; no Samsung files in it). Full log of findings:
+`RESEARCH-LOG.md` (long, chronological; append new build notes there). Ideas summary: `ROADMAP.md`. This file: the plan.
 
 **Build:** `python tools/build_fauxji.py extracted/tl500_008264 extracted/tl500_008264_FAUXJIxx`
 (needs the owner's stock 008264 files in `extracted/tl500_008264/`, not in git). Then set
@@ -211,7 +211,7 @@ memory and merge code: research only.
 - Shutter / aperture digit colours (cyan = adjustable, red = warning; keep or restyle).
 - Startup "film loading" animation (menu animation format is decoded: JPEG frames).
 - Retire leftover Samsung art: remaining scene photos, swirl, glossy bits (room audit in
-  README: about 2.7 MB of skin can be repacked if new art needs space).
+  RESEARCH-LOG: about 2.7 MB of skin can be repacked if new art needs space).
 
 ## Suggested next order
 1. Flash and test **FAUXJI35** (zoom fix).
