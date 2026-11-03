@@ -38,6 +38,19 @@ Current version: **TL-F59**, built on firmware **008264** only.
 The quality-of-life fixes and the Fuji look are not yet separate options. A pick-what-you-want build is on the
 [roadmap](docs/ROADMAP.md).
 
+## Coming up
+
+Development is paused for a few days and should pick up again around the end of the week. Next on the list, no promises on order:
+
+- **Pick what you want.** Separate options for the quality-of-life fixes and the Fuji look, so you can take the fixes without the
+  film looks and the new interface, or the other way round.
+- **Film camera mode.** The SCENE spot on the mode dial becomes a film-camera mode: a simpler screen with a big roll counter, no
+  picture review after each shot, a film-stock picker in place of the scene picker, and the front scroll wheel winding the film
+  between shots. This one needs a few test builds, so it will take a while.
+- **Smaller ideas:** custom recipe slots with ready-made looks, the film look shown in playback, an orange film-style date stamp.
+
+Ideas and bug reports are welcome in the issue tracker.
+
 ## What you need
 
 1. A Samsung TL500 / EX1 running the official firmware **008264**, and an SD card.
