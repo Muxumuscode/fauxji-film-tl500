@@ -380,6 +380,54 @@ def rot_strings():
     return out
 
 
+# Diagnostic probe (opt-in, build_fauxji.py --diag-keys; code in diag_probe.py): the key dispatcher's first call (KEY_CALL,
+# r0 = logical key 0-15, r1 = press state) shows "Key kk st s" in the name pop-up for every key event, so one flash tells us
+# which logical keys the front dial (both ways) and the shutter half / full press send. Key DIAG_FINDER_KEY (press) also looks
+# for the live CSFileList object and rescans the card (see diag_probe). Texts: slots 0 and 1 of the tilt strings, served by
+# STRWRAP as ids 0xF000 / 0xF001 (looks 11 / 12). The code goes into the dead factory region after fauxji_rot's `gate3`.
+DIAG_TEXTS = ['Key 00 st 0', 'Finder']      # digit positions (UTF-16 index) of the first: 4-5 = key, 10 = state
+DIAG_LOOKS = (11, 12)
+DIAG_FINDER_KEY = 0                          # AE-L button with its default setting
+DIAG_POP_MS = 8000                           # long pop-up so the 8-digit values can be read: 0x7D << 6
+DIAG_POP_WORD = 0xE3A01D7D                   # mov r1,#8000   (stock: 0xE3A01E7D = #2000)
+DIAG_END = 0xC04272C0
+
+
+def diag_base():
+    """First free word of fauxji_rot's R5 region (dead factory code) after its own blob, 16-byte aligned."""
+    import fauxji_rot
+    blobs, _ = fauxji_rot.build()
+    end = max(b + len(c) for b, c in blobs if fauxji_rot.R5 <= b < fauxji_rot.R5_END)
+    return (end + 15) & ~15
+
+
+def diag_code():
+    import diag_probe
+    return diag_probe.build(diag_base(), buf0=STR_BASE, buf1=STR_BASE + STR_SLOT, arm_name=ARM_NAME, toast=TOAST_CODE,
+                            key_call=KEY_CALL[1], look0=DIAG_LOOKS[0], look1=DIAG_LOOKS[1], finder_key=DIAG_FINDER_KEY)
+
+
+def patch_diag(d):
+    """Route the key dispatcher through the diagnostic probe instead of KEYHOOK (call after patch())."""
+    d = bytearray(d)
+    for k, text in enumerate(DIAG_TEXTS):
+        raw = text.encode('utf-16-le') + b'\0\0'
+        assert len(raw) <= STR_SLOT
+        at = STR_BASE + k * STR_SLOT - B
+        d[at:at + STR_SLOT] = raw + b'\0' * (STR_SLOT - len(raw))
+    base = diag_base()
+    code, labels = diag_code()
+    assert base + len(code) <= DIAG_END, hex(base + len(code))
+    d[base - B:base - B + len(code)] = code
+    site, target = KEY_CALL
+    assert struct.unpack_from('<I', d, site - B)[0] == _b(site, KEYHOOK, link=True), 'patch() first'
+    struct.pack_into('<I', d, site - B, _b(site, base, link=True))
+    pop_at = ARM_NAME + 16 - B                  # `mov r1,#2000` in arm_name: a longer pop-up
+    assert struct.unpack_from('<I', d, pop_at)[0] in (0xE3A01E7D, DIAG_POP_WORD)
+    struct.pack_into('<I', d, pop_at, DIAG_POP_WORD)
+    return bytes(d)
+
+
 def patch(d):
     d = bytearray(d)
     code = film_routine()

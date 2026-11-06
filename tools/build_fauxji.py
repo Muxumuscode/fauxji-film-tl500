@@ -35,14 +35,21 @@ PATCHES = os.path.join(HERE, '..', 'patches')
 LABEL_AT, LABEL = 0x792493, b'TL-F62\0\0'          # version string the camera shows (8 bytes; stock 'TL500-U')
 
 
-def build_elf(stock):
+DIAG_LABEL = b'TL-D02\0\0'                          # --diag-keys build: key numbers + file-list finder (tools/diag_probe.py)
+
+
+def build_elf(stock, diag_keys=False):
     d = bytearray(stock)
     for run in json.load(open(os.path.join(PATCHES, 'fauxji_elf_runs.json')))['runs']:
         b = bytes.fromhex(run['bytes'])
         d[run['offset']:run['offset'] + len(b)] = b
     d = bytearray(sounds.patch_elf(fauxji_rot.patch(fauxji_ui.patch(fauxji.patch(bytes(d))))))
+    label = LABEL
+    if diag_keys:
+        d = bytearray(fauxji_ui.patch_diag(bytes(d)))
+        label = DIAG_LABEL
     assert bytes(d[LABEL_AT:LABEL_AT + 8]) in (b'TL500-U\0', LABEL), 'unexpected version label'
-    d[LABEL_AT:LABEL_AT + 8] = LABEL
+    d[LABEL_AT:LABEL_AT + 8] = label
     return bytes(d)
 
 
@@ -76,7 +83,7 @@ def main():
     os.makedirs(out, exist_ok=True)
     fauxji.STOCK_ELF = os.path.join(src, ELF)      # the recipes read stock tables from here
     sounds.STOCK_ROM = os.path.join(src, ROM)      # the shutter sound is reshaped from here
-    files = {ELF: build_elf(open(os.path.join(src, ELF), 'rb').read()),
+    files = {ELF: build_elf(open(os.path.join(src, ELF), 'rb').read(), '--diag-keys' in args),
              ROM: build_rom(open(os.path.join(src, ROM), 'rb').read())}
     for f in ('ONBL1.bin', 'ONBL2.bin', 'FWUP'):
         files[f] = open(os.path.join(src, f), 'rb').read()

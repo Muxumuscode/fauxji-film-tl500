@@ -35,6 +35,73 @@ root (for example `E:` on Windows). Commit and push after each build.
 - Address rule: .elf runtime = file offset + 0xC0003FF5. Disassembler helpers lived in
   the old scratchpad (not in git): rebuild with capstone as needed.
 
+**DIAG01 (`TL-D01`, 6 Nov 2026, built, NOT flashed): film-camera mode stage 1, key-number diagnostic (item 11b).** Spec agreed with the
+owner: SCENE dial position = film mode, live view only (playback + review locked); picker of all 11 looks ONLY on a new card or when a roll
+hits 0 (same look again allowed), otherwise power-on / SCENE continues the current roll; 36 frames per roll, JPEG only, each roll its own
+numbered folder outside DCIM (e.g. `FILM\R0007_CLASSIC_CHROME`, next number = highest on card + 1, frames left = 36 - files in the folder,
+so no state in the camera); hard wind-on lock (shutter blocked until the front dial turns); no mid-roll film change, no escape hatch.
+Build: `python tools/build_fauxji.py <stock> <out> --diag-keys` (normal builds are unchanged: checked byte-identical to FAUXJI63 apart from
+the label). The key dispatcher call (0xC04C1938) goes to `fauxji_ui.diag_hook` (code in tilt-text slots 1-4 at 0xC0426480, text = slot 0)
+and the name pop-up shows `Key kk st s` (logical key 0-15, press state) on EVERY key event. `python tools/test_diag.py` runs the emitted
+code in the ARM interpreter (160 cases, registers and stack preserved). Static facts: the dispatcher has 16 logical keys; 0 = AE-L, 14 =
+AF-L (FILM SIM), 10 and 11 look like the shutter (handler 0xC04C0B68, states 1/2), 12 and 13 share 0xC04C16E8 which compares the key with
+12 (probably the zoom lever); 1, 2, 3, 15 share the default handler 0xC04C1300. NOT known: which key the front dial sends (it may not come
+through this dispatcher at all). Test (live view, any shooting mode): turn the front dial both ways, half-press and full-press the shutter,
+press every other button, and write down the pop-up. If the dial shows nothing, the dial is a different event class and the next probe
+goes into the live-view state's event handler (0xC04C1F04).
+
+**Capture path trace (6 Nov 2026, static, nothing built).** Module CSDCFList/CSDCFDir lives at about 0xC01AD000-0xC01B4500 (string
+area 0xC074FED8-0xC07501B8; runtime word addresses are file offset = 3 mod 4). Facts:
+- JPEG path builder 0xC01ADCA4 is `snprintf(buf, size, "%s/%s/%03d%s/%s%04d.JPG", root, "DCIM", folder, suffix, prefix, n)`:
+  root = string field at object+0x40 (set from `/ext/sd0`, literal at 0xC01B44F0), "DCIM" = pool word 0xC01AEC58, folder = 3-digit
+  number, suffix = the 5 chars after the number in the folder record (`PHOTO`), prefix (`SAM_`) is a caller parameter, not a literal.
+  MP4 twin uses the same arguments; a generic `.%s` builder is at 0xC01B05B4-0xC01B0680.
+- Every place the name DCIM is baked in: pool words 0xC01AEC58, 0xC01B1210, 0xC01B181C (all point at the `DCIM` string 0xC074FF08;
+  0xC01B3664 points at CSDCFDir's own `DCIM` 0xC07500AC, no loader found) and the formats `%s/DCIM` (pool 0xC01B10FC) and
+  `%s/DCIM/100PHOTO` (0xC01B1104). A different CSFileList module (0xC01A5xxx, `CAM_`, own `/ext/sd0/DCIM`) exists too; not shown to be used for capture.
+- Missing folders are created: 0xC01B015C formats `%s/DCIM`, `%s/DCIM/100PHOTO`, `%s/MISC` and passes each to 0xC01B0140 -> 0xC03BCD4C ->
+  0xC0157F1C (one path argument: almost certainly mkdir; failure on "exists" is ignored). It is called from the folder scan 0xC01B1460, which has
+  no direct callers (vtable) and opens `root/DCIM` with the directory iterator 0xC03BCE4C, then builds an in-RAM list of 32-byte folder records.
+- Plan that follows: point those pool words at small RAM buffers in the known-writable code area (as the toast text slot already is):
+  four-byte `DCIM`/`FILM` and 7- and 16-byte format copies, which hold `DCIM` normally and `FILM` in film mode. Then normal playback scans
+  /DCIM and never sees film frames, with no extra work. Roll folders = DCF folder numbers inside FILM (`101PHOTO`, `102PHOTO`...), because
+  the folder record format is fixed (3 digits + 5 chars); the film look is not part of the folder name.
+- **Rescan trace (6 Nov 2026, static).** Call chain: `CSFileList::Open(this, mediaType)` = 0xC01A5BA4 (vtable slot +0x40 of vptr
+  0xC074EA7C; the vtable is (0, fn) word pairs, fn at vptr+8k+4) -> DCF mount wrapper 0xC01ABD04 (manager = this+0x118, path buffer = this+0x10)
+  -> constructs the DCF list object if missing (0xC01AD104), sets media type, then the folder scan 0xC01B145C (real entry; 0xC01B1460 is its
+  push) which runs the mkdir routine 0xC01B015C, opens `root/DCIM` and rebuilds the folder records. Nothing calls Open by BL or by a stored
+  pointer: its static wrapper 0xC01A514C is unused, so the real caller is a vtable call on a CSFileList object I could not trace (the
+  vcall pattern is too common to search blindly). The CSFileList constructor 0xC01A5690 (real entry 0xC01A568C) also has no direct caller.
+  The CSFileList object keeps its own copies of the defaults: +0x90 `/ext/sd0/DCIM`, +0xB0 `PHOTO`, +0xD0 `CAM_` (runtime strings, so
+  they can be edited in RAM). Global 0xC08B439C (read by the instance getter 0xC01A4E00) is never loaded by a second literal, so it is
+  set by code I have not found. Static wrappers over the same instance: slot 0x28 = 0xC01A508C (11 callers), 0x38 = 0xC01A50EC (9),
+  0x58 = 0xC01A52D4 (8), 0x40 = 0xC01A514C (0), 0x48 = 0xC01A5234.
+- **Cache hazard found.** The new-file search 0xC01AEA54 registers the new file in the RAM folder list (flag byte [sp+0x64] = 1 ->
+  0xC01AD0D4 before, 0xC01AE554 after). If film frames are written to a different top folder while the list is the DCIM list, normal
+  playback could show ghost entries for files that are not in DCIM until the next scan. So leaving film mode must rescan (or the film
+  shots need their own list object).
+- **DIAG02 (`TL-D02`, 6 Nov 2026, built, NOT flashed) is that probe**, folded into the diagnostic build
+  (`build_fauxji.py <stock> <out> --diag-keys`; code `tools/diag_probe.py`, 576 bytes at 0xC0426F10 in the dead factory region, hooked at the key
+  dispatcher call 0xC04C1938; `python tools/test_diag.py` runs it in the ARM interpreter: every key and state, the finder at 6 manager
+  offsets, junk and out-of-range pointers never dereferenced, registers and stack preserved). Normal builds are unchanged (byte-identical to
+  FAUXJI63 apart from the label). What it shows (name pop-up, now 8 s long):
+  * every key event: `Key kk st s` (logical key 0-15, press state);
+  * AE-L press (key 0, `DIAG_FINDER_KEY` in fauxji_ui.py): `O:oooooooo tttttttt` = address of the CSFileList object found by scanning the
+    manager at *0xC08B439C (first 256 words, and the global itself) for a pointer whose target starts with vptr 0xC074EA7C (0 = not found),
+    and the media type [[[obj+0x118]+0x10]+0x20] (FFFFFFFF = chain invalid);
+  * second AE-L press: calls CSFileList::Open(obj, type) 0xC01A5BA4, the rescan, with the arguments the list already has, and shows
+    `R:rrrrrrrr` (return value); a third press searches again. Open is only ever called after a successful find.
+  Test on the camera: put a card with a few photos in; press AE-L, write down `O:` and the type; take a photo, open playback and note
+  the count; press AE-L twice more and check playback still works and the count is unchanged. If `O:00000000`, the object is not under
+  the manager: send me the key numbers anyway and the next probe widens the search. Risk: a pointer inside the 0xC0000000-0xC4000000
+  window that is not actually mapped would fault (the camera hangs; switch off and on).
+  Other option that avoids the rescan: make no mid-session switch, i.e. film mode only
+  takes effect after the next power-on (the DCIM/FILM name chosen once at mount from the dial position), which gives up "turn the dial to
+  SCENE and shoot".
+- Unknowns: (1) see the rescan trace above: a rescan has to be callable at SCENE entry and exit, and file numbers may carry on from the old list until then; (2) whether
+  playback and the RAW writer (`.SRW`, strings at 0xC07BDD13) use the same module; (3) whether the buffers are really writable (the code
+  area is: NAME_FLAG and the toast text already live there); (4) how a card with no FILM folder behaves at power-on.
+
 **FAUXJI62 (`TL-F62`, 3 Nov 2026, flashed, checked good by the owner): name / tilt box sized from a photo, top left, hidden in movie mode.** Owner flashed FAUXJI61 (248 x 48): "Classic Chrome"
 fits on one line but the box is too big. Measured on the owner's photo of the screen: box 527 px wide, "Classic Chrome" (the longest name)
 302 px, so about 142 screen px of text in a 248 px box; box height was fine for one line. Now 164 x 36, text area 156 x 36
@@ -217,6 +284,31 @@ counter) and the big number (static strings "0".."36" in the SPID string table, 
 (3) wind mechanic: after a shot swallow the shutter keys in the live-view dispatcher (0xC04C1944 hook, as the VIDEO key is
 swallowed) until the wheel has turned N detents, "WIND" prompt, ratchet click from tools/sounds.py. Unknowns: the key numbers,
 the review setting, text size of a node (or digit images), whether swallowing the shutter key is clean.
+
+**Film mode prep, 6 Nov 2026 (static research + PC mock-ups, nothing flashed).**
+- *Quick View (the picture review after a shot), statically.* Setup item `SETUP_MENU_Q_VIEW`: setup record at 0xC0917048 (0x28-byte records,
+  name pointer at +0x10, setup index +0x18 = 0xA, UI id +0xC = 0x19A, max value +4 = 3: Off / 0.5 s / 1 s / 3 s; menu string 572, shown as
+  "Image Disp."). The main UI setter 0xC048F630 only handles ids up to 0x101, so setup items (0x191-0x1AC) go through some other store that I
+  did not find; the first record word is 0 for every item, so it is not obviously the live value. The review itself is the GUI state
+  `CAPPGUIPreviewState` (descriptor 0xC07C5428, singleton accessor 0xC049D254, event handler 0xC049D294 which switches on the event type:
+  5, 0x17 = key (key code - 0x64, 12 entries), 0x2B, 0x2C, 0x41). It is registered as state id 3 under id 2 by the builder at 0xC0491EA4 (registrar
+  0xC0491E2C). Other states that matter: `CAPPGUISelectSceneState` (0xC07C580C, the scene picker, the natural host for the film picker),
+  `CAPPGUIPlaybackState` / `PlaybackMainState` (the PLAY key target), `CAPPGUIViewfinderMainState`. The log string "SetDisplayEvent [to QView off]"
+  (0xC07577C4) belongs to the display driver, not to the setting. Options for the review lock, cheapest first: (a) tell the user to set
+  "Image Disp." to Off (no code, but global, not film-mode-only); (b) find the setup store and force the item to 0 on entering film mode, restore
+  on leaving; (c) hook the Preview state's handler 0xC049D294 and swallow its events in film mode; (d) swallow the PLAY key in the live-view
+  dispatcher (already hooked at 0xC04C1938) so playback cannot be entered.
+- *Screens.* `python tools/film_mode_art.py docs/images/film-mode` draws four 640x480 mock-ups (docs/images/film-mode/): ready, wind-on
+  needed, roll full, and the roll picker (11 looks, 4 x 3 grid). Canister at the right edge of the live view (150 px tall, 125 wide, 6 % of the
+  screen; `CAN_H` in the script; 372 px, then 236 px, were too big because there is no viewfinder and the shot is framed on this screen).
+  Design from photos of the real 35 mm cartridges (owner's reference photos of Velvia 100, Provia 100F and a Superia / QuickSnap row, plus Fujifilm's product pages): black plastic caps and spool knob; the paper label has a WHITE strip down the left with the frame count at the top (on the real cartridge the "36" sits there), and the film name vertical in white on the right, either on an identification-colour field (Provia: violet-blue) or on Fuji green with a colour band (Velvia: purple band, Superia: red band) over a green foot. Sampled: Fuji green about #1F963D, Velvia band #6352B1, black plastic #121317. Looks with no real stock behind them (Astia, Reala Ace, Classic Chrome, Eterna, Bleach Bypass, Sepia, Nostalgic Neg. from Pro 400H purple) use colours chosen to fit; the source per look is in `FILMS`. Fujifilm's logo is not used and its packaging typeface is not published (a search found nothing), so type was matched by eye against the owner's photos (docs/images/film-mode/font_compare.png): the printed names look like a Frutiger-style humanist bold sans, so the names are Segoe UI Bold squeezed to 88 % (`NAME_FONT`), the frame count stays in the tall narrow Bahnschrift Bold Condensed (like the printed "36"), and "Professional" would be Palatino Italic (`SERIF_IT`, not drawn at this size). Both fonts are Windows fonts: on other systems the script falls back to Bahnschrift, and a free Frutiger-like face (for example Open Sans or Hind) could be bundled later. The picker shows an info panel for the highlighted look (`INFO` in the script: kind, what it is, what it is good for), written from Fujifilm's own descriptions of the film simulations; the TL500 versions are approximations of them. The leader with
+  sprocket holes comes out of the slit; wind-on icon (front dial wheel with a
+  curved arrow) plus "WIND ON / turn the front dial" at bottom left; roll full greys the canister, shows 00 and "ROLL FULL / pick a new roll /
+  press any button". The picker's "press the shutter to load" is a placeholder: the loading key is not decided.
+- *What the real build needs from this.* The skin has no text size this big and no alpha, so: one RLE canister image without the number
+  (magenta key colour, as tools/badges.py), 10 digit sprites for tens and ones placed over the white counter strip (two repurposed nodes), a dimmed
+  canister for roll full, the wind icon as one image, and 11 small picker canisters (one per look, with the code in the window). Node count
+  (2034) is fixed, so repurposed nodes are needed; the free-space audit says about 2.7 MB of skin can be repacked.
 
 ### 12. Night sky preset (M)
 **Long Time Shutter** (stock up to about 16 s) plus Manual Focus and the 2 s timer.
