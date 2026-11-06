@@ -2489,3 +2489,21 @@ redraw tail 0xC04B74AC, timer 0xC04C2188 -> TIMERHOOK again) is back to Samsung'
 .elf). The two GUI-event direct draws (0xC04BA8E4 / 0xC04BA904) now call the box wrapper (WRAP44) so they show the film
 name instead of hiding it. The old code stays behind the flag (`build_full`; `tools/test_sky.py` tests it).
 Film roll counting hooks the EXIF writers too: re-add a count-only stub when the roll feature is built.
+
+### Bug sweep (6 Nov 2026, static, branch `polish`; nothing here is verified on a camera yet)
+Audited every place the F63 build changes Samsung's program (diff of the built .elf against the stock .elf).
+- **Tilt tag**: removed (all hooks back to stock bytes; `build_full` + `tools/test_sky.py` keep it testable).
+- **Film-look button** (`film_routine`): no logic bug found; the name table matches the FAVOURITES values. Weak points: every
+  press runs the whole commit (setUiValue, apply, mask refresh, GUI event, 2 notifies) AND a full live-view icon redraw, so
+  quick presses queue up (lag); if the current style is not in FAVOURITES it jumps to PROVIA. Suspected causes of the wrong
+  name were the tilt heartbeat / DRAW_ICONS tail hook / direct draws, all removed in F63. If lag persists: coalesce quick
+  presses (shadow look kept by us, apply once after ~300 ms) and drop the extra DRAW_ICONS.
+- **Menu "hops back to Off" / greyed out**: our unlock (0xC04CE844) only forces the *allow-masks* (which options can be picked).
+  The camera also has value-resetting code (e.g. setISOBackupValue 0xC04D0D34 restores/clamps values when the mode changes;
+  the Photo Style apply 0xC04D1538 forces photo size/quality minimums for Sketch/Defog, which are our Bleach Bypass /
+  Nostalgic Neg. slots) that the masks do not touch. Face Detection is an AF-area choice; the dependence on the film look
+  the owner reports points at the Sketch/Defog (menu values 1, 2) rules. Needs a structured on-camera test, then the code.
+- **Earlier single-instruction patches** (c01d2060, c03cbb58/64: style-number limits 0xA/0xB -> 0xFF; c04c069c, c04d0404: style range
+  checks widened; c04d0da4/16ec: Manual ISO default Auto; c04d2108/2258/2320: ISO mask in Manual; c04d2298/24fc: RAW and
+  photo-size masks): reviewed against the research log, consistent with their purpose.
+- Self-test `tools/test_sky.py` passes; the build is deterministic.
