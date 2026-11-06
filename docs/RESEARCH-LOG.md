@@ -2476,3 +2476,16 @@ verified face tag); had the grid been mirrored the arrow would have pointed up. 
 glyphs were counter-intuitive: texts 13/14, 16/17, 18/19 now '<' for 6 and '>' for 8, so the arrow points at the sky.
 Only the .elf changed (7 bytes incl. label). To confirm on the PC: the vertical night shots from the FAUXJI53 test should
 open upright (if they open upside down, the grid is mirrored after all: swap 6/8 in skyori and these arrows back).
+
+## FAUXJI63: tilt tag removed from shooting mode (`TL-F63`, 6 Nov 2026, branch `polish`)
+Owner: the tilt tag (Auto/Auto+, manual, indicator, VIDEO button) is unreliable and the VIDEO button only worked half the
+time, so it is removed from picture mode (the idea moves to playback: VIDEO rotates the shown photo). Also suspected of
+causing the lag and the wrong film name: the 400 ms-1 s heartbeat (timer 31, `hbhook`), the DRAW_ICONS tail hook (`dihook`)
+and the direct help-text draws routed to `tiltdraw` all shared the film-name box and the redraw path.
+`ui.TILT_ENABLED = False` (tools/fauxji_ui.py) switches it off; `fauxji_rot.build_lite()` keeps only: EV bias (AE_BIAS),
+menu unlock (all options allowed in P/A/S/M), flash shutter floor (plzoom) and the movie-mode gate before the toast.
+Every tilt hook (EXIF writers 0xC0385F00 / 0xC03779DC / 0xC0383470, face hook 0xC058FA0C, key hooks 0xC04C1A98 / 0xC04C1944,
+redraw tail 0xC04B74AC, timer 0xC04C2188 -> TIMERHOOK again) is back to Samsung's bytes (checked by diff against the stock
+.elf). The two GUI-event direct draws (0xC04BA8E4 / 0xC04BA904) now call the box wrapper (WRAP44) so they show the film
+name instead of hiding it. The old code stays behind the flag (`build_full`; `tools/test_sky.py` tests it).
+Film roll counting hooks the EXIF writers too: re-add a count-only stub when the roll feature is built.

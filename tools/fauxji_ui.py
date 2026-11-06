@@ -66,6 +66,7 @@ WRAP44 = EXTRA_CODE + 4
 KEYHOOK = EXTRA_CODE + 24
 ITEM44_ENTRY = (0xC09BDF84, 0xC04B7BB8)       # viewfinder item table, item 44's draw
 ITEM44_DRAW = 0xC04B7BB8
+TILT_ENABLED = False           # FAUXJI63: the shooting-mode tilt tag (Auto, Auto+, manual, indicator, VIDEO hook) is off
 TILT_FORCE = 0xC04262F0        # fauxji_rot: forget the cached text, then TILT_DRAW (used after a name pop-up ends)
 TILT_DRAW = 0xC04262F8         # fauxji_rot: draws the tilt indicator, else the stock help text (r0 = value)
 KEY_CALL = (0xC04C1938, 0xC04DE310)           # `bl 0xC04DE310` at the dispatcher's start
@@ -272,7 +273,7 @@ def extra_routines():
     a = WRAP44
     wrap = [_ldr_pc(a, 2, NAME_FLAG),                   # ldr r2,NAME_FLAG
             0xE3520000,                                 # cmp r2,#0
-            _b(a + 8, TILT_DRAW, cond=0x0),             # beq tilt indicator / stock draw (help text)
+            _b(a + 8, TILT_DRAW if TILT_ENABLED else ITEM44_DRAW, cond=0x0),             # beq tilt indicator / stock draw (help text)
             0xE2420001,                                 # sub r0,r2,#1   look
             _b(a + 16, TOAST_CODE)]                     # b toast        (returns to caller)
     out += b''.join(struct.pack('<I', x) for x in wrap)
@@ -300,7 +301,7 @@ def extra_routines():
     hook[7] = _ldr_pc(pc(7), 2, NAME_FLAG)
     hook[9] = _b(pc(9), pc(14), cond=0x0)
     hook[11] = _ldr_pc(pc(11), 2, NAME_FLAG, store=True)
-    hook[13] = _b(pc(13), TILT_FORCE, link=True)
+    hook[13] = _b(pc(13), TILT_FORCE if TILT_ENABLED else ITEM44_DRAW, link=True)
     hook[15] = _b(pc(15), KEY_CALL[1])
     out += b''.join(struct.pack('<I', x) for x in hook)
     a = ARM_NAME
@@ -346,7 +347,7 @@ def extra_routines():
     th[12] = _b(pc(12), TIMER_CANCEL, link=True)
     th[13] = _ldr_pc(pc(13), 2, NAME_FLAG)
     th[17] = _ldr_pc(pc(17), 2, NAME_FLAG, store=True)
-    th[19] = _b(pc(19), TILT_FORCE, link=True)
+    th[19] = _b(pc(19), TILT_FORCE if TILT_ENABLED else ITEM44_DRAW, link=True)
     out += b''.join(struct.pack('<I', x) for x in th)
     a = ZOOM_HOOK
     zoom = [0xE3DEC002,                                 # bics ip,lr,#2  (Z: mode 0 = P or 2 = A; ip is dead here)

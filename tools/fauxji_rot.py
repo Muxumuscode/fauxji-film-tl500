@@ -126,7 +126,7 @@ class Asm:
         self.emit(ui._ldr_pc(self.here(), reg, target, store=True))
 
 
-def build():
+def build_full():
     labels = {}
     r1, r2, r3, r4, r5 = Asm(R1, R1_END), Asm(R2, R2_END), Asm(R3, R3_END), Asm(R4, R4_END), Asm(R5, R5_END)
 
@@ -529,41 +529,125 @@ def build():
     return blobs, labels
 
 
+TILT = ui.TILT_ENABLED
+
+
+def build():
+    return build_full() if TILT else build_lite()
+
+
+def build_lite():
+    """FAUXJI63: no tilt tag. Only the hooks that stay: EV bias, menu unlock, flash shutter floor, and the movie gate
+    in front of the film-name toast. The tilt data block (STATE, KEY...) is kept at R1 because the key hook in
+    fauxji_ui reads ROT_KEY (0xFF = no key)."""
+    labels = {}
+    r1, r4, r5 = Asm(R1, R1_END), Asm(R4, R4_END), Asm(R5, R5_END)
+
+    def label(a, n):
+        labels[n] = a.here()
+
+    a = r1
+    a.emit(0, 0, 0, 0xFF, 0xFFFFFFFF)              # STATE, FACE_ORI, FACE_TTL, KEY (none), LAST: unused
+
+    label(a, 'evbias')                             # replaces `lsl r0,fp,#16` at 0xC03ECD54
+    a.emit(0xE24BB000 | AE_BIAS)                   # sub fp,fp,#AE_BIAS
+    a.emit(0xE1A0080B)                             # lsl r0,fp,#16   (stock)
+    a.br(0xE, 'EV_BACK')
+
+    label(a, 'unlock')                             # replaces `mov sl,r1` in the menu-mask setter
+    a.emit(0xE92D000F, 0xE3A00003)                 # push {r0-r3} ; mov r0,#3  (shooting mode)
+    a.br(0xE, 'GET_SYSVAL', link=True)
+    a.emit(0xE1A0C000, 0xE8BD000F)                 # mov ip,r0 ; pop {r0-r3}
+    a.emit(0xE35C0004)                             # cmp ip,#4
+    a.br(0x8, 'mkeep')                             # bhi: scenes, movie, smart auto ...
+    a.emit(0xE35C0001)                             # cmp ip,#1  (auto)
+    a.br(0x0, 'mkeep')
+    a.emit(0xE3E0A4FF)                             # mvn sl,#0xff000000  = 0xFFFFFF: all options allowed
+    a.br(0xE, 'MASK_BACK')
+    label(a, 'mkeep')
+    a.emit(0xE1A0A001)                             # mov sl,r1  (stock)
+    a.br(0xE, 'MASK_BACK')
+
+    a = r4
+    label(a, 'plzoom')                             # replaces `ldrsh lr,[fp,#0x12]` (fp = AE sysinfo)
+    a.emit(0xE1DBE0FA, 0xE35E0003)                 # ldrsh lr,[fp,#0xa] (AE mode) ; cmp lr,#3   (S)
+    a.br(0x0, 'plnone')
+    a.emit(0xE3DEE002)                             # bics lr,lr,#2   (P = 0, A = 2)
+    a.br(0x0, 'plnone')
+    a.emit(0xE1DBE1F2)                             # ldrsh lr,[fp,#0x12]   (stock: zoom shift)
+    a.br(0xE, 'PLZ_BACK')
+    label(a, 'plnone')
+    a.emit(0xE3A0E000)                             # mov lr,#0
+    a.br(0xE, 'PLZ_BACK')
+
+    a = r5
+    label(a, 'gate3')                              # entry of the toast (first word was `push {r4, lr}`)
+    a.emit(0xE92D400F, 0xE3A00003)                 # push {r0-r3, lr} ; mov r0,#3  (shooting mode)
+    a.br(0xE, 'GET_SYSVAL', link=True)
+    a.emit(0xE1A0C000, 0xE8BD400F)                 # mov ip,r0 ; pop {r0-r3, lr}
+    a.emit(0xE35C0000 | MOVIE_MODE)                # cmp ip,#8
+    a.br(0x1, 'g3ok')                              # bne
+    a.emit(0xE1A0F00E)                             # mov pc,lr: no pop-up in movie mode
+    label(a, 'g3ok')
+    a.emit(0xE92D4010)                             # push {r4, lr}   (the replaced word)
+    a.br(0xE, 'TOAST4')
+
+    ext = {'TOAST4': ui.TOAST_CODE + 4, 'PLZ_BACK': PLZ_BACK, 'GET_SYSVAL': GET_SYSVAL, 'EV_BACK': EV_BACK,
+           'MASK_BACK': MASK_BACK}
+    blobs = []
+    for a in (r1, r4, r5):
+        for idx, cond, name, link in a.fix:
+            dst = labels[name] if name in labels else ext[name]
+            a.w[idx] = ui._b(a.base + 4 * idx, dst, cond=cond, link=link)
+        blob = b''.join(struct.pack('<I', w) for w in a.w)
+        assert a.base + len(blob) <= a.end, (hex(a.base), hex(a.base + len(blob)))
+        blobs.append((a.base, blob))
+    return blobs, labels
+
+
+
+def _put(d, site, stock, new):
+    cur = struct.unpack_from('<I', d, site - B)[0]
+    assert cur in (stock, new), (hex(site), hex(cur))
+    struct.pack_into('<I', d, site - B, new)
+
+
 def patch(d):
     d = bytearray(d)
     blobs, lab = build()
     for base, blob in blobs:
         d[base - B:base - B + len(blob)] = blob
+    _put(d, EV_SITE, 0xE1A0080B, ui._b(EV_SITE, lab['evbias']))
+    _put(d, MASK_SITE, 0xE1A0A001, ui._b(MASK_SITE, lab['unlock']))
+    _put(d, PLZ_SITE, PLZ_STOCK, ui._b(PLZ_SITE, lab['plzoom']))
+    if MOVIE_HIDE:
+        _put(d, ui.TOAST_CODE, 0xE92D4010, ui._b(ui.TOAST_CODE, lab['gate3']))
+    if not TILT:
+        # every tilt-tag hook is back to Samsung's code; film-name box draws go through the box wrapper
+        for site, stock in ((WRITER_SITE, 0xE3A0E001), (W2_SITE, 0xE59AE0E4), (W3_SITE, 0xE3A0E001), (FD_SITE, 0xE59802FC),
+                            (KEY_SITE, ui._b(KEY_SITE, KEY_STOCK, link=True)),
+                            (DISP_SITE, ui._b(DISP_SITE, DISP_STOCK, link=True)), (DI_SITE, DI_STOCK),
+                            (ui.TIMER_CALL[0], ui._b(ui.TIMER_CALL[0], ui.TIMERHOOK, link=True))):
+            _put(d, site, stock, stock)
+        for site in DIRECT_SITES:                  # GUI event 0xC draws the box directly: let it show the film name too
+            _put(d, site, ui._b(site, ui.ITEM44_DRAW, link=True), ui._b(site, ui.WRAP44, link=True))
+        return bytes(d)
     for site, stock, new in (
             (WRITER_SITE, 0xE3A0E001, ui._b(WRITER_SITE, lab['writer'])),
             (W2_SITE, 0xE59AE0E4, ui._b(W2_SITE, lab['writer2'])),
             (W3_SITE, 0xE3A0E001, ui._b(W3_SITE, lab['writer3'])),
             (FD_SITE, 0xE59802FC, ui._b(FD_SITE, lab['face'])),
             (KEY_SITE, ui._b(KEY_SITE, KEY_STOCK, link=True), ui._b(KEY_SITE, lab['key0'], link=True)),
-            (EV_SITE, 0xE1A0080B, ui._b(EV_SITE, lab['evbias'])),
-            (MASK_SITE, 0xE1A0A001, ui._b(MASK_SITE, lab['unlock'])),
-            (DISP_SITE, ui._b(DISP_SITE, DISP_STOCK, link=True), ui._b(DISP_SITE, lab['disp'], link=True))):
-        cur = struct.unpack_from('<I', d, site - B)[0]
-        assert cur in (stock, new), (hex(site), hex(cur))
-        struct.pack_into('<I', d, site - B, new)
-    for site, stock, new in (
+            (DISP_SITE, ui._b(DISP_SITE, DISP_STOCK, link=True), ui._b(DISP_SITE, lab['disp'], link=True)),
             (ROLL_SITE, 0xE28DD058, ui._b(ROLL_SITE, lab['rollclamp'])) if ROLL_SIZE else (ROLL_SITE, 0xE28DD058, 0xE28DD058),
             (DI_SITE, DI_STOCK, ui._b(DI_SITE, lab['dihook'])),
-            (PLZ_SITE, PLZ_STOCK, ui._b(PLZ_SITE, lab['plzoom'])),
             (ui.TIMER_CALL[0], ui._b(ui.TIMER_CALL[0], ui.TIMERHOOK, link=True), ui._b(ui.TIMER_CALL[0], lab['hbhook'], link=True))):
-        cur = struct.unpack_from('<I', d, site - B)[0]
-        assert cur in (stock, new), (hex(site), hex(cur))
-        struct.pack_into('<I', d, site - B, new)
+        _put(d, site, stock, new)
     if MOVIE_HIDE:
-        for site, stock, gate in ((ui.TILT_FORCE, 0xE3E01000, 'gate1'), (ui.TILT_DRAW, 0xE92D4011, 'gate2'),
-                                  (ui.TOAST_CODE, 0xE92D4010, 'gate3')):
-            cur = struct.unpack_from('<I', d, site - B)[0]
-            assert cur in (stock, ui._b(site, lab[gate])), (hex(site), hex(cur))
-            struct.pack_into('<I', d, site - B, ui._b(site, lab[gate]))
+        for site, stock, gate in ((ui.TILT_FORCE, 0xE3E01000, 'gate1'), (ui.TILT_DRAW, 0xE92D4011, 'gate2')):
+            _put(d, site, stock, ui._b(site, lab[gate]))
     for site in DIRECT_SITES:
-        cur = struct.unpack_from('<I', d, site - B)[0]
-        assert cur in (ui._b(site, ui.ITEM44_DRAW, link=True), ui._b(site, ui.TILT_DRAW, link=True)), (hex(site), hex(cur))
-        struct.pack_into('<I', d, site - B, ui._b(site, ui.TILT_DRAW, link=True))
+        _put(d, site, ui._b(site, ui.ITEM44_DRAW, link=True), ui._b(site, ui.TILT_DRAW, link=True))
     return bytes(d)
 
 

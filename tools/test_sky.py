@@ -105,7 +105,7 @@ class CPU:
             else: raise Exception('unsupported '+i.mnemonic+' '+i.op_str)
         return s
 def make(grid_y,grid_r,grid_b):
-    blobs,lab=R.build()
+    blobs,lab=R.build_full()
     c=CPU(blobs)
     for plane,off in ((grid_y,0),(grid_r,0x1BA),(grid_b,0x52E)):
         for k,v in enumerate(plane): 
