@@ -285,6 +285,71 @@ counter) and the big number (static strings "0".."36" in the SPID string table, 
 swallowed) until the wheel has turned N detents, "WIND" prompt, ratchet click from tools/sounds.py. Unknowns: the key numbers,
 the review setting, text size of a node (or digit images), whether swallowing the shutter key is clean.
 
+**DIAG02 first camera result (7 Nov 2026, owner), corrected:** the shutter showed key 10. The "Key 14 st 0" the owner first reported for the
+front dial was most likely the FILM SIM name pop-up (key 14 is the FILM SIM / AF-L key and its pop-up uses the same box), not the dial: the
+dial gave no key information. That fits the code: the live-view state handler 0xC04C1F04 tells event classes apart by type name and the
+front dial is not a key at all, it is a `CSAFWheelDialEvent`. Classes it knows: CSAFKeyEvent (to the key dispatcher 0xC04C18CC),
+CSAFWheelDialEvent -> handler 0xC04BF860 (call at 0xC04C21FC; the payload object, event+0x10, has a method at vtable +8 that returns the
+direction bool, which the stock handler turns into +1 / -1 on a setting; it acts when the AE mode state [+0xC] is 3 or 5), CSAFClickDialEvent ->
+0xC04C06E0 (0xC04C2228), CSAFDriveDialEvent and CSAFHSDialEvent -> 0xC04BFBF8 (0xC04C22D0, they set [state+0x15] = 1), CSAFModeDialEvent -> the
+same 0xC04BFBF8 (0xC04C2328), CSAFFlashEvent 0xC04BFD94, CSAFGUICallbackEvent 0xC04C0978, CSAFConnectEvent 0xC04BFE7C, CSAFBatteryEvent
+0xC04BFCE8, CSAFScreenRotationEvent 0xC04BFF38, CSAFTimerEvent, CSAFDisplayEvent, CSAFCallbackEvent, CSAFRemoteEvent.
+
+**DIAG03 (`TL-D03`, 7 Nov 2026, built, NOT yet on the card):** DIAG02 plus (1) the FILM SIM routine is OFF (key 14 goes back to Samsung's
+AF-lock handler, so the name box is only written by the probe), (2) each of the four dial event call sites (wheel, click, drive / half-
+shutter, mode) goes through a trampoline that shows `Dial L d` in the pop-up (L = W wheel, C click, D drive / HS, M mode; d = the wheel's
+direction flag, 0 for the others) and then runs the stock handler unchanged (tools/diag_probe.py, 820 bytes, still inside the dead factory
+region; `python tools/test_diag.py` covers every trampoline, the direction call and register / stack preservation). Test: turn the front dial
+both ways (expect `Dial W 0` one way and `Dial W 1` the other), turn the other dials, press the shutter (key 10, states), press AE-L for the
+finder. Wind-on can then watch CSAFWheelDialEvent (any direction) and the shutter key 10.
+
+**TL-D03 camera result (7 Nov 2026, owner) - the TL500 control map:** FRONT dial = CSAFClickDialEvent (`Dial C 0`); REAR dial = CSAFWheelDialEvent
+(`Dial W 0` / `Dial W 1` for the two directions); zoom lever = key 6 (wide) and key 5 (tele), both state 1 on press; AE-L button = key 14, state 1
+(the AE-L button setting picks key 0 or 14: this camera sends 14, so the finder on key 0 never fired); shutter = key 10 (half / full states not
+yet read; the stock handler 0xC04C0B68 uses 1 and 2). Wind-on therefore watches the CLICK dial (front dial) event, any direction; its handler
+0xC04C06E0 asks the event (vtable +0x10) for 1 / 0 (the two turn directions) or 2 (a press of the dial).
+
+**DIAG04 (`TL-D04`, 7 Nov 2026, built; was NOT on the card when written):** DIAG03 plus (1) the finder moved to key 14 (`DIAG_FINDER_KEY`), (2)
+the front dial's pop-up now shows the event's value (`Dial C 0` / `Dial C 1` direction, `Dial C 2` a press of the dial). (3) every key pop-up now ends with the shooting mode, `Key kk st s Mnn` (GET_SYSVAL(3); scene modes are 10 and up per the menu-unlock notes, but the number the SCENE dial position gives has never been seen on the camera: read it by turning the mode dial to SCENE and pressing any key). Probe 916 bytes, ends 0xC04272A4 (limit 0xC04272C0); tests in tools/test_diag.py. Test: front dial both ways, AE-L once (`O:` line) and twice (`R:` = rescan result;
+check playback afterwards).
+
+**TL-D04 camera result (7 Nov 2026, owner):** shooting-mode numbers (GET_SYSVAL(3), shown as `Mnn`): **P = 2, A = 3, S = 4, M = 5, SCENE = 10**
+(scenes are 10 and up, as the notes said). Zoom lever keys 6 / 5 (state 1). Front dial = click dial, `Dial C 0` / `Dial C 1` by direction (the
+owner wants turning it to the RIGHT to wind: confirmed, RIGHT = `Dial C 1`, left = `Dial C 0`). Shutter half-press = key 10; the full press shows no number because it takes the photo straight away (the pop-up is not seen). The finder line `O:oooooooo tttttttt` wrapped to two rows and was cut off in the pop-up box (it holds about 13
+characters on one line), so nothing could be read: TL-D05 shows one short value per press.
+Side finding: fauxji_rot's menu unlock (`cmp ip,#4; bhi mkeep`) was written for the AE enum (P 0, A 2, S 3, M 4); with the numbering above
+(P 2, A 3, S 4, M 5) it unlocks P, A and S but skips Manual (5), which keeps Samsung's stock limits. Stock may already allow everything in M
+(the owner reported the unlock "worked great"): check for greyed menu items in M before changing the cut-off to 5.
+
+**DIAG05 (`TL-D05`, 7 Nov 2026, built; NOT on the card when written):** TL-D04 with the finder split into short lines: AE-L press 1 = `O:oooooooo`
+(object, 0 = not found), press 2 = `T:tttttttt` (media type), press 3 = rescan, `R:rrrrrrrr` (result), press 4 searches again. The three
+display blocks share one routine (probe 892 bytes, ends 0xC042728C, limit 0xC04272C0; tests updated).
+
+**TL-D05 camera result (7 Nov 2026, owner) - THE RESCAN WORKS:** `O:C159F664` (the CSFileList object, a heap address, found by the manager scan),
+`T:00000064` (media type 0x64, matches the DCF code's `[list+0x20] == 0x64` branches), and the rescan `CSFileList::Open(obj, 0x64)` returned
+`R:0000001B` = 27 with playback still working afterwards. The card then held exactly 27 files in DCIM/100PHOTO, so **Open's return value is the
+file count of the folder it scanned**. Consequences: (1) the camera can be told to rescan at runtime with no side effects seen; (2) after
+switching to a roll folder and rescanning, `36 - result` is the number of frames left, with no directory iteration code and no state kept
+in the camera; (3) a shot count by file count survives power-off, card swaps and deleting files on a PC.
+
+**FILM01 (`TL-F64a`, 7 Nov 2026, built and put on the owner's card, NOT yet flashed): film camera mode stage 1, SCENE saves into its own folder.**
+Build: `python tools/build_fauxji.py <stock> <out> --film` (code `tools/film_mode.py`, 716 bytes in the dead factory region after `gate3`; the plain build
+without the flag is still byte-identical to FAUXJI63 apart from the label). It is the FAUXJI63 firmware plus: (1) the key dispatcher's first call goes
+through `filmhook`, which reads GET_SYSVAL(3) and, when the mode changes between SCENE (10) and anything else, (2) switches the camera's "DCIM" folder
+name to "FILM" (or back) and rescans with CSFileList::Open(obj, type), and (3) shows "Film nn left" (36 minus the file count the rescan returns) or
+"Film off" on the next key press (the stock key hook is skipped for that one key, it would hide the box at once). The name is switched by six code
+pointers (pool words 0xC01AEC58, 0xC01B1210, 0xC01B181C, 0xC01B3664 = the "DCIM" string; 0xC01B10FC / 0xC01B1104 = the "%s/DCIM" and
+"%s/DCIM/100PHOTO" formats) that now point at three RAM buffers holding the stock strings; in SCENE the buffers hold FILM. Verified: those six words
+are the only references to those strings in the whole image; the build changes only the six pointers, the block, the key site and the label.
+`python tools/test_film.py` runs the emitted code in the interpreter (enter, stay, leave, object found at any manager offset, stale or junk
+cache, broken chain, bad manager, buffers equal to the stock strings, idempotent patch on the real image) after fixing the interpreter for
+`stmdb sp!,{lr}` / `ldm sp!,{pc}` (capstone lists sp as an operand). Not in stage 1: roll folders (/FILM/R0001...), the 36-frame limit, the wind-on lock,
+the review lock, canister screens, the film picker. Test on the camera: (a) P mode: shoot one photo, check it goes to DCIM as always; (b) turn to SCENE,
+press any key (half-press the shutter): expect "Film 36 left"; (c) shoot 2 photos; (d) back to P, press any key: expect "Film off"; open playback: the old photos
+are there, the 2 new ones are NOT; (e) on a PC: G:\FILM@PHOTO\SAM_nnnn.JPG should hold the 2 photos; (f) back in SCENE the pop-up should say 34 left.
+Risks: a shot in SCENE could fail to save (the DCF list object has other state not yet checked), or the rescan could misbehave; P/A/S/M are untouched. Go back
+by copying extracted/tl500_008264_FAUXJI63/EX1-DSP-SR-008264.elf to the card and flashing.
+
 **Film mode prep, 6 Nov 2026 (static research + PC mock-ups, nothing flashed).**
 - *Quick View (the picture review after a shot), statically.* Setup item `SETUP_MENU_Q_VIEW`: setup record at 0xC0917048 (0x28-byte records,
   name pointer at +0x10, setup index +0x18 = 0xA, UI id +0xC = 0x19A, max value +4 = 3: Off / 0.5 s / 1 s / 3 s; menu string 572, shown as

@@ -385,9 +385,9 @@ def rot_strings():
 # which logical keys the front dial (both ways) and the shutter half / full press send. Key DIAG_FINDER_KEY (press) also looks
 # for the live CSFileList object and rescans the card (see diag_probe). Texts: slots 0 and 1 of the tilt strings, served by
 # STRWRAP as ids 0xF000 / 0xF001 (looks 11 / 12). The code goes into the dead factory region after fauxji_rot's `gate3`.
-DIAG_TEXTS = ['Key 00 st 0', 'Finder']      # digit positions (UTF-16 index) of the first: 4-5 = key, 10 = state
+DIAG_TEXTS = ['Key 00 st 0 M00', 'Finder']  # digit positions (UTF-16 index) of the first: 4-5 = key, 10 = state, 13-14 = shooting mode
 DIAG_LOOKS = (11, 12)
-DIAG_FINDER_KEY = 0                          # AE-L button with its default setting
+DIAG_FINDER_KEY = 14                         # the owner's AE-L button sends key 14 (state 1 = press); key 0 was never seen
 DIAG_POP_MS = 8000                           # long pop-up so the 8-digit values can be read: 0x7D << 6
 DIAG_POP_WORD = 0xE3A01D7D                   # mov r1,#8000   (stock: 0xE3A01E7D = #2000)
 DIAG_END = 0xC04272C0
@@ -422,6 +422,15 @@ def patch_diag(d):
     site, target = KEY_CALL
     assert struct.unpack_from('<I', d, site - B)[0] == _b(site, KEYHOOK, link=True), 'patch() first'
     struct.pack_into('<I', d, site - B, _b(site, base, link=True))
+    import diag_probe                           # dial / non-key events: each `bl handler` goes through a trampoline (DIAG03)
+    for k, (dsite, handler) in enumerate(diag_probe.DIAL_SITES):
+        assert struct.unpack_from('<I', d, dsite - B)[0] == _b(dsite, handler, link=True), hex(dsite)
+        struct.pack_into('<I', d, dsite - B, _b(dsite, labels['tramp%d' % k], link=True))
+    # FILM SIM off in the diagnostic build: key 14 (AF-L / the FILM SIM key) goes back to Samsung's AF-lock handler, so the name
+    # pop-up box is only ever written by the probe
+    ksite, kold = KEY14_CALL
+    assert struct.unpack_from('<I', d, ksite - B)[0] in (_b(ksite, kold, link=True), _b(ksite, FILM_CODE, link=True))
+    struct.pack_into('<I', d, ksite - B, _b(ksite, kold, link=True))
     pop_at = ARM_NAME + 16 - B                  # `mov r1,#2000` in arm_name: a longer pop-up
     assert struct.unpack_from('<I', d, pop_at)[0] in (0xE3A01E7D, DIAG_POP_WORD)
     struct.pack_into('<I', d, pop_at, DIAG_POP_WORD)

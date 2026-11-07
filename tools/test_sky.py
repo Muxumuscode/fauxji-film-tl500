@@ -42,6 +42,7 @@ class CPU:
         while s.r[15]!=ret:
             n+=1; assert n<limit,'runaway'
             pc=s.r[15]
+            if getattr(s,'trace',None) is not None: s.trace.append(pc)
             if pc in s.stubs:                       # an outside function: python stand-in, then return to lr
                 if s.stubs[pc](s)=='stop': return s
                 s.r[15]=s.r[14]; continue
@@ -54,11 +55,12 @@ class CPU:
                 pass
             base=m
             import re
-            mm=re.match(r'^(push|pop|stmdb|ldm|mvn|mov|add|cmp|ldrh|ldr|strh|str|tst|umull|orr|sub|and|lsl|lsr)',m); base=mm.group(1) if mm else None
+            mm=re.match(r'^(push|pop|stmdb|ldm|mvn|mov|add|cmp|ldrsh|ldrh|ldr|strh|str|tst|umull|orr|sub|and|lsl|lsr)',m); base=mm.group(1) if mm else None
             if i.id==ARM_INS_B: base='b'
             if i.id==ARM_INS_BL: base='bl'
             if i.id==ARM_INS_LSL: base='lsl'
             if i.id==ARM_INS_LSR: base='lsr'
+            if base in('stmdb','ldm'): ops=ops[1:]               # capstone lists the base register (sp!) first; it is not in the register list
             if base=='stmdb': base='push'
             if base=='ldm': base='pop'
             if base=='push':
@@ -89,7 +91,7 @@ class CPU:
             elif base=='cmp':
                 a,b=s.val(ops[0],pc),s.val(ops[1],pc); res=(a-b)&M32
                 s.N=res>>31; s.Z=res==0; s.C=a>=b; s.V=((a^b)&(a^res))>>31
-            elif base in('ldr','ldrh','str','strh'):
+            elif base in('ldr','ldrh','ldrsh','str','strh'):
                 mo=ops[1].mem; 
                 base_v=pc+8 if mo.base==ARM_REG_PC else s.r[s.ri(mo.base)]
                 a=(base_v+mo.disp)&M32
@@ -97,6 +99,8 @@ class CPU:
                 if base=='strh':
                     v=s.r[s.ri(ops[0].reg)]; s.mem[a]=v&255; s.mem[a+1]=(v>>8)&255
                 elif base=='str': s.set32(a,s.r[s.ri(ops[0].reg)])
+                elif base=='ldrsh':
+                    v=s.get16(a); s.r[s.ri(ops[0].reg)]=(v-0x10000 if v&0x8000 else v)&M32
                 else: s.r[s.ri(ops[0].reg)]=s.get32(a) if base=='ldr' else s.get16(a)
             elif base=='umull':
                 p=s.r[s.ri(ops[2].reg)]*s.r[s.ri(ops[3].reg)]
