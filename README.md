@@ -38,9 +38,10 @@ planned (see Coming up).
 - **Fuji-style interface.** Flat white icons, and Fuji-style menus, shooting screen, mode dial, pop-ups, playback edit screens, boot
   screen, shutter sound and menu names (Image Quality, AE-L Button, Framing Guide and so on).
 
-![The film canister icons drawn for each look: large, small and greyed-out versions](docs/images/canisters.png)
+![The film cartridge icons drawn for each look: large, small and greyed-out versions](docs/images/film-mode/film_icons_skin.png)
 
-*The canister icons the camera shows for each look (selected, small, and unselected). Drawn for this project.*
+*The cartridge icons the camera shows for each look (menu size, live view, and unavailable). Drawn for this project from photos of real 35 mm
+cartridges. The `--film` build uses them everywhere; the plain build still has the earlier canister artwork.*
 
 ## Coming up
 
@@ -52,6 +53,11 @@ Development is paused for a few days and should pick up again around the end of 
   minimum shutter and auto ISO, the scene picker is a film picker (11 looks as cartridges), every roll is its own folder named after the
   film under `FILMS/` on the card (PROV001, ACRO002 ...), the shots-left counter counts the 36 frames, the front dial winds the film on between
   shots (wind-on lock), AE-L starts the next roll, and photos cannot be reviewed on the camera. What is left is listed in docs/ROADMAP.md.
+
+![The film picker cards: one cartridge per look](docs/images/film-mode/film_cards.png)
+
+*The scene picker as a film picker: one card per look (PROVIA appears twice to fill the twelve cards).*
+
 - **Smaller ideas:** custom recipe slots with ready-made looks, the film look shown in playback, an orange film-style date stamp.
 
 Ideas and bug reports are welcome in the issue tracker.
