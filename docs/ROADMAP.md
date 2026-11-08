@@ -34,6 +34,10 @@ Risk = how likely it is to fight us (unknown code paths, timing, crashes).
 - [ ] **Film-themed "roll full" message.** At 0 frames the camera shows its stock "Memory Full" (string 687) and refuses to shoot, which is the right
   behaviour. In SCENE it should say the roll is full and to pick a new roll (with the canister art), in every other mode it stays "Memory Full".
   Wrap GetStaticString 0xC05BA87C and serve our text for id 687 while the film flag is on.
+- [ ] **No scene picker.** The SCENE dial position should go straight to the film camera: no scene cards. Today the picker still appears (any card does, SCENE now reads as P).
+  Skip it by treating the dial's SCENE position as the final mode in the mode-change state (the dial task at 0xC041DBA4 maps dial codes 0x461.. to modes; the SCENE position's
+  case 5 does nothing there, the picker is a separate state, CAPPGUISelectSceneState 0xC07C580C) and later put the film picker in its place.
+- [ ] **Film mode on the mode dial screens.** The mode name / icon for the SCENE position should read as the film camera (canister), not P or a scene.
 
 
 ## Headline features

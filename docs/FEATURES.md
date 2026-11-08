@@ -332,6 +332,36 @@ file count of the folder it scanned**. Consequences: (1) the camera can be told 
 switching to a roll folder and rescanning, `36 - result` is the number of frames left, with no directory iteration code and no state kept
 in the camera; (3) a shot count by file count survives power-off, card swaps and deleting files on a PC.
 
+**FILM06 camera result (7 Nov 2026, owner): it worked** (SCENE behaves like P). Roll folders, the new-roll key, the counter and the wind-on lock all work on the camera (FILM05 and earlier), and the SCENE-reads-as-P hook works on top of them.
+
+**FILM05 camera result (7 Nov 2026, owner): it worked** (FILM001 filled with 36 photos, AE-L started FILM002). **Owner's requirement (7 Nov):** the SCENE position must behave like P
+(program exposure with the 1/60 minimum shutter and auto ISO, the unlocked menus), not like a scene: the owner only ever picked a plain scene (portrait) to get
+past the picker and wants none of the scene behaviour. **FILM06 (`TL-F64f`, owner's card, NOT yet flashed): SCENE reads as P.** The camera reads the shooting mode through
+GET_SYSVAL(3) at 104 call sites (exposure, menus, item lists ...; GET_SYSVAL = 0xC048F81C, a wrapper over the raw getter 0xC049094C(index, &out)). A hook at the end of
+GET_SYSVAL (0xC048F83C, `ldr r0,[sp]` -> branch to `filmget`; fp = the index) turns the value 10 (SCENE) into 2 (P) for index 3 only (a test checks every index and 15
+values), so every reader sees P; the film code reads the real value with `rawmode` (the raw getter). Only the single value 10 is translated (the value the owner measured for
+the SCENE position; other scene numbers, Smart Auto and every other mode are untouched). The scene picker still appears when the dial reaches SCENE (the owner picks any
+card, it no longer matters). Expected: the same readings as P in the same light, the menus unlocked, the screen showing P's items and possibly P's mode icon. Unknown: whether the
+exposure engine's own mode (AE sysinfo +0xA, 0 P, 2 A, 3 S, 4 M; the 1/60 floor and the zoom-shift skip are keyed on it) is derived through GET_SYSVAL(3): if SCENE still
+meters like a scene, that is where to look next (no translation table was found by byte pattern, so it is code). Also unknown: whether anything in the scene-picker flow compares
+the mode it stored with the one it reads back (a hang or a re-opening picker would show it). 1196 + 548 bytes; `python tools/test_film.py` covers filmget and the raw read.
+
+**FILM05 (`TL-F64e`, 7 Nov 2026, built, owner's card, NOT yet flashed): roll folders and starting a new roll.** FILM04 plus: each roll is its own top-level folder
+on the card, FILM001, FILM002 ... (flat, so no nested mkdir; the camera's folder creator makes it; playback never reads it). The name buffers are now
+48 bytes (name 8 | "%s/FILMnnn" 16 | "%s/FILMnnn/100PHOTO" 24; the FMT2 pool points at buffer+24) and `setnames` writes the roll number (vars[16], 1-999) as three
+digits with `strb`. `doswitch` (r6 = want film, vars[20] = new-roll request; out r0 = ok, r5 = files in the folder) finds the object, validates the chain,
+commits the flag, then for film: starts at the cached roll (or 1), +1 if a new roll was requested, and PROBES upward: rescan FILMnnn, if it holds 36 or more
+files (and fewer than 65536: a failure code or garbage stops the loop) look at the next one, capped at 999; if it ends on an EMPTY folder that follows a
+full roll and no new roll was asked for, it steps back to the full roll (nothing starts silently; the probe has created an empty folder, harmless). The count
+the rescan returns drives "Film nn left", the counter and the lock exactly as before. Film-look key (14, press) in SCENE, in `filmgate`: empty roll = free choice
+(stock FILM SIM cycles the look); part-shot roll = swallowed with "Roll in use" (no mid-roll film change; releases pass); full roll (>= 36) = `doswitch` with a
+new-roll request (FILMnnn+1, "Film 36 left" pop-up and redraw) and then the key goes on to the stock handler, so the look cycles: that is the picker for now.
+Found by the tests: the gate's garbage-count check clobbered r1 (the key) before the tail call to the stock handler; it now uses ip. Code: 1176 bytes at
+0xC0426F10 (extended to 0xC04274B8: the functions at 0xC04272C0 and 0xC04274B8 have no live caller, tools/liveness.py) and 508 bytes at 0xC0426C80 (R4).
+`python tools/test_film.py` covers the probe cases (first roll, several full rolls, a new empty folder after a full roll, failure code, garbage, cap),
+entering and leaving, the new-roll key, "Roll in use", the garbage count, a missing object, the clamp, shot detection, the lock and the dial. The owner's old
+test folder FILM (3 photos) is no longer used. Test: SCENE, shoot, fill a roll (or watch the counter), AE-L when full.
+
 **FILM03 camera result (7 Nov 2026, owner): the wind-on lock works** (shutter blocked after a shot until the front dial is turned right). One bug: the stock
 bottom shots-left number did not show the right value until the first shot was taken, while the pop-up box ("Film 36 left", drawn directly) was right on the
 half-press. Cause: the stock number is only recalculated (through `rollclamp`) when the icons are redrawn, and after the SCENE switch nothing redrew them

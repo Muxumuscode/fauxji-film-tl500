@@ -38,7 +38,7 @@ LABEL_AT, LABEL = 0x792493, b'TL-F62\0\0'          # version string the camera s
 DIAG_LABEL = b'TL-D05\0\0'                      # --diag-keys build: key numbers, dial events, file-list finder (tools/diag_probe.py)
 
 
-FILM_LABEL = b'TL-F64d\0'                         # --film build: film camera mode, folder + shots left + wind-on lock (tools/film_mode.py)
+FILM_LABEL = b'TL-F64f\0'                       # --film build: film camera mode, folder + shots left + wind-on lock (tools/film_mode.py)
 
 
 def build_elf(stock, diag_keys=False, film=False):
