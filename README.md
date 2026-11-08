@@ -43,21 +43,35 @@ planned (see Coming up).
 *The cartridge icons the camera shows for each look (menu size, live view, and unavailable). Drawn for this project from photos of real 35 mm
 cartridges. The `--film` build uses them everywhere; the plain build still has the earlier canister artwork.*
 
-## Coming up
+## Film camera mode (new in v0.3, experimental)
 
-Development is paused for a few days and should pick up again around the end of the week. Next on the list, no promises on order:
+Build it with `python tools/build_fauxji.py <stock dir> <out dir> --film` (version label TL-F65o). The SCENE spot on the mode dial becomes a
+film camera:
 
-- **Pick what you want.** Separate options for the fixes and the Fuji extras, so you can take just the fixes (the main point) and
-  leave the looks and the new interface out, or the other way round.
-- **Film camera mode** (working, in the `--film` build). The SCENE spot on the mode dial is a film camera: it behaves like P with the 1/60
-  minimum shutter and auto ISO, the scene picker is a film picker (11 looks as cartridges), every roll is its own folder named after the
-  film under `FILMS/` on the card (PROV001, ACRO002 ...), the shots-left counter counts the 36 frames, the front dial winds the film on between
-  shots (wind-on lock), AE-L starts the next roll, and photos cannot be reviewed on the camera. What is left is listed in docs/ROADMAP.md.
+- It behaves like P: the 1/60 minimum shutter with auto ISO, open menus, and macro, flash and self-timer on the direction keys.
+- The scene picker is a film picker: one cartridge card per look (11 looks; PROVIA appears twice to fill the twelve cards).
+- Every roll of 36 is its own folder named after the film (PROV001, ACRO002 ...) under `FILMS/` on the card, outside DCIM, so normal
+  playback never lists them. Rolls are counted per film, and a part-shot roll continues when you pick its film again.
+- The shots-left counter counts the roll down. After every shot the front dial must be turned right to wind on (a wind-on icon shows); AE-L
+  starts the next roll when the roll is full (a roll-full icon shows).
+- No picture review on the camera: PLAY shows a file-error screen instead, and there is no quick review after a shot. Develop your film on a
+  computer: the photos are on the card.
 
 ![The film picker cards: one cartridge per look](docs/images/film-mode/film_cards.png)
 
-*The scene picker as a film picker: one card per look (PROVIA appears twice to fill the twelve cards).*
+*The scene picker as a film picker.*
 
+Still rough: Bleach Bypass looks black and white in the live view (the saved photo is right), ISO can still be changed in the menu in this
+mode, and the newest icon painting is not yet confirmed on a camera. The full list is in [docs/ROADMAP.md](docs/ROADMAP.md).
+
+## Coming up
+
+Next on the list, no promises on order:
+
+- **Pick what you want.** Separate options for the fixes, the Fuji extras and the film camera, so you can take just the fixes (the main point)
+  and leave the rest out, or the other way round.
+- **Film camera polish.** Lock ISO to auto, a friendly "develop your film" screen instead of the file error, the look previewed behind the
+  film picker, and a bigger cartridge with the shots left inside it.
 - **Smaller ideas:** custom recipe slots with ready-made looks, the film look shown in playback, an orange film-style date stamp.
 
 Ideas and bug reports are welcome in the issue tracker.
