@@ -24,6 +24,18 @@ Risk = how likely it is to fight us (unknown code paths, timing, crashes).
 
 ---
 
+## To do (owner, 7 Nov 2026)
+
+- [ ] **Canister artwork everywhere, for consistency.** The cartridge design drawn for the film mode (docs/images/film-mode/, tools/film_mode_art.py:
+  white counter strip, vertical name, Fuji-green foot, colour field or band per look) should replace the old canister badges in EVERY place a look
+  is shown or chosen: the function menu (the film-simulation list where you pick a look), the live-view pop-up when a look is chosen (FILM SIM
+  button name box), the 9-look chooser, the film mode's big counter and the roll picker, and later playback. One drawing, several sizes (large,
+  small, greyed). Skin images live in skin.bin (see tools/badges.py: large 115x115 images 72-82, small white 64x64 414-424, grey 326-345).
+- [ ] **Film-themed "roll full" message.** At 0 frames the camera shows its stock "Memory Full" (string 687) and refuses to shoot, which is the right
+  behaviour. In SCENE it should say the roll is full and to pick a new roll (with the canister art), in every other mode it stays "Memory Full".
+  Wrap GetStaticString 0xC05BA87C and serve our text for id 687 while the film flag is on.
+
+
 ## Headline features
 
 ### 1. Lightning trigger

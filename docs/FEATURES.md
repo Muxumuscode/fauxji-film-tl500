@@ -332,6 +332,45 @@ file count of the folder it scanned**. Consequences: (1) the camera can be told 
 switching to a roll folder and rescanning, `36 - result` is the number of frames left, with no directory iteration code and no state kept
 in the camera; (3) a shot count by file count survives power-off, card swaps and deleting files on a PC.
 
+**FILM03 camera result (7 Nov 2026, owner): the wind-on lock works** (shutter blocked after a shot until the front dial is turned right). One bug: the stock
+bottom shots-left number did not show the right value until the first shot was taken, while the pop-up box ("Film 36 left", drawn directly) was right on the
+half-press. Cause: the stock number is only recalculated (through `rollclamp`) when the icons are redrawn, and after the SCENE switch nothing redrew them
+until a shot did. **FILM04 (`TL-F64d`, owner's card):** the switch now calls the full icon redraw (`DRAW_ICONS 0xC04B7444`, r0 = 0, as the FILM SIM button does
+after changing a look) between arming the pop-up and drawing it, after the new state is committed (test_film.py checks the flag, files seen and lock at the
+moment of the redraw, for entering and leaving SCENE). The switch still only happens on a key press after the dial moves (the mode dial raises no key
+event): an idea for later is to run it right after the mode-dial event's stock handler (0xC04C2328 site) so the counter updates as soon as the dial moves.
+The owner's backup of a full 36-photo test roll: C:\dev\TL-500ilm-test-backup\FILM-roll-20261107-2009 (outside the repo).
+
+**FILM03 (`TL-F64c`, 7 Nov 2026, built, owner's card, NOT yet flashed): wind-on lock.** FILM02 plus: (1) shot detection: the shots-left hook also compares the DCF
+list's file count [list+0x24] with the last one seen (vars[8]); a rising count means a photo was saved, so vars[12] (locked) is set; entering SCENE starts
+unlocked (a loaded camera is ready for frame 1) with the count the rescan returned, leaving SCENE clears it; (2) `filmgate` replaces the dispatcher's
+`bl 0xC04BFF98` at 0xC04C1944 ("is this key handled"; returning 0 swallows the key, the trick the old tilt code used for the VIDEO key): in SCENE and
+locked it swallows presses of keys 10 and 11 in states 1 and 2 (the only states the stock key 10 / 11 handlers act on, so releases still pass and
+nothing can stay "held") and shows the pop-up "Wind on >" (text slot 1, look 12); (3) `filmdial` replaces `bl 0xC04C06E0` at 0xC04C2228 (the click dial =
+front dial event): when locked and the event's method +0x10 returns 1 (a turn to the RIGHT, `Dial C 1`) it clears the lock and shows "Wound"; it always hands
+on to the stock handler. The code no longer fits in one dead region: the hooks and data are at 0xC0426F10-0xC04271FC (R5) and the shared routines (copy,
+valid, findobj, rollclamp) at 0xC0426C80-0xC0426E04 (R4, free after `plzoom`). `python tools/test_film.py` covers shot detection, the gate for every key
+and state, the dial for values 0-3 and the full cycle (shoot, locked, shutter blocked, turn left: still blocked, turn right: free). Unknowns: whether a
+second shutter press can slip in between the exposure and the file being registered; whether key 11 is anything else (it is swallowed too); whether the
+half-press is blocked cleanly (the pop-up should show). NOTE for testing: the owner's FILM folder holds 36 photos (a full roll, counter 0), so the folder
+must be emptied or moved first.
+
+**FILM02 camera result (7 Nov 2026, owner): the counter works.** In SCENE the shots-left number goes down with every shot (so [list+0x24] moves live, no
+rescan fallback needed), and at 0 the camera shows its stock "Memory Full" message (SPID string 687) and will not shoot any more, so the 36-frame limit
+is enforced by the camera itself. To do: that message must read as the film's ("Roll full, pick a new roll", on the canister art) while in SCENE and stay
+"Memory Full" in every other mode: the string comes from the string manager's GetStaticString 0xC05BA87C, which can be wrapped to serve our own text for id 687
+while the film flag is on (the name pop-up already does the same for ids 0xF000+ through STRWRAP).
+
+**FILM02 (`TL-F64b`, 7 Nov 2026, built, owner's card): stage 2a = FILM01 + the camera's own shots-left number counts the roll.** FILM01 was tried on the
+camera and worked: pressing a key in SCENE showed "Film 36 left", six photos went to FILM@PHOTO (valid 3648x2736 JPEGs, numbering continuous with DCIM:
+683 then 684-689), and normal playback hid them. New in FILM02: `rollclamp` at the end of getRemainPhotoNum (0xC047B6B8, `add sp,sp,#0x58` -> branch) makes
+the shots-left value min(stock, 36 - files in the roll) while in SCENE, the roll size being the DCF list's running file total [list+0x24] (the same value
+Open returns; several functions in the DCF module add to it as files are registered, but that it moves live after a shot is NOT yet seen on the camera).
+No pointers are trusted: object, manager and list are validated each call and r0 is left alone if any is bad. Test: in SCENE the small stock shots-left
+number should read 36 minus the files in FILM (the owner's FILM folder holds 6 now, so 30), count down by one per shot, and at 0 it is unknown whether the
+camera refuses to shoot (test it) or keeps shooting. Fallback if the number does not move after a shot: rescan on the half-press (Open returns the count).
+Still not in: roll folders, wind-on lock, review lock, canister art (see the ROADMAP to-do), picker. `python tools/test_film.py` covers the clamp.
+
 **FILM01 (`TL-F64a`, 7 Nov 2026, built and put on the owner's card, NOT yet flashed): film camera mode stage 1, SCENE saves into its own folder.**
 Build: `python tools/build_fauxji.py <stock> <out> --film` (code `tools/film_mode.py`, 716 bytes in the dead factory region after `gate3`; the plain build
 without the flag is still byte-identical to FAUXJI63 apart from the label). It is the FAUXJI63 firmware plus: (1) the key dispatcher's first call goes
