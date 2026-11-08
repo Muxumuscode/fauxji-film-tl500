@@ -41,7 +41,10 @@ quick review after a shot; short texts for the display (up) key; FILM on the mod
 after a shot, the roll-full icon, all painted without waiting for a key.
 
 **Left to do** (suggested order):
-- [ ] **Lock ISO to auto in the film camera.** The menu behaves like P, so ISO can still be changed there. Needs an AE-mode or menu-mask hook.
+- [ ] **Lock ISO to Auto in the film camera, no way to change it (owner's decision, 8 Nov 2026).** Considered and rejected: a fixed ISO 400 for
+  authenticity (the film feel), auto ISO capped at 400, and a speed chosen per roll. The owner chose plain Auto: the camera keeps choosing the ISO
+  (80 to 1600 as in P) and the user cannot change it in this mode. Today the menu behaves like P, so ISO can still be changed there. Needs a
+  menu-mask or setter hook (force the ISO setting to Auto and grey the item while a scene card is the mode).
 - [ ] **Bleach Bypass previews black and white in live view** (the saved photo is right). TL-F65b gave style 9 its own live matrix slot (slot 9 of a
   relocated 10-slot table, key word 0x03800C09) and it did not help. Look for another live stage that desaturates for style 9 (live tone / PCSE / the
   invert stage at 0xC0447100), the key byte not reaching the loader (the slot is read as a signed byte), or the table pool word 0xC0447174 not
