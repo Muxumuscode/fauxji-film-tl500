@@ -1,7 +1,7 @@
 # FAUXJI for the Samsung TL500 (EX1)
 
 **Quality-of-life fixes the TL500 should have shipped with: an exposure system that stops fighting you, unlocked menus, auto-ISO in
-manual and a tilt tag that rotates your sideways shots. Plus a set of optional Fuji-style extras.**
+manual and a shutter that stays usable when you zoom. Plus a set of optional Fuji-style extras.**
 
 It is a **build tool**, not a firmware download: it patches *your own* copy of Samsung's official firmware on your own computer.
 Nothing of Samsung's is included in this repository.
@@ -23,11 +23,7 @@ Film camera build (`--film`, see below): **TL-F65o**, same firmware, in developm
 - **Highlight-friendly metering.** Metering is biased -0.3 EV in every mode, so skies and lamps blow out less. The exposure scale
   still reads 0.
 - **Menus open in P, A, S and M.** In those modes every menu option is available. Stock, some were greyed out depending on the mode.
-- **Tilt tag.** The camera has no tilt sensor, so vertical shots always came out sideways. Now it writes the EXIF orientation:
-  from faces looking sideways, or (Auto+) from where the sky or the ceiling light is in the live-view brightness. The VIDEO button
-  cycles Off, Auto, Auto+, always right, always left, and an arrow on the shooting screen shows what it will do. Auto+ is a guess and
-  can be fooled by lamps and windows, so rotate in playback when it is wrong.
-- **Clear shooting screen.** The film-name and tilt pop-up box sits in the top-left corner, sized to fit "Classic Chrome" on one line, and
+- **Clear shooting screen.** The film-name pop-up box sits in the top-left corner, sized to fit "Classic Chrome" on one line, and
   stays out of the way in movie mode, where that corner shows the recording timer.
 - **Looks work with RAW+JPEG.** The looks Samsung blocked when you shoot RAW+JPEG now work, and Bleach Bypass saves at full size.
 
@@ -114,9 +110,9 @@ The camera's version screen should now read **TL-F62**.
 ## For developers
 
 - `tools/build_fauxji.py`: the build. `tools/fauxji.py` (looks, exposure), `tools/fauxji_ui.py` (FILM SIM button, pop-ups),
-  `tools/fauxji_rot.py` (tilt tag, menu unlock, small hooks), `tools/fauxji_layout.py`, `tools/fuji_menu.py`, `tools/fuji_lv.py`,
+  `tools/fauxji_rot.py` (menu unlock, small hooks; the tilt-tag code is still in it but switched off, the camera has no tilt sensor), `tools/fauxji_layout.py`, `tools/fuji_menu.py`, `tools/fuji_lv.py`,
   `tools/fauxji_playback.py` (interface artwork), `tools/badges.py`, `tools/bootscreen.py`, `tools/sounds.py`.
-- `python tools/test_sky.py` runs the tilt-tag machine code in a tiny ARM interpreter against a Python reference.
+- `python tools/test_sky.py` is the tiny ARM interpreter the machine-code tests run on (it also checks the tilt-tag code, which is switched off in the current build). `python tools/test_film.py` tests the film camera hooks.
 - [docs/RESEARCH-LOG.md](docs/RESEARCH-LOG.md) is the long, chronological log of how everything was found.
   [docs/FEATURES.md](docs/FEATURES.md) has the status of each feature and where the code lives, and
   [docs/ROADMAP.md](docs/ROADMAP.md) the ideas that are left.
