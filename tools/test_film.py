@@ -13,6 +13,7 @@ BASE, DATA = BLOCKS[0]
 A = F.addrs(BASE)
 ENTRY = LAB['filmhook']
 MGR, OBJ, DCFM, LIST = 0xC1000000, 0xC1100000, 0xC1200000, 0xC1300000
+STATE_OBJ = 0xC1400000
 SLOT0, SLOT1 = ui.STR_BASE, F.SLOT1
 V = A['vars']
 bad = 0
@@ -34,9 +35,9 @@ def cstr(c, addr, n=40):
     return out.decode('latin1')
 
 
-def utf16(c, addr):
+def utf16(c, addr, n=20):
     out = ''
-    for i in range(20):
+    for i in range(n):
         h = c.get16(addr + 2 * i)
         if h == 0:
             break
@@ -56,19 +57,32 @@ class Rig:
             c.set32(OBJ, P.VPTR); c.set32(OBJ + 0x118, DCFM); c.set32(DCFM + 0x10, LIST); c.set32(LIST + 0x20, 0x64)
         if cached is not None:
             c.set32(V, cached)
+        for k, ch in enumerate(b'ROOT\0'):                       # the card root string inline in the DCF list object
+            c.mem[LIST + 0x40 + k] = ch
+        self.mkdirs, self.roots = [], []
         self.reads = []
         orig = c.get32
         c.get32 = lambda a: (self.reads.append(a), orig(a))[1]
         self.at_draw = []
 
         def do_open(s):
-            name = cstr(c, A['buf'], 8)
+            name = cstr(c, A['buf'], 16).split('/')[-1]       # the roll's own name; the parent comes with the path
             self.opens.append(name)
+            self.roots.append(cstr(c, LIST + 0x40, 48))
             self.calls.append('open')
             s.r[0] = self.rolls.get(name, 27 if name == 'DCIM' else 0)
 
         c.stubs[F.RAW_GET] = lambda s: (self.asked.append(s.r[0]), c.set32(s.r[1], self.mode if s.r[0] == 3 else 0))   # the raw getter writes the real mode
         c.stubs[F.OPEN] = do_open
+        c.stubs[F.MKDIR] = lambda s: (self.mkdirs.append((s.r[0], cstr(c, s.r[1], 48), len(self.opens))), None)[1]
+        c.stubs[ui.SET_UI] = lambda s: self.calls.append(('setui', s.r[0], s.r[1]))
+        c.stubs[ui.APPLY] = lambda s: self.calls.append(('apply', s.r[0], s.r[1]))
+        c.stubs[ui.REFRESH_MASKS] = lambda s: self.calls.append(('refresh',))
+        c.stubs[ui.GUI_EVENT] = lambda s: self.calls.append(('guievt', s.r[0], s.r[1]))
+        c.stubs[ui.NOTIFY1] = lambda s: self.calls.append(('n1', s.r[0]))
+        c.stubs[ui.NOTIFY2] = lambda s: self.calls.append(('n2', s.r[0]))
+        self.vis = []
+        c.stubs[F.OSD_VIS] = lambda s: self.vis.append((s.r[0], s.r[1], s.r[2], s.r[3]))
         c.stubs[ui.ARM_NAME] = lambda s: self.calls.append(('arm', s.r[0]))
         c.stubs[ui.TOAST_CODE] = lambda s: self.calls.append(('toast', s.r[0]))
         c.stubs[ui.DRAW_ICONS] = lambda s: (self.calls.append(('draw', s.r[0])),
@@ -81,9 +95,10 @@ class Rig:
 
     def run(self, entry, key, state, extra=None):
         c = self.c
-        self.calls.clear(); self.asked.clear()
+        self.calls.clear(); self.asked.clear(); self.vis.clear()
         for i in range(2, 13):
             c.r[i] = self.saved[i]
+        c.r[11] = STATE_OBJ                                   # the dispatcher's fp: the live-view state object
         c.r[0], c.r[1] = key, state
         if extra:
             for i, v in extra.items():
@@ -101,7 +116,7 @@ class Rig:
 
     def names(self):
         c = self.c
-        return cstr(c, A['buf'], 8), cstr(c, A['buf'] + F.FMT1_AT, 16), cstr(c, A['buf'] + F.FMT2_AT, 24)
+        return cstr(c, A['buf'], 16), cstr(c, A['buf'] + F.FMT1_AT, 24), cstr(c, A['buf'] + F.FMT2_AT, 32)
 
     def v(self, i):
         return self.c.get32(V + i)
@@ -111,14 +126,15 @@ class Rig:
         return [hex(a) for a in self.reads if not (P.RAM_LO <= a < P.RAM_HI) and not stack(a)]
 
 
-def roll_names(n):
-    nm = 'FILM%03d' % n
+def roll_names(n, code='PROV'):
+    nm = 'FILMS/%s%03d' % (code, n)
     return (nm, '%%s/%s' % nm, '%%s/%s/100PHOTO' % nm)
 
 
 STOCK_NAMES = ('DCIM', '%s/DCIM', '%s/DCIM/100PHOTO')
 POP = [('arm', 11), ('draw', 0), ('toast', 11)]                  # the look-11 pop-up with the full icon redraw
-ENTER = ['open'] + POP + [('keycall', 10, 1)]
+LOOK = lambda v: [('setui', 0x41, v), ('apply', 0x41, v), ('refresh',), ('guievt', 0x42, 0), ('n1', 0x41), ('n2', 0x41)]   # the film look being applied
+ENTER = ['open'] + LOOK(0) + POP + [('keycall', 10, 1)]
 
 # 1. buffers start as the stock strings; nothing happens while the mode does not change
 r = Rig()
@@ -130,23 +146,23 @@ for mode in (2, 3, 4, 5, 1, 8):
     if calls != [('keyhook', 10, 1)] or r.opens or r.names() != STOCK_NAMES or r.v(4) != 0:
         fail('no change', mode, calls)
 
-# 2. entering SCENE on the first roll: FILM001, frames left from the rescan, then leaving again
+# 2. entering SCENE on the first roll: PROV001, frames left from the rescan, then leaving again
 for count, left in ((0, 36), (1, 35), (17, 19), (35, 1)):
-    r = Rig(rolls={'FILM001': count})
+    r = Rig(rolls={'PROV001': count})
     r.mode = 10
     calls = r.key(10, 1)
-    if calls != ENTER or r.opens != ['FILM001']:
+    if calls != ENTER or r.opens != ['PROV001']:
         fail('enter scene', count, calls, r.opens)
     if r.at_draw != [(1, count, 0, 1)]:                       # flag on, files seen, unlocked, roll 1: all set before the redraw
         fail('state at the redraw (enter)', count, r.at_draw)
-    if r.names() != roll_names(1) or utf16(r.c, SLOT0) != 'Film %02d left' % left or r.v(4) != 1 or r.v(8) != count or r.v(16) != 1:
+    if r.names() != roll_names(1) or utf16(r.c, SLOT0) != 'PROV001 %02d left' % left or r.v(4) != 1 or r.v(8) != count or r.v(16) != 1:
         fail('enter scene state', count, r.names(), utf16(r.c, SLOT0), r.v(8), r.v(16))
     if r.key(5, 1) != [('keyhook', 5, 1)] or len(r.opens) != 1:
         fail('stay in scene')
     r.mode = 2
     r.at_draw.clear()
     calls = r.key(6, 1)
-    if calls != ['open'] + POP + [('keycall', 6, 1)] or r.opens != ['FILM001', 'DCIM'] or r.at_draw != [(0, 27, 0, 1)]:
+    if calls != ['open'] + POP + [('keycall', 6, 1)] or r.opens != ['PROV001', 'DCIM'] or r.at_draw != [(0, 27, 0, 1)]:
         fail('leave scene', calls, r.opens, r.at_draw)
     if r.names() != STOCK_NAMES or r.v(4) != 0 or utf16(r.c, SLOT0) != 'Film off':
         fail('leave scene state', r.names(), utf16(r.c, SLOT0))
@@ -155,41 +171,40 @@ for count, left in ((0, 36), (1, 35), (17, 19), (35, 1)):
 
 # 3. finding the current roll: the first with room; an empty folder after full ones does not start silently
 for rolls, want_opens, want_roll, want_files in (
-        ({'FILM001': 36, 'FILM002': 36, 'FILM003': 12}, ['FILM001', 'FILM002', 'FILM003'], 3, 12),
-        ({'FILM001': 36, 'FILM002': 5}, ['FILM001', 'FILM002'], 2, 5),
-        ({'FILM001': 36}, ['FILM001', 'FILM002', 'FILM001'], 1, 36),                  # FILM002 is new and empty: stay on the full roll
-        ({'FILM001': 36, 'FILM002': 36}, ['FILM001', 'FILM002', 'FILM003', 'FILM002'], 2, 36),
-        ({'FILM001': 0}, ['FILM001'], 1, 0),                                           # a first roll that is empty is the roll
-        ({'FILM001': 0xFFFFFFFF}, ['FILM001'], 1, 0xFFFFFFFF),                         # failure code: stop, never loop
-        ({'FILM001': 40000}, ['FILM001', 'FILM002', 'FILM001'], 1, 40000),             # a big but plausible count counts as a full roll
-        ({'FILM001': 0x20000}, ['FILM001'], 1, 0x20000)):                              # garbage count: stop
+        ({'PROV001': 36, 'PROV002': 36, 'PROV003': 12}, ['PROV001', 'PROV002', 'PROV003'], 3, 12),
+        ({'PROV001': 36, 'PROV002': 5}, ['PROV001', 'PROV002'], 2, 5),
+        ({'PROV001': 36}, ['PROV001', 'PROV002', 'PROV001'], 1, 36),                  # PROV002 is new and empty: stay on the full roll
+        ({'PROV001': 36, 'PROV002': 36}, ['PROV001', 'PROV002', 'PROV003', 'PROV002'], 2, 36),
+        ({'PROV001': 0}, ['PROV001'], 1, 0),                                           # a first roll that is empty is the roll
+        ({'PROV001': 0xFFFFFFFF}, ['PROV001'], 1, 0xFFFFFFFF),                         # failure code: stop, never loop
+        ({'PROV001': 40000}, ['PROV001', 'PROV002', 'PROV001'], 1, 40000),             # a big but plausible count counts as a full roll
+        ({'PROV001': 0x20000}, ['PROV001'], 1, 0x20000)):                              # garbage count: stop
     r = Rig(rolls=rolls)
     r.mode = 10
     r.key()
     left = 0 if (want_files >= 36) else 36 - want_files
     if r.opens != want_opens or r.v(16) != want_roll or r.v(8) != want_files or r.names() != roll_names(want_roll):
         fail('probe', rolls, r.opens, r.v(16), r.v(8), r.names())
-    if utf16(r.c, SLOT0) != 'Film %02d left' % left:
+    if utf16(r.c, SLOT0) != '%s %02d left' % (r.names()[0].split('/')[-1], left):
         fail('probe text', rolls, utf16(r.c, SLOT0))
-r = Rig(rolls={'FILM998': 36, 'FILM999': 36})                                         # the last roll number is the cap
-r.c.set32(V + 16, 998)
+r = Rig(rolls={'PROV%03d' % n: 36 for n in range(1, 1000)})                           # the last roll number is the cap
 r.mode = 10
 r.key()
-if r.opens != ['FILM998', 'FILM999'] or r.v(16) != 999 or r.names() != roll_names(999):
-    fail('roll cap', r.opens, r.v(16), r.names())
+if len(r.opens) != 999 or r.v(16) != 999 or r.names() != roll_names(999):
+    fail('roll cap', len(r.opens), r.v(16), r.names())
 
 # 4. the object is found wherever it sits in the manager, and a stale cached pointer is replaced
 for word in (0, 1, 0x20, 0x7F, 0xFF):
     r = Rig(mgr_word=word)
     r.mode = 10
     r.key()
-    if r.opens != ['FILM001'] or r.v(0) != OBJ:
+    if r.opens != ['PROV001'] or r.v(0) != OBJ:
         fail('find object at word', word, r.opens)
 for cached in (0xC1999990, 0x1234):
     r = Rig(cached=cached)
     r.mode = 10
     r.key()
-    if r.opens != ['FILM001'] or r.v(0) != OBJ or r.stray():
+    if r.opens != ['PROV001'] or r.v(0) != OBJ or r.stray():
         fail('stale / junk cache', hex(cached), r.opens, r.stray())
 
 # 5. nothing found / broken chain / bad manager: nothing changes and the state is not committed (retried on the next key)
@@ -214,7 +229,7 @@ for mgr in (0, 0x12345678, 0xC1000002):
 
 
 def enter_scene(count=0, rolls=None):
-    r = Rig(rolls=dict(rolls or {'FILM001': count}))
+    r = Rig(rolls=dict(rolls or {'PROV001': count}))
     r.mode = 10
     r.key()
     return r
@@ -291,7 +306,7 @@ r.key(6, 1)
 if r.v(12) != 0:
     fail('leaving scene keeps the lock')
 r.mode = 10
-r.rolls['FILM001'] = 9
+r.rolls['PROV001'] = 9
 r.key()
 if r.v(12) != 0 or r.v(8) != 9:
     fail('re-entering scene', r.v(12), r.v(8))
@@ -336,46 +351,83 @@ for key, state, swallow in ((10, 1, True), (10, 2, True), (11, 1, True), (11, 2,
 if r.stray():
     fail('gate read outside the window', r.stray())
 
-# the film-look key (14): empty roll = free, part-shot roll = swallowed, full roll = a new roll then through
+# the film-look key (14) only reloads: an empty or part-shot roll swallows it (part-shot says "Roll in use"), a full roll starts the next
+# roll of the same film and swallows it too (the film is the scene card's, so the stock FILM SIM never sees the key)
 r = enter_scene(0)
-if gate(r, 14, 1) != (0x55, ORIG(14)) or r.opens != ['FILM001'] or r.v(16) != 1:
+if gate(r, 14, 1) != (0, []) or r.opens != ['PROV001'] or r.v(16) != 1:
     fail('film key on an empty roll', r.opens)
 for files in (1, 10, 35):
     r = enter_scene(files)
     r.c.set32(V + 12, 0)
     got = gate(r, 14, 1)
-    if got != (0, SWALLOWED) or utf16(r.c, SLOT1) != 'Roll in use' or r.opens != ['FILM001'] or r.v(16) != 1:
+    if got != (0, SWALLOWED) or utf16(r.c, SLOT1) != 'Roll in use' or r.opens != ['PROV001'] or r.v(16) != 1:
         fail('film key mid-roll', files, got, r.opens)
     if gate(r, 14, 2) != (0x55, ORIG(14)) or gate(r, 14, 0) != (0x55, ORIG(14)):         # releases are never swallowed
         fail('film key release mid-roll', files)
-r = enter_scene(36, rolls={'FILM001': 36})                  # a full roll: AE-L starts roll 2, then the stock FILM SIM sees the key
+r = enter_scene(36, rolls={'PROV001': 36})                  # a full roll: AE-L starts roll 2 of the same film and swallows the key
 r.c.set32(V + 12, 1)
-r.rolls['FILM002'] = 0
+r.rolls['PROV002'] = 0
 r.at_draw.clear()
 got = gate(r, 14, 1)
-if got != (0x55, ['open'] + POP + ORIG(14)) or r.opens[-1] != 'FILM002':
+if got != (0, ['open'] + POP) or r.opens[-1] != 'PROV002':
     fail('new roll', got, r.opens)
-if r.names() != roll_names(2) or (r.v(16), r.v(8), r.v(12), r.v(4)) != (2, 0, 0, 1) or utf16(r.c, SLOT0) != 'Film 36 left':
+if r.names() != roll_names(2) or (r.v(16), r.v(8), r.v(12), r.v(4)) != (2, 0, 0, 1) or utf16(r.c, SLOT0) != 'PROV002 36 left':
     fail('new roll state', r.names(), r.v(16), r.v(8), r.v(12), utf16(r.c, SLOT0))
 if r.at_draw != [(1, 0, 0, 2)]:
     fail('new roll state at the redraw', r.at_draw)
 n_opens = len(r.opens)
-got = gate(r, 14, 1)                                        # roll 2 is empty now: the look can be chosen freely, no second new roll
-if got != (0x55, ORIG(14)) or len(r.opens) != n_opens:
+got = gate(r, 14, 1)                                        # roll 2 is empty now: swallowed, no second new roll
+if got != (0, []) or len(r.opens) != n_opens:
     fail('after the new roll', got, r.opens)
-r = enter_scene(36, rolls={'FILM001': 36})                  # garbage count: leave the key alone
+r = enter_scene(36, rolls={'PROV001': 36})                  # garbage count: swallowed, nothing else
 r.c.set32(V + 8, 0xFFFFFFFF)
-if gate(r, 14, 1) != (0x55, ORIG(14)):
+if gate(r, 14, 1) != (0, []):
     fail('film key with a garbage count')
-r = enter_scene(36, rolls={'FILM001': 36})                  # new roll asked for but the object is gone: key passes, nothing changes
+r = enter_scene(36, rolls={'PROV001': 36})                  # new roll asked for but the object is gone: swallowed, nothing changes
 r.c.set32(V, 0)
 r.c.mem.update({MGR + 4 * 5 + k: 0 for k in range(4)})
 before = list(r.opens)
 got = gate(r, 14, 1)
-if got != (0x55, ORIG(14)) or r.opens != before:
+if got != (0, []) or r.opens != before:
     fail('new roll without an object', got, r.opens)
 if r.stray():
     fail('film key read outside the window', r.stray())
+
+# 8b. the scene picker is the film picker: every card is one look, with its own roll folder; a different card is a different film
+CARDS = {10: (0, 'PROV'), 12: (1, 'BLCH'), 13: (2, 'NOST'), 14: (3, 'ASTI'), 15: (4, 'VELV'), 16: (5, 'REAL'), 17: (6, 'CCHR'),
+         18: (7, 'CNEG'), 19: (8, 'ETRN'), 20: (9, 'ACRO'), 21: (10, 'SEPI'), 22: (0, 'PROV')}
+for card, (look, code) in CARDS.items():
+    r = Rig(rolls={code + '001': 36, code + '002': 7})
+    r.mode = card
+    calls = r.key(10, 1)
+    if r.opens != [code + '001', code + '002'] or r.names() != roll_names(2, code) or r.v(24) != look or r.v(16) != 2:
+        fail('card', card, r.opens, r.names(), r.v(24), r.v(16))
+    if calls != ['open', 'open'] + LOOK(look) + POP + [('keycall', 10, 1)] or utf16(r.c, SLOT0) != '%s002 29 left' % code:
+        fail('card calls / text', card, calls, utf16(r.c, SLOT0))
+r = Rig(rolls={'PROV001': 12, 'ACRO001': 3})                 # switching cards: a part-shot roll resumes when its film comes back
+r.mode = 10
+r.key()
+r.mode = 20
+calls = r.key(5, 1)
+if r.opens != ['PROV001', 'ACRO001'] or r.names() != roll_names(1, 'ACRO') or r.v(8) != 3 or r.v(24) != 9 or calls != ['open'] + LOOK(9) + POP + [('keycall', 5, 1)]:
+    fail('changing card', r.opens, r.names(), r.v(8), calls)
+r.mode = 10
+r.key(5, 1)
+if r.opens != ['PROV001', 'ACRO001', 'PROV001'] or r.names() != roll_names(1) or r.v(8) != 12 or r.v(24) != 0:
+    fail('back to the first card', r.opens, r.names(), r.v(8))
+n_opens = len(r.opens)
+if r.key(5, 1) != [('keyhook', 5, 1)] or len(r.opens) != n_opens:
+    fail('same card again must do nothing')
+r = Rig(rolls={'PROV001': 36})                               # a full roll of the same film again: a new roll of that film only
+r.mode = 10
+r.key()
+r.mode = 15
+r.rolls['VELV001'] = 0
+r.key(5, 1)
+if r.names() != roll_names(1, 'VELV') or r.v(24) != 4:
+    fail('roll count restarts for another film', r.names(), r.v(24))
+if r.stray():
+    fail('card change read outside the window', r.stray())
 
 # 9. the dial: unlock on a turn to the right
 PAYLOAD_EV, VT_EV, DIRFN_EV = 0xC1500000, 0xC1600000, 0xC1700000
@@ -404,7 +456,7 @@ for value, unlocks in ((1, True), (0, False), (2, False), (3, False)):
     r = enter_scene(0)
     r.c.set32(V + 12, 1)
     calls, asked = dial(r, value)
-    want_calls = [('arm', 12), ('toast', 12)] + DIAL() if unlocks else DIAL()
+    want_calls = [('draw', 0), ('arm', 12), ('toast', 12)] + DIAL() if unlocks else DIAL()      # (the redraw brings the stock mode tile back)
     if calls != want_calls or asked != [PAYLOAD_EV] or r.v(12) != (0 if unlocks else 1):
         fail('dial locked', value, calls, asked, r.v(12))
     if unlocks and utf16(r.c, SLOT1) != 'Wound':
@@ -444,15 +496,378 @@ def getval(idx, value):
 
 
 for idx in (0, 1, 2, 3, 4, 5, 6, 7, 9, 0x1B):
-    for value in (0, 1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 19, 29, 30, 0xFFFFFFFF):
-        want = F.MODE_P if (idx == 3 and value == F.SCENE_MODE) else value
+    for value in (0, 1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 16, 19, 21, 22, 23, 24, 29, 30, 0xFFFFFFFF):
+        want = F.MODE_P if (idx == 3 and F.SCENE_MODE <= value < F.SCENE_MODE + F.SCENE_COUNT) else value
         if getval(idx, value) != want:
             fail('filmget', idx, value, getval(idx, value), 'want', want)
+for mode in range(0, 40):                                    # every scene card (10..22) enters film mode, nothing else does
+    r = Rig()
+    r.mode = mode
+    r.key()
+    if (r.v(4) == 1) != (10 <= mode <= 22):
+        fail('film mode for mode', mode, r.v(4))
 r = Rig()                                                    # the film code reads the real mode through the raw getter, with the right index
 r.mode = 10
 r.key()
-if r.asked != [3] or r.v(4) != 1:
+if not r.asked or set(r.asked) != {3} or r.v(4) != 1:
     fail('film hook must read the raw mode (index 3)', r.asked, r.v(4))
+
+# 10c. the film-themed "roll full": GetStaticString's entry returns our text for "Memory Full" (687) in SCENE, everything else is stock
+def strfetch(r, ident, ctx=0x4444):
+    c = r.c
+    seen = []
+    c.stubs[F.STR_BACK] = lambda s: (seen.append((s.r[0], s.r[1], s.r[2])), r3s.append(s.r[3]), 'stop')[1]
+    r3s = []
+    for i in range(4, 13):
+        c.r[i] = 0x3000 + i
+    c.r[0], c.r[1], c.r[3] = ctx, ident, 0x7777
+    c.run(LAB['filmstr'], lr=0xCAFE0000, ret=0xCAFE0000)
+    if r3s and r3s != [0x7777]:
+        fail('filmstr changed r3', ident, r3s)
+    if not all(c.r[i] == 0x3000 + i for i in range(4, 12)):
+        fail('filmstr changed a callee-saved register', ident)
+    return c.r[0], seen
+
+
+r = Rig()                                                    # not in SCENE: always the stock path (r2 = ctx from the replaced `mov r2,r0`)
+for ident in (687, 0, 1, 686, 688):
+    got, seen = strfetch(r, ident)
+    if seen != [(0x4444, ident, 0x4444)]:
+        fail('string fetch outside scene', ident, seen)
+r = enter_scene(0)                                           # SCENE
+got, seen = strfetch(r, 687)
+if got != A['text_full'] or seen:
+    fail('memory full in scene', hex(got), seen)
+if utf16(r.c, A['text_full'], 30) != F.TEXT_FULL_STR:
+    fail('roll full text', utf16(r.c, A['text_full'], 30))
+for ident in (0, 1, 2, 686, 688, 689, 686 + 1000, 0xFFFFFFFF):
+    got, seen = strfetch(r, ident)
+    if seen != [(0x4444, ident, 0x4444)]:
+        fail('other strings in scene', ident, seen)
+r.mode = 2
+r.key(6, 1)                                                  # left SCENE: back to the stock text
+if strfetch(r, 687)[1] != [(0x4444, 687, 0x4444)]:
+    fail('memory full after leaving scene')
+
+# 10d. no playback in SCENE: the state-change entry drops requests for state 5 (with a pop-up) and passes every other one on
+def state(r, ident, fsm=0x5555):
+    c = r.c
+    seen = []
+    c.stubs[F.STATE_BACK] = lambda s: (seen.append((s.r[0], s.r[1], s.r[13])), argregs.append((s.r[2], s.r[3])), 'stop')[1]
+    argregs = []
+    r.calls.clear()
+    for i in range(2, 13):
+        c.r[i] = r.saved[i]
+    c.r[0], c.r[1] = fsm, ident
+    c.run(LAB['filmstate'], lr=0xCAFE0000, ret=0xCAFE0000, limit=3000000)
+    if seen and argregs != [(r.saved[2], r.saved[3])]:
+        fail('filmstate changed r2 / r3 (arguments of the state-change function)', ident, argregs)
+    ok = all(c.r[i] == r.saved[i] for i in range(4, 11)) if not seen else True
+    if not ok or (not seen and c.r[13] != 0x10000000):
+        fail('filmstate changed registers / stack', ident)
+    return seen, c.r[0], list(r.calls)
+
+
+r = Rig()                                                     # outside SCENE: always the stock function, whatever the id
+for ident in (0, 3, 4, 5, 12, 30):
+    seen, ret, calls = state(r, ident)
+    if seen != [(0x5555, ident, 0x10000000 - 36)] or calls:
+        fail('state outside scene', ident, seen, calls)
+r = enter_scene(0)
+for ident in (0, 1, 3, 4, 6, 12, 18, 30, 0xFFFFFFFF):
+    seen, ret, calls = state(r, ident)
+    if seen != [(0x5555, ident, 0x10000000 - 36)] or calls:
+        fail('state in scene passes on', ident, seen, calls)
+seen, ret, calls = state(r, 5)
+if seen or ret != 0 or calls != SWALLOWED or utf16(r.c, SLOT1) != 'No playback':
+    fail('playback in scene must be dropped', seen, ret, calls, utf16(r.c, SLOT1))
+for ident in (3, 12, 7, 11, 30):                                  # only 5 is dropped: 3 is the review after a shot, it must always pass
+    r = enter_scene(0)
+    state(r, 12)
+    seen, ret, calls = state(r, ident)
+    if seen != [(0x5555, ident, 0x10000000 - 36)] or calls:
+        fail('state', ident, 'must pass in scene', seen, calls)
+r = enter_scene(0)
+r.mode = 2
+r.key(6, 1)
+seen, ret, calls = state(r, 3)
+seen2, ret, calls2 = state(r, 5)
+if seen != [(0x5555, 3, 0x10000000 - 36)] or calls or seen2 != [(0x5555, 5, 0x10000000 - 36)] or calls2:
+    fail('playback states after leaving scene')
+r = enter_scene(0)
+r.mode = 2
+r.key(6, 1)
+seen, ret, calls = state(r, 5)
+if seen != [(0x5555, 5, 0x10000000 - 36)] or calls:
+    fail('playback after leaving scene')
+
+# 10e. the PLAY event (type 0x11) is dropped at the entry of its handler in SCENE; every other event type passes
+EV_OBJ, EV_VT, EV_FN = 0xC1500000, 0xC1600000, 0xC1700000
+
+
+def event(r, etype, fsm=0x5555):
+    c = r.c
+    c.set32(EV_OBJ, EV_VT)
+    c.set32(EV_VT + 8, 0)                                    # halfword adjustment 0
+    c.set32(EV_VT + 0xC, EV_FN)
+    asked = []
+    c.stubs[EV_FN] = lambda s: (asked.append(s.r[0]), s.r.__setitem__(0, etype))
+    seen = []
+    argregs = []
+    c.stubs[F.EVENT_BACK] = lambda s: (seen.append((s.r[0], s.r[1], s.r[13], s.r[14])), argregs.append((s.r[2], s.r[3])), 'stop')[1]
+    r.calls.clear()
+    for i in range(2, 13):
+        c.r[i] = r.saved[i]
+    c.r[0], c.r[1] = fsm, EV_OBJ
+    c.run(LAB['filmevent'], lr=0xCAFE0000, ret=0xCAFE0000, limit=3000000)
+    if not seen and (c.r[13] != 0x10000000 or not all(c.r[i] == r.saved[i] for i in range(4, 11))):
+        fail('filmevent changed registers / stack', etype)
+    if seen and argregs != [(r.saved[2], r.saved[3])]:
+        fail('filmevent changed r2 / r3', etype, argregs)
+    if seen and (seen[0][3] != 0xCAFE0000 or c.r[4] != r.saved[4]):
+        fail('filmevent changed lr / r4 on the way to the handler', etype, seen)
+    return seen, c.r[0], list(r.calls), asked
+
+
+r = Rig()
+for etype in (0, 1, 5, 0x10, 0x11, 0x17, 0x1A, 0x1B, 0x2B):
+    seen, ret, calls, asked = event(r, etype)
+    if seen != [(0x5555, EV_OBJ, 0x10000000 - 36, 0xCAFE0000)] or calls or asked:
+        fail('event outside scene', etype, seen, calls, asked)
+r = enter_scene(0)
+for etype in (0, 1, 2, 5, 0x10, 0x12, 0x17, 0x1A, 0x1B, 0x2B, 0x41, 0xFFFFFFFF):
+    seen, ret, calls, asked = event(r, etype)
+    if seen != [(0x5555, EV_OBJ, 0x10000000 - 36, 0xCAFE0000)] or calls or asked != [EV_OBJ]:
+        fail('event in scene passes on', etype, seen, calls, asked)
+seen, ret, calls, asked = event(r, 0x11)
+if seen or ret != 0 or calls != SWALLOWED or utf16(r.c, SLOT1) != 'No playback' or asked != [EV_OBJ]:
+    fail('PLAY in scene must be dropped', seen, ret, calls, asked)
+r.mode = 2
+r.key(6, 1)
+seen, ret, calls, asked = event(r, 0x11)
+if len(seen) != 1 or calls:
+    fail('PLAY after leaving scene')
+
+# 10f. one parent folder: the roll folder is "FILMS/<roll>"; entering SCENE makes <root>/FILMS first with the camera's folder creator (the root string
+# gets "/FILMS" for that call only and is back at once); nothing else touches the root
+r = Rig()
+r.mode = 10
+r.key()
+if r.mkdirs != [(LIST, 'ROOT/FILMS', 0)] or r.roots != ['ROOT'] or cstr(r.c, LIST + 0x40, 48) != 'ROOT':
+    fail('parent folder on entering', r.mkdirs, r.roots, cstr(r.c, LIST + 0x40, 48))
+if r.names() != roll_names(1):
+    fail('nested roll names', r.names())
+r.mode = 15                                                   # another film: no second mkdir
+r.key(5, 1)
+if len(r.mkdirs) != 1:
+    fail('another film must not make the parent again', r.mkdirs)
+r.mode = 2
+r.key(6, 1)
+if len(r.mkdirs) != 1 or cstr(r.c, LIST + 0x40, 48) != 'ROOT' or r.names() != STOCK_NAMES:
+    fail('leaving: no mkdir, stock names, root as it was', r.mkdirs, r.names())
+r.mode = 10                                                   # entering again: the parent is made again (it may have been deleted)
+r.key(5, 1)
+if len(r.mkdirs) != 2 or r.mkdirs[1][1] != 'ROOT/FILMS' or r.mkdirs[1][2] != 3 or cstr(r.c, LIST + 0x40, 48) != 'ROOT':
+    fail('second entry', r.mkdirs)
+r = enter_scene(36, rolls={'PROV001': 36})                    # a new roll with AE-L: same state, no mkdir
+r.rolls['PROV002'] = 0
+n = len(r.mkdirs)
+gate(r, 14, 1)
+if len(r.mkdirs) != n:
+    fail('new roll must not make the parent', r.mkdirs)
+r = Rig(obj_chain=False)                                      # no object: nothing happens
+r.mode = 10
+r.key()
+if cstr(r.c, LIST + 0x40, 48) != 'ROOT' or r.mkdirs:
+    fail('root changed without an object')
+r = Rig()                                                     # a root too long to extend is left alone (and restored as it was)
+for k, ch in enumerate(b'X' * 0x2A + b'\0'):
+    r.c.mem[LIST + 0x40 + k] = ch
+r.mode = 10
+r.key()
+if cstr(r.c, LIST + 0x40, 48) != 'X' * 0x2A or r.mkdirs:
+    fail('long root must stay', cstr(r.c, LIST + 0x40, 48), r.mkdirs)
+
+# 10g. the counter follows the real mode at once: film active but the camera already in P (the mode dial moved, no key yet) -> the stock number
+r = enter_scene(10)
+r.c.set32(LIST + 0x24, 10)
+r.mode = 2
+if clamp(r, 500) != 500:
+    fail('shots left must be stock as soon as the mode is not a scene card')
+r.mode = 10
+if clamp(r, 500) != 26:
+    fail('shots left in a scene card', clamp(r, 500))
+for mode in (1, 3, 8, 9, 23, 30):
+    r.mode = mode
+    if clamp(r, 77) != 77:
+        fail('shots left outside the scene cards', mode)
+
+# 10h. the state object's cached mode (+0xC) is made P in a scene card so the direction keys (macro, flash ...) work; every other value is left alone
+for mode in range(0, 40):
+    r = Rig()
+    r.mode = mode
+    r.c.set32(STATE_OBJ + 12, mode)
+    r.key(2, 1)
+    want = 2 if 10 <= mode <= 22 else mode
+    if r.c.get32(STATE_OBJ + 12) != want:
+        fail('state object mode cache', mode, r.c.get32(STATE_OBJ + 12), 'want', want)
+r = Rig()                                                     # and every later key in the scene card keeps it at P
+r.mode = 13
+r.c.set32(STATE_OBJ + 12, 13)
+for key in (1, 2, 3, 15, 10):
+    r.c.set32(STATE_OBJ + 12, 13)
+    r.key(key, 1)
+    if r.c.get32(STATE_OBJ + 12) != 2:
+        fail('state object cache after key', key)
+
+# 10i. the wind-on / roll-full icons in the mode icon spot (the OSD show/hide called with node indices)
+def icons(r):
+    """the vis calls of one iconfix run"""
+    c = r.c
+    r.vis.clear()
+    for i in range(2, 13):
+        c.r[i] = r.saved[i]
+    c.run(LAB['iconfix'], lr=0xCAFE0000, ret=0xCAFE0000, limit=3000000)
+    if not (all(c.r[i] == r.saved[i] for i in range(4, 11)) and c.r[13] == 0x10000000):
+        fail('iconfix changed registers / stack')
+    return list(r.vis)
+
+
+def want_icons(shown, look=0):
+    out = []
+    for first, last, wind, full, tile in F.ICON_GROUPS:
+        child = {'wind': wind, 'full': full, 'tile': tile + look}[shown]
+        out += [(n, 0, 0, 0) for n in range(first, last + 1)] + [(child, 1, 0, 0)]
+    return out
+
+
+r = Rig()                                                      # not in SCENE: nothing
+r.c.set32(V + 12, 1)
+if icons(r):
+    fail('iconfix outside scene')
+r = Rig()                                                      # the dial just moved to a scene card, the key hook has not run: the tile already
+r.mode = 13
+if icons(r) != want_icons('tile', 2):
+    fail('iconfix before the roll is switched')
+r.mode = 2                                                     # left the scene cards: our children are hidden again, once
+want = []
+for first, last, wind, full, tile in F.ICON_GROUPS:
+    want += [(n, 0, 0, 0) for n in range(tile, wind + 1)]
+if icons(r) != want or r.c.get32(V + 28) != 0 or icons(r):
+    fail('iconfix clean-up', len(r.vis))
+r.mode = 10
+r.c.set32(V + 28, 1 * 16 + 0 + 1)                              # the roll-full child was shown: it is hidden too on leaving
+r.mode = 2
+want2 = []
+for first, last, wind, full, tile in F.ICON_GROUPS:
+    want2 += [(n, 0, 0, 0) for n in range(tile, wind + 1)] + [(full, 0, 0, 0)]
+if icons(r) != want2:
+    fail('iconfix clean-up of the roll-full child')
+r = enter_scene(5)                                             # frames left, not locked: the look's cartridge tile (look 0 = PROVIA)
+if icons(r) != want_icons('tile', 0):
+    fail('iconfix with frames left', icons(r)[-3:])
+for card, look in ((10, 0), (12, 1), (13, 2), (14, 3), (15, 4), (16, 5), (17, 6), (18, 7), (19, 8), (20, 9), (21, 10), (22, 0)):   # the tile follows the card's look
+    r.mode = card
+    if icons(r) != want_icons('tile', look):
+        fail('iconfix tile for card', card)
+r.mode = 10
+r.c.set32(V + 24, 0)
+r.c.set32(V + 12, 1)                                           # locked: the wind-on child, in both groups
+if icons(r) != want_icons('wind'):
+    fail('iconfix locked', icons(r)[-3:])
+r.c.set32(V + 12, 0)
+r.c.set32(V + 8, 36)                                           # full roll, wound: the roll-full child
+if icons(r) != want_icons('full'):
+    fail('iconfix full')
+r.c.set32(V + 12, 1)                                           # locked wins over full (the last shot is not wound yet)
+if icons(r) != want_icons('wind'):
+    fail('iconfix locked and full')
+r.c.set32(V + 12, 0)
+r.c.set32(V + 8, 0xFFFFFFFF)                                   # a garbage count: the tile
+if icons(r) != want_icons('tile'):
+    fail('iconfix garbage count')
+r = Rig(rolls={'PROV001': 36})                                 # a full roll entered: the pop-up path ends with the icon
+r.mode = 10
+r.key()
+if r.vis[-len(want_icons('full')):] != want_icons('full'):
+    fail('entering a full roll must show the roll-full icon', len(r.vis))
+r.c.set32(V + 12, 1)                                           # a shutter press while locked: banner and icon
+r.vis.clear()
+gate(r, 10, 1)
+if r.vis != want_icons('wind'):
+    fail('gate swallow must show the wind-on icon', len(r.vis))
+r.rolls['PROV002'] = 0                                         # a new roll: the tile again
+r.vis.clear()
+gate(r, 14, 1)
+if r.vis[-len(want_icons('tile')):] != want_icons('tile'):
+    fail('a new roll must show the tile', len(r.vis))
+
+
+# 10i2. the lazy entry (the counter's hook): nothing is drawn again while the wanted state is the one set last
+def lazy(r):
+    c = r.c
+    r.vis.clear()
+    for i in range(2, 13):
+        c.r[i] = r.saved[i]
+    c.run(LAB['iconlazy'], lr=0xCAFE0000, ret=0xCAFE0000, limit=3000000)
+    if not (all(c.r[i] == r.saved[i] for i in range(4, 11)) and c.r[13] == 0x10000000):
+        fail('iconlazy changed registers / stack')
+    return list(r.vis)
+
+
+r = enter_scene(5)
+r.c.set32(V + 28, 0)
+if lazy(r) != want_icons('tile') or lazy(r):
+    fail('iconlazy: first call draws, the second does not')
+r.c.set32(V + 12, 1)                                           # a shot locked the roll
+if lazy(r) != want_icons('wind') or lazy(r):
+    fail('iconlazy after a lock')
+r.c.set32(V + 12, 0)
+r.c.set32(V + 28, 0)                                           # a stock redraw reset the spot: forced by the DRAW_ICONS hook, not by the lazy call
+if icons(r) != want_icons('tile') or lazy(r):
+    fail('iconfix forces, iconlazy then sees nothing new')
+
+# a shot seen by the counter's hook (the file count rises) shows the wind-on icon at once; with no shot nothing is drawn again
+r = enter_scene(5)
+r.c.set32(V + 28, 0)
+r.c.set32(LIST + 0x24, 5)
+r.vis.clear()
+clamp(r, 36)
+tile_calls = list(r.vis)
+if tile_calls != want_icons('tile'):
+    fail('counter hook draws the tile once', len(tile_calls))
+r.vis.clear()
+clamp(r, 36)
+if r.vis:
+    fail('counter hook must not draw again', len(r.vis))
+r.c.set32(LIST + 0x24, 6)                                      # the shot
+r.vis.clear()
+if clamp(r, 36) != 30 or r.vis != want_icons('wind'):
+    fail('counter hook after a shot must show the wind-on icon', len(r.vis))
+
+# 10j. the end of the full redraw: `add sp,sp,#0x14`, then iconfix, then on to the stock `pop {sl, fp, pc}`
+def draw_end(r):
+    c = r.c
+    seen = []
+    c.stubs[F.DRAW_BACK] = lambda s: (seen.append(s.r[13]), 'stop')[1]
+    r.vis.clear()
+    for i in range(2, 13):
+        c.r[i] = r.saved[i]
+    c.run(LAB['filmdraw'], lr=0xCAFE0000, ret=0xCAFE0000, limit=3000000)
+    if seen != [0x10000000 + 0x14] or not all(c.r[i] == r.saved[i] for i in range(4, 12)):
+        fail('filmdraw sp / registers', seen)
+    return list(r.vis)
+
+
+r = Rig()
+if draw_end(r):
+    fail('filmdraw outside scene')
+r = enter_scene(5)
+if draw_end(r) != want_icons('tile'):
+    fail('filmdraw in scene')
+r.c.set32(V + 12, 1)
+if draw_end(r) != want_icons('wind'):
+    fail('filmdraw locked')
 
 # 11. the pointer patches on a real built .elf
 elf_path = r'extracted\tl500_008264_FAUXJI63\EX1-DSP-SR-008264.elf'
@@ -475,8 +890,18 @@ if os.path.exists(elf_path):
         if cs(out, word(out, pool)) != cs(stock, stock_ptr):      # the RAM buffer starts out equal to the stock string
             fail('buffer differs from the stock string', hex(pool), cs(out, word(out, pool)), cs(stock, stock_ptr))
     changed = [i for i in range(len(stock)) if stock[i] != out[i]]
-    ranges = [(b, b + len(x)) for b, x in BLOCKS]
-    sites = [p + k for p in list(F.STOCK) + [ui.KEY_CALL[0], F.ROLL_SITE, F.GATE_SITE, F.DIAL_SITE, F.GETVAL_SITE] for k in range(4)]
+    import fauxji
+    tab_at = word(out, F.LIVE_POOL)
+    ranges = [(b, b + len(x)) for b, x in BLOCKS] + [(tab_at, tab_at + 360)]
+    if not (BASE + len(DATA) <= tab_at < BASE + len(DATA) + 4 and tab_at + 360 <= F.FILM_END):
+        fail('live table placement', hex(tab_at))
+    if out[tab_at - B:tab_at - B + 324] != stock[fauxji.LIVE - B:fauxji.LIVE - B + 324]:
+        fail('live table slots 0-8 differ from the patched stock table')
+    if struct.unpack_from('<9i', out, tab_at - B + 324) != tuple(fauxji.fixed(fauxji.LOOKS[9])):
+        fail('live slot 9 is not the Bleach Bypass matrix')
+    if word(out, F.LIVE_KEY_SITE) != F.LIVE_KEY_NEW or word(stock, F.LIVE_KEY_SITE) != F.LIVE_KEY_OLD:
+        fail('Bleach Bypass live slot word')
+    sites = [p + k for p in list(F.STOCK) + [F.LIVE_POOL, F.LIVE_KEY_SITE, ui.KEY_CALL[0], F.ROLL_SITE, F.DRAW_END, F.STATE_SITE, F.EVENT_SITE, F.GATE_SITE, F.DIAL_SITE, F.GETVAL_SITE, F.STR_SITE] for k in range(4)]
     outside = [hex(i + B) for i in changed if not any(lo <= i + B < hi for lo, hi in ranges) and (i + B) not in sites]
     if outside:
         fail('bytes changed outside the blocks / pointers / hook sites', outside[:8])
@@ -486,7 +911,9 @@ if os.path.exists(elf_path):
         fail('key hook not in place')
     if word(out, F.GETVAL_SITE) != ui._b(F.GETVAL_SITE, LAB['filmget']):
         fail('SCENE-as-P hook not in place')
-    print('real .elf: 6 pointers + 5 hook sites + blocks %s' % ', '.join('%x-%x' % r_ for r_ in ranges))
+    if word(out, F.STR_SITE) != ui._b(F.STR_SITE, LAB['filmstr']):
+        fail('roll-full text hook not in place')
+    print('real .elf: 6 pointers + 6 hook sites + blocks %s' % ', '.join('%x-%x' % r_ for r_ in ranges))
 else:
     print('(no FAUXJI63 .elf here: skipped the real-image check)')
 

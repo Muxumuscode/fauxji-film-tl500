@@ -55,7 +55,7 @@ class CPU:
                 pass
             base=m
             import re
-            mm=re.match(r'^(push|pop|stmdb|ldm|mvn|mov|add|cmp|ldrsh|ldrh|ldr|strh|strb|str|tst|umull|orr|sub|and|lsl|lsr)',m); base=mm.group(1) if mm else None
+            mm=re.match(r'^(push|pop|stmdb|ldm|mvn|mov|add|cmp|ldrsh|ldrh|ldrb|ldr|strh|strb|str|tst|umull|orr|sub|and|lsl|lsr)',m); base=mm.group(1) if mm else None
             if i.id==ARM_INS_B: base='b'
             if i.id==ARM_INS_BL: base='bl'
             if i.id==ARM_INS_LSL: base='lsl'
@@ -91,7 +91,7 @@ class CPU:
             elif base=='cmp':
                 a,b=s.val(ops[0],pc),s.val(ops[1],pc); res=(a-b)&M32
                 s.N=res>>31; s.Z=res==0; s.C=a>=b; s.V=((a^b)&(a^res))>>31
-            elif base in('ldr','ldrh','ldrsh','str','strh','strb'):
+            elif base in('ldr','ldrb','ldrh','ldrsh','str','strh','strb'):
                 mo=ops[1].mem; 
                 base_v=pc+8 if mo.base==ARM_REG_PC else s.r[s.ri(mo.base)]
                 a=(base_v+mo.disp)&M32
@@ -103,6 +103,7 @@ class CPU:
                 elif base=='str': s.set32(a,s.r[s.ri(ops[0].reg)])
                 elif base=='ldrsh':
                     v=s.get16(a); s.r[s.ri(ops[0].reg)]=(v-0x10000 if v&0x8000 else v)&M32
+                elif base=='ldrb': s.r[s.ri(ops[0].reg)]=s.mem.get(a,0)
                 else: s.r[s.ri(ops[0].reg)]=s.get32(a) if base=='ldr' else s.get16(a)
             elif base=='umull':
                 p=s.r[s.ri(ops[2].reg)]*s.r[s.ri(ops[3].reg)]

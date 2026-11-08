@@ -118,9 +118,51 @@ def small_badge(size, text, style):
     return im
 
 
+# badge text (CODES) -> index of the look in tools/film_mode_art.FILMS (the Photo Style menu order)
+CART_FILM = {'STD': 0, 'EB': 1, 'NN': 2, 'S': 3, 'V': 4, 'RA': 5, 'Cc': 6, 'Nc': 7, 'ET': 8, 'A': 9, 'SEP': 10}
+
+
+def cartridge(size, text, style):
+    """The 35 mm cartridge of the film mode (tools/film_mode_art.canister, drawn from the owner's photos of the real packaging: black
+    plastic caps, white strip with the look's code, Fuji-green foot, the look's colour field or band, leader with sprocket holes),
+    for the 115 px menu icons, the 64 px live-view icon and the grey 64 px 'not available' icon, in the transparent key colour.
+    Drawn large and scaled down, hard edge against the key, colours snapped so the RLE fits Samsung's slots."""
+    import film_mode_art as fma
+    film = CART_FILM[text]
+    dim = style == 'grey'
+    name = fma.FILMS[film][1]                                # the picker's names: PRO, BB, NN, AST, VEL, RA, CC, CN, ET, ACR, SEP (stacked upright)
+    out = Image.new('RGBA', (size, size), KEY)
+    op = out.load()
+    if size < 100:                                           # crisp at the real size: no anti-aliasing, flat colours (the RLE must fit the slot)
+        im = fma.canister(size - 2, None, film, dim=dim, ss=1, code=name, detail=False, flat=True, vcode=True, crisp=True)
+        px = im.load()
+        ox, oy = (size - im.width) // 2, (size - im.height) // 2
+        for y in range(im.height):
+            for x in range(im.width):
+                r_, g_, b_, a_ = px[x, y]
+                if a_ >= 128:
+                    op[ox + x, oy + y] = (r_ // 8 * 8, g_ // 8 * 8, b_ // 8 * 8, 255)
+        return out
+    big = fma.canister(size * 4, None, film, dim=dim, ss=2, code=name, detail=True, vcode=True)
+    h = size - 4
+    w = max(1, round(big.width * h / big.height))
+    im = big.resize((w, h), Image.LANCZOS)
+    px = im.load()
+    ox, oy = (size - w) // 2, (size - h) // 2
+    for y in range(h):
+        for x in range(w):
+            r_, g_, b_, a_ = px[x, y]
+            if a_ >= 128:
+                op[ox + x, oy + y] = tuple(min(255, (min(255, v * 255 // a_) + 8) // 16 * 16) for v in (r_, g_, b_)) + (255,)
+    return out
+
+
+DESIGN = 'canister'          # build_fauxji.py sets 'cartridge' for the --film build; plain builds keep the earlier canister badges
+
+
 def badge(size, text, style):
-    """Current design: film canister (owner's request, after Fuji's reference)."""
-    return canister(size, text, style)
+    """The badge for a skin icon: the film cartridge (see cartridge()) in the film build, else the earlier canister()."""
+    return cartridge(size, text, style) if DESIGN == 'cartridge' else canister(size, text, style)
 
 
 def plate_badge(size, text, style):
@@ -188,6 +230,176 @@ def patch_skin(k):
             if len(blk) > size:
                 raise ValueError('badge for image %d is %d bytes, slot %d' % (idx, len(blk), size))
             k[a:a + len(blk)] = blk
+    return bytes(k)
+
+
+def card(film, w=256, h=285):
+    """A scene-picker card as a film card: the dark card of the FAUXJI scene cards with the look's cartridge, large, in the middle."""
+    import film_mode_art as fma
+    im = Image.new('RGBA', (w, h), (50, 50, 51, 255))
+    ImageDraw.Draw(im).rectangle([0, 0, w - 1, h - 1], outline=(99, 100, 102, 255), width=2)
+    ch = h - 40
+    cart = fma.canister(ch * 2, None, film, ss=2, code=fma.FILMS[film][1], detail=True, vcode=True)
+    cart = cart.resize((round(cart.width * ch / cart.height), ch), Image.LANCZOS)
+    im.alpha_composite(cart, ((w - cart.width) // 2, (h - ch) // 2))
+    q = im.convert('RGB').quantize(colors=48, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE).convert('RGBA')
+    return q
+
+
+def patch_cards(k, card_image, card_look):
+    """Film build: skin.bin with each scene card image (card_image: card -> image number) replaced by that card's look's cartridge card."""
+    k = bytearray(k)
+    offs = skin.images(bytes(k))
+    ends = sorted(offs)
+    for c, idx in card_image.items():
+        a = offs[idx]
+        w, h, _, typ = struct.unpack_from('<4I', k, a)
+        size = ends[ends.index(a) + 1] - a                    # the room is up to the next image (the header size shrank when the flat scene cards were written)
+        blk = skin.encode(w, h, card(card_look[c], w, h).tobytes())
+        if len(blk) > size:
+            raise ValueError('card image %d is %d bytes, slot %d' % (idx, len(blk), size))
+        k[a:a + len(blk)] = blk
+    return bytes(k)
+
+
+def scene_tile(film, w=58, h=54):
+    """The live view's mode icon (58 x 54, group 803) for a film: the crisp small cartridge in the transparent key colour."""
+    text = {v: k for k, v in CART_FILM.items()}[film]
+    cart = cartridge(h, text, 'white')
+    out = Image.new('RGBA', (w, h), KEY)
+    out.paste(cart, ((w - cart.width) // 2, 0))
+    return out
+
+
+def patch_scene_tiles(k, tile_look):
+    """Film build: the live view shows the scene's own icon as the mode icon in SCENE (Beauty Shot's face for the first card ...). Each of the
+    twelve scene icons (skin images, tile_look: image -> look) becomes that card's film cartridge."""
+    k = bytearray(k)
+    offs = skin.images(bytes(k))
+    for idx, look in tile_look.items():
+        a = offs[idx]
+        w, h, size, typ = struct.unpack_from('<4I', k, a)
+        blk = skin.encode(w, h, scene_tile(look, w, h).tobytes())
+        if len(blk) > size:
+            raise ValueError('scene tile %d is %d bytes, slot %d' % (idx, len(blk), size))
+        k[a:a + len(blk)] = blk
+    return bytes(k)
+
+
+ORANGE_TILE = (255, 128, 0, 255)
+
+
+def _tile_base(w, h):
+    from PIL import ImageDraw
+    out = Image.new('RGBA', (w, h), KEY)
+    ImageDraw.Draw(out).rounded_rectangle([0, 0, w - 1, h - 1], 7, fill=(28, 28, 30, 255), outline=ORANGE_TILE, width=2)
+    return out
+
+
+def _crisp(im, step=32):
+    """alpha >= 128 -> opaque, colours snapped (flat colours keep the RLE small)"""
+    px = im.load()
+    out = Image.new('RGBA', im.size, (0, 0, 0, 0))
+    op = out.load()
+    for y in range(im.height):
+        for x in range(im.width):
+            r_, g_, b_, a_ = px[x, y]
+            if a_ >= 128:
+                op[x, y] = tuple(min(255, (v + step // 2) // step * step) for v in (r_, g_, b_)) + (255,)
+    return out
+
+
+def wind_tile(w=58, h=54):
+    """Live-view mode icon spot while the film must be wound on: the front dial with a curved arrow, orange on a dark tile (drawn at its real
+    size without anti-aliasing: the slot of this skin image is small)."""
+    import math
+    from PIL import ImageDraw
+    out = _tile_base(w, h)
+    d = ImageDraw.Draw(out)
+    cx, cy = w // 2 - 2, h // 2 + 3
+    r = 11
+    d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(60, 60, 64, 255), outline=ORANGE_TILE, width=3)
+    d.ellipse([cx - 3, cy - 3, cx + 3, cy + 3], fill=ORANGE_TILE)
+    R = 17
+    d.arc([cx - R, cy - R, cx + R, cy + R], 200, 335, fill=ORANGE_TILE, width=3)
+    a = math.radians(335)
+    tip = (cx + math.cos(a) * R, cy + math.sin(a) * R)
+    tx, ty = -math.sin(a), math.cos(a)
+    nx, ny = math.cos(a), math.sin(a)
+    d.polygon([(tip[0] + tx * 8, tip[1] + ty * 8), (tip[0] + nx * 5, tip[1] + ny * 5), (tip[0] - nx * 5, tip[1] - ny * 5)], fill=ORANGE_TILE)
+    return out
+
+
+def full_tile(w=58, h=54):
+    """Mode icon spot for a full roll: the greyed cartridge with an orange cross."""
+    from PIL import ImageDraw
+    out = _tile_base(w, h)
+    cart = cartridge(h - 6, 'STD', 'grey')
+    keyed = Image.new('RGBA', cart.size, (0, 0, 0, 0))
+    cp, kp = cart.load(), keyed.load()
+    for y in range(cart.height):
+        for x in range(cart.width):
+            if cp[x, y][:3] != KEY[:3]:
+                kp[x, y] = cp[x, y]
+    out.paste(keyed, ((w - cart.width) // 2 - 3, 3), keyed)
+    d = ImageDraw.Draw(out)
+    cx, cy, r = w - 17, h - 17, 8
+    d.line([cx - r, cy - r, cx + r, cy + r], fill=ORANGE_TILE, width=4)
+    d.line([cx - r, cy + r, cx + r, cy - r], fill=ORANGE_TILE, width=4)
+    return out
+
+
+def patch_state_tiles(k, tiles):
+    """Film build: skin images (tiles: image -> function drawing it) replaced; each must fit its slot."""
+    k = bytearray(k)
+    offs = skin.images(bytes(k))
+    ends = sorted(offs)
+    for idx, fn in tiles.items():
+        a = offs[idx]
+        w, h, _, typ = struct.unpack_from('<4I', k, a)
+        size = ends[ends.index(a) + 1] - a
+        blk = skin.encode(w, h, fn(w, h).tobytes())
+        if len(blk) > size:
+            raise ValueError('state tile %d is %d bytes, slot %d' % (idx, len(blk), size))
+        k[a:a + len(blk)] = blk
+    return bytes(k)
+
+
+BIG_W, BIG_H = 80, 96                      # the film mode's big cartridge (live view), pixels
+BIG_HOLE = (10, 20, 40, 44)                # x0, y0, x1, y1 of the window in the white strip where the shots-left digits show through
+
+
+def big_cartridge(film, w=BIG_W, h=BIG_H):
+    """The live view's film icon in the film build: a bigger, crisp cartridge with a BLANK white strip and a transparent window in it; the
+    camera's own shots-left digits (a layout group drawn below this one) show through the window."""
+    import film_mode_art as fma
+    im = fma.canister(h, None, film, ss=1, code=None, detail=False, flat=True, vcode=False, crisp=True)
+    out = Image.new('RGBA', (w, h), KEY)
+    px, op = im.load(), out.load()
+    for y in range(min(h, im.height)):
+        for x in range(min(w, im.width)):
+            r_, g_, b_, a_ = px[x, y]
+            if a_ >= 128:
+                op[x, y] = (r_ // 8 * 8, g_ // 8 * 8, b_ // 8 * 8, 255)
+    x0, y0, x1, y1 = BIG_HOLE
+    for y in range(y0, y1):
+        for x in range(x0, x1):
+            op[x, y] = KEY
+    return out
+
+
+def patch_big_cartridges(k):
+    """Film build: the white 64 px film icons (images 414-424) become the big cartridge; the images change size (the layout nodes must follow)."""
+    k = bytearray(k)
+    offs = skin.images(bytes(k))
+    ends = sorted(offs)
+    for idx, code in SETS['white'].items():
+        a = offs[idx]
+        size = ends[ends.index(a) + 1] - a
+        blk = skin.encode(BIG_W, BIG_H, big_cartridge(CART_FILM[CODES[code]]).tobytes())
+        if len(blk) > size:
+            raise ValueError('big cartridge %d is %d bytes, slot %d' % (idx, len(blk), size))
+        k[a:a + len(blk)] = blk
     return bytes(k)
 
 

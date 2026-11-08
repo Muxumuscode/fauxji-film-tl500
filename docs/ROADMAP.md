@@ -16,28 +16,55 @@ Risk = how likely it is to fight us (unknown code paths, timing, crashes).
 |---|---|
 | 11 film looks, live preview, FILM SIM button with name pop-up | done, on camera |
 | Fuji-style menus, shooting screen, mode dial, pop-ups | done, on camera |
-| P/A minimum shutter 1/60, Auto ISO in M | done |
-| **P/A keep 1/60 when zoomed** (FAUXJI35) | built, not flashed yet |
+| Minimum shutter 1/60 with auto ISO in P, A and S (the camera raises ISO, cap 1600, instead of slowing down); auto ISO in M | done, on camera |
+| **1/125 problem fixed**: stock raised the minimum shutter to 1/125 and more when zoomed in (the zoom hand-shake shift) and with the flash; skipped for P, A and S since FAUXJI51 | done, verified on camera (FAUXJI54, "it worked great") |
+| **Film camera mode** (`--film` build, latest TL-F65o) | working on camera, open items below |
 | Auto-rotate | researching (see below) |
 | Names on the FILM BKT 9-look chooser | later pile |
 | Playback screens | later pile |
 
 ---
 
-## To do (owner, 7 Nov 2026)
+## Film camera mode: state and what is left (8 Nov 2026)
 
-- [ ] **Canister artwork everywhere, for consistency.** The cartridge design drawn for the film mode (docs/images/film-mode/, tools/film_mode_art.py:
-  white counter strip, vertical name, Fuji-green foot, colour field or band per look) should replace the old canister badges in EVERY place a look
-  is shown or chosen: the function menu (the film-simulation list where you pick a look), the live-view pop-up when a look is chosen (FILM SIM
-  button name box), the 9-look chooser, the film mode's big counter and the roll picker, and later playback. One drawing, several sizes (large,
-  small, greyed). Skin images live in skin.bin (see tools/badges.py: large 115x115 images 72-82, small white 64x64 414-424, grey 326-345).
-- [ ] **Film-themed "roll full" message.** At 0 frames the camera shows its stock "Memory Full" (string 687) and refuses to shoot, which is the right
-  behaviour. In SCENE it should say the roll is full and to pick a new roll (with the canister art), in every other mode it stays "Memory Full".
-  Wrap GetStaticString 0xC05BA87C and serve our text for id 687 while the film flag is on.
-- [ ] **No scene picker.** The SCENE dial position should go straight to the film camera: no scene cards. Today the picker still appears (any card does, SCENE now reads as P).
-  Skip it by treating the dial's SCENE position as the final mode in the mode-change state (the dial task at 0xC041DBA4 maps dial codes 0x461.. to modes; the SCENE position's
-  case 5 does nothing there, the picker is a separate state, CAPPGUISelectSceneState 0xC07C580C) and later put the film picker in its place.
-- [ ] **Film mode on the mode dial screens.** The mode name / icon for the SCENE position should read as the film camera (canister), not P or a scene.
+Build it with `python tools/build_fauxji.py <stock dir> <out dir> --film` (latest label **TL-F65o**; the plain build is unchanged and differs from
+FAUXJI63 only in the version label). Notes per build are in docs/FEATURES.md (FILM01 ... FILM23), tests: `python tools/test_film.py`,
+`python tools/test_film_layout.py <SPID.Rom>`.
+
+**Works on the camera (owner-verified):** SCENE is the film camera and behaves like P (1/60 minimum shutter, auto ISO, menus open, macro / flash /
+self-timer keys work); the scene picker is the film picker (12 cards = the 11 looks, PROVIA twice) with cartridge cards and film names; each roll is
+its own folder named after the film (PROV001, ACRO002 ...) under `FILMS/` on the card, counted per film; shots left counts down and the counter is
+right as soon as the dial moves; wind-on lock (front dial right); AE-L starts the next roll when full; "Roll full" text; no playback in SCENE; no
+quick review after a shot; short texts for the display (up) key; FILM on the mode dial.
+
+**Built, waiting for the owner's test (TL-F65o):** the look's cartridge in the bottom-left mode-icon spot (instead of "P"), the wind-on icon right
+after a shot, the roll-full icon, all painted without waiting for a key.
+
+**Left to do** (suggested order):
+- [ ] **Lock ISO to auto in the film camera.** The menu behaves like P, so ISO can still be changed there. Needs an AE-mode or menu-mask hook.
+- [ ] **Bleach Bypass previews black and white in live view** (the saved photo is right). TL-F65b gave style 9 its own live matrix slot (slot 9 of a
+  relocated 10-slot table, key word 0x03800C09) and it did not help. Look for another live stage that desaturates for style 9 (live tone / PCSE / the
+  invert stage at 0xC0447100), the key byte not reaching the loader (the slot is read as a signed byte), or the table pool word 0xC0447174 not
+  being the one this path uses. A diagnostic that shows the live slot would settle it.
+- [ ] **PLAY in SCENE shows the blue "File Error" screen** (the photos stay hidden, which is the goal). Dropping the PLAY event (type 0x11 in handler
+  0xC0494984) and the state requests 3 and 5 did not remove it: something else reacts to the same press (the mode manager?). Wanted: a friendly
+  "develop your film on a computer" screen instead. Note: dropping state 3 froze the camera after a few shots (3 is also the review after a shot).
+- [ ] **Show the look behind the picker.** While the highlight moves over the film cards the live view behind should preview that film. Needs the
+  SelectScene state's cursor-move handler (vtable near 0xC07C5844); not read yet. Probably needs a short diagnostic build that logs its events.
+  Also check that the card captions really come from strings 19..47 (Beauty Shot and Dawn also exist as strings 119 and 369).
+- [ ] **Big cartridge with the shots left inside** (owner's mock-up, docs/images/film-mode/film_sheet.png). TL-F65m moved the film icon (group 1009)
+  and the digit group (797) out of their parents; the icon vanished (the OSD probably clips a node to its parent's rectangle). `film_mode.layout` and
+  `badges.patch_big_cartridges` are kept in the tools, not applied. Ideas: keep everything inside the left column (100 px wide), or find a group
+  that can host both. Also still open from the mock-up: a larger wind-on / roll-full banner with art (today: the small icon plus the text pop-up).
+- [ ] **The live-view icon item** (the film cartridge in the left column) and the mode-icon spot both wait for redraws in places we do not hook;
+  check TL-F65o on the camera first.
+- [ ] **Housekeeping on the card:** rolls made before TL-F65i sit in the card root (PROV001, BLCH001, FILM001, FILM002 ...); move them into `FILMS`
+  to continue them. The DUAL IS and "play" mode tiles are reused for the roll-full and wind-on icons in the film build (neither mode shows in the
+  film camera's live view).
+- [ ] **Take the film camera into the plain build as an option** ("Pick what you want": separate switches for the fixes, the Fuji extras and the
+  film camera).
+
+Older notes from the first film-mode items (all done or superseded) are in docs/FEATURES.md.
 
 
 ## Headline features

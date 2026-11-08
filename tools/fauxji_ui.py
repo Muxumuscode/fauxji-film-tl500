@@ -390,7 +390,8 @@ DIAG_LOOKS = (11, 12)
 DIAG_FINDER_KEY = 14                         # the owner's AE-L button sends key 14 (state 1 = press); key 0 was never seen
 DIAG_POP_MS = 8000                           # long pop-up so the 8-digit values can be read: 0x7D << 6
 DIAG_POP_WORD = 0xE3A01D7D                   # mov r1,#8000   (stock: 0xE3A01E7D = #2000)
-DIAG_END = 0xC04272C0
+DIAG_END = 0xC04274A0                        # extended: the functions at 0xC04272C0 and 0xC04274B8 have no live caller (tools/liveness.py)
+DIAG_RING = 0xC04274A0                       # the state-change log (3 words: newest four ids, the four before, phase), zeroed by the build
 
 
 def diag_base():
@@ -401,10 +402,15 @@ def diag_base():
     return (end + 15) & ~15
 
 
+def diag_probe_state_site():
+    import diag_probe
+    return diag_probe.STATE_SITE, diag_probe.STATE_STOCK
+
+
 def diag_code():
     import diag_probe
     return diag_probe.build(diag_base(), buf0=STR_BASE, buf1=STR_BASE + STR_SLOT, arm_name=ARM_NAME, toast=TOAST_CODE,
-                            key_call=KEY_CALL[1], look0=DIAG_LOOKS[0], look1=DIAG_LOOKS[1], finder_key=DIAG_FINDER_KEY)
+                            key_call=KEY_CALL[1], look0=DIAG_LOOKS[0], look1=DIAG_LOOKS[1], finder_key=DIAG_FINDER_KEY, ring=DIAG_RING)
 
 
 def patch_diag(d):
@@ -419,6 +425,10 @@ def patch_diag(d):
     code, labels = diag_code()
     assert base + len(code) <= DIAG_END, hex(base + len(code))
     d[base - B:base - B + len(code)] = code
+    d[DIAG_RING - B:DIAG_RING - B + 12] = bytes(12)
+    ssite, sstock = diag_probe_state_site()
+    assert struct.unpack_from('<I', d, ssite - B)[0] in (sstock, _b(ssite, labels['statelog'])), hex(ssite)
+    struct.pack_into('<I', d, ssite - B, _b(ssite, labels['statelog']))      # state-change log (DIAG06)
     site, target = KEY_CALL
     assert struct.unpack_from('<I', d, site - B)[0] == _b(site, KEYHOOK, link=True), 'patch() first'
     struct.pack_into('<I', d, site - B, _b(site, base, link=True))

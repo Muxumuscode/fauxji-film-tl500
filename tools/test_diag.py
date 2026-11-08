@@ -101,59 +101,70 @@ for state in (0, 2, 3):
     if calls != [('stock', FK, state)]:
         fail('finder key non-press', state, calls)
 
-# 3. finder, one short value per press (the pop-up box fits about 13 characters): O: object, T: type, R: open result, then search again
-SHOW = [('arm', 12), ('toast', 12), ('stock', FK, 1)]
-for off in (0, 4, 0x20, 0x7C, 0xFC, 0x3FC):
-    k = off // 4
-    r = Rig(words={k: OBJ})
-    calls = r.press(FK, 1)
-    t = text(r.c, BUF1)
-    if t != 'O:%08X' % OBJ or calls != SHOW or len(t) > 13:
-        fail('find at', hex(off), repr(t), calls)
-    calls = r.press(FK, 1)
-    t = text(r.c, BUF1)
-    if t != 'T:%08X' % 0x64 or calls != SHOW:
-        fail('type', hex(off), repr(t), calls)
-    calls = r.press(FK, 1)
-    t = text(r.c, BUF1)
-    if t != 'R:00001234' or calls != [('open', OBJ, 0x64)] + SHOW:
-        fail('open', hex(off), repr(t), calls)
-    calls = r.press(FK, 1)
-    if text(r.c, BUF1) != 'O:%08X' % OBJ or any(c[0] == 'open' for c in calls):
-        fail('find again', hex(off), text(r.c, BUF1))
-    if not r.safe_reads():
-        fail('read outside RAM window', [hex(a) for a in r.stray()])
+# 3. the state-change log (DIAG06): statelog records every requested state id and hands on with the arguments untouched
+RING = ui.DIAG_RING
+M32 = 0xFFFFFFFF
 
-# 4. the manager global itself is the object
-r = Rig(mgr=OBJ, mgr_is_obj=True)
-r.press(FK, 1)
-if text(r.c, BUF1) != 'O:%08X' % OBJ:
-    fail('manager is object', text(r.c, BUF1))
 
-# 5. not found / junk: never opens, never reads outside the window
-junk = {0: 0x1234, 1: 0xC1000001, 2: 0xC4000000, 3: 0xBFFFFFFC, 4: 0xFFFFFFFF, 5: 0xDEADBEEF, 6: 0}
-for kw in (dict(mgr=0), dict(mgr=0x12345678), dict(mgr=0xC1000002), dict(words=junk, obj_chain=False)):
-    r = Rig(**kw)
-    for press in range(3):                          # a miss never arms anything: every press just searches again
-        calls = r.press(FK, 1)
-        t = text(r.c, BUF1)
-        if t != 'O:00000000' or calls != SHOW:
-            fail('not found', kw, press, repr(t), calls)
-        if any(c[0] == 'open' for c in calls):
-            fail('opened without an object', kw)
-    if not r.safe_reads():
-        fail('read outside RAM window', kw, [hex(a) for a in r.stray()])
+def fresh():
+    r = Rig()
+    for k in (0, 4, 8):
+        r.c.set32(RING + k, 0)
+    return r
 
-# 6. broken chain behind a found object: object shown, then the type reads FFFFFFFF, Open stays reachable
-r = Rig(words={3: OBJ}, obj_chain=False)
-r.c.set32(OBJ, P.VPTR)
-r.c.set32(OBJ + 0x118, 0x1234)                    # invalid DCF manager pointer
-r.press(FK, 1)
-if text(r.c, BUF1) != 'O:%08X' % OBJ:
-    fail('broken chain object', text(r.c, BUF1))
-r.press(FK, 1)
-if text(r.c, BUF1) != 'T:FFFFFFFF':
-    fail('broken chain type', text(r.c, BUF1))
+
+def statechange(r, ident):
+    c = r.c
+    seen = []
+    c.stubs[P.STATE_BACK] = lambda s: (seen.append((s.r[0], s.r[1], s.r[2], s.r[3], s.r[13], s.get32(s.r[13]), s.get32(s.r[13] + 32))), 'stop')[1]
+    for i in range(4, 13):
+        c.r[i] = r.saved[i]
+    c.r[0], c.r[1], c.r[2], c.r[3] = 0xA0, ident, 0xA2, 0xA3
+    c.run(LAB['statelog'], lr=0xBEEF0000, ret=0xCAFE0000)
+    if len(seen) != 1:
+        fail('statelog did not reach the stock function', ident, seen)
+        return
+    r0, r1, r2, r3, sp, top, savedlr = seen[0]
+    if (r0, r1, r2, r3) != (0xA0, ident, 0xA2, 0xA3):
+        fail('statelog changed the arguments', ident, seen)
+    if sp != 0x10000000 - 36 or top != r.saved[4] or savedlr != 0xBEEF0000:        # the replaced `push {r4-r8,sb,sl,fp,lr}` has run
+        fail('statelog stack / replaced push', ident, hex(sp), hex(top), hex(savedlr))
+    if not all(c.r[i] == r.saved[i] for i in range(4, 12)):          # r12 (ip) is scratch at a function's entry
+        fail('statelog changed callee-saved registers', ident)
+
+
+r = fresh()
+lo = hi = 0
+ids = [30, 4, 12, 3, 5, 11, 18, 2, 7, 300, 41, 0, 255, 39]
+for ident in ids:
+    statechange(r, ident)
+    hi = ((hi << 8) | (lo >> 24)) & M32
+    lo = ((lo << 8) | (ident & 255)) & M32
+    if (r.c.get32(RING), r.c.get32(RING + 4)) != (lo, hi):
+        fail('ring after', ident, hex(r.c.get32(RING)), hex(r.c.get32(RING + 4)), 'want', hex(lo), hex(hi))
+
+
+def shown(r):
+    calls = r.press(FK, 1)
+    if calls != [('arm', 12), ('toast', 12), ('stock', FK, 1)]:
+        fail('log display calls', calls)
+    return text(r.c, BUF1)
+
+
+# the AE-L key shows the newest four ids first ("S:"), the four before on the next press ("T:"), then starts again
+r = fresh()
+for ident in (30, 4, 12, 3, 5, 11, 18, 2):                  # 2 is the newest
+    statechange(r, ident)
+if (shown(r), shown(r), shown(r)) != ('S:02181105', 'T:03120430', 'S:02181105'):
+    fail('log display', text(r.c, BUF1))
+r = fresh()                                                  # an empty log
+if shown(r) != 'S:00000000':
+    fail('empty log display')
+r = fresh()                                                  # fewer than eight entries
+statechange(r, 7)
+statechange(r, 12)
+if shown(r) != 'S:12070000':
+    fail('log with two entries', text(r.c, BUF1))
 
 # 7. dial / non-key events (DIAG03): trampoline k shows "Dial L d", then the original handler runs with r0, r1 unchanged
 PAYLOAD, VT, DIRFN = 0xC1500000, 0xC1600000, 0xC1700000

@@ -12,10 +12,13 @@ Nothing of Samsung's is included in this repository.
 
 Current version: **TL-F62**, built on firmware **008264** only.
 
+Film camera build (`--film`, see below): **TL-F65o**, same firmware, in development on the `polish` branch.
+
 ## The main event: fixes that make the camera better to use
 
-- **Shutter that stays usable.** In P, A and S the slowest shutter stays at 1/60 s. Zooming in no longer pushes it up to 1/125 s
-  or faster, and the flash no longer raises it either. Stock, the camera quietly raised the minimum as you zoomed.
+- **Shutter that stays usable, with auto ISO.** In P, A and S the camera keeps a minimum shutter of 1/60 s and raises the ISO (up to 1600)
+  instead of slowing down. Stock, it quietly raised the minimum as you zoomed (1/125 s and faster, the zoom hand-shake shift), and the
+  flash raised it too: both are gone.
 - **Auto-ISO in manual.** Manual mode gets automatic ISO, so you set shutter and aperture and the camera picks the ISO.
 - **Highlight-friendly metering.** Metering is biased -0.3 EV in every mode, so skies and lamps blow out less. The exposure scale
   still reads 0.
@@ -49,9 +52,10 @@ Development is paused for a few days and should pick up again around the end of 
 
 - **Pick what you want.** Separate options for the fixes and the Fuji extras, so you can take just the fixes (the main point) and
   leave the looks and the new interface out, or the other way round.
-- **Film camera mode.** The SCENE spot on the mode dial becomes a film-camera mode: a simpler screen with a big roll counter, no
-  picture review after each shot, a film-stock picker in place of the scene picker, and the front scroll wheel winding the film
-  between shots. This one needs a few test builds, so it will take a while.
+- **Film camera mode** (working, in the `--film` build). The SCENE spot on the mode dial is a film camera: it behaves like P with the 1/60
+  minimum shutter and auto ISO, the scene picker is a film picker (11 looks as cartridges), every roll is its own folder named after the
+  film under `FILMS/` on the card (PROV001, ACRO002 ...), the shots-left counter counts the 36 frames, the front dial winds the film on between
+  shots (wind-on lock), AE-L starts the next roll, and photos cannot be reviewed on the camera. What is left is listed in docs/ROADMAP.md.
 - **Smaller ideas:** custom recipe slots with ready-made looks, the film look shown in playback, an orange film-style date stamp.
 
 Ideas and bug reports are welcome in the issue tracker.

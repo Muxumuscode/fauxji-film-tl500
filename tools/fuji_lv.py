@@ -39,6 +39,8 @@ MODE_TAGS = {115: 'SR+', 1: 'P', 8: 'A', 116: 'S', 9: 'M', 231: 'DUAL', 0: 'movi
              317: 'SCN'}
 DIAL_TAGS = {107: 'A', 108: 'DUAL', 109: 'M', 110: 'movie', 111: 'P', 113: 'S', 226: 'SR+',
              112: 'SCN'}
+# film build (build_fauxji.py --film): the SCENE position of the mode dial reads FILM
+FILM_BUILD, FILM_TAG, SCENE_SELECTED, SCENE_GREY = False, 'FILM', 317, 112
 ORANGE_TILES = tuple(range(140, 156)) + (316, 520)
 # Status icons of the live-view tree (58x58, 64x64, 58x54; grey-white shaded glyphs with a
 # dark edge, mean saturation <= 20): flattened to white with a near-black edge. Excludes
@@ -363,9 +365,9 @@ def patch_skin(k):
     offs = skin.images(bytes(k))
     new = {}
     for i, t in MODE_TAGS.items():
-        new[i] = tag(t, True)
+        new[i] = tag(FILM_TAG if FILM_BUILD and i == SCENE_SELECTED else t, True)
     for i, t in DIAL_TAGS.items():
-        new[i] = tag(t, False)
+        new[i] = tag(FILM_TAG if FILM_BUILD and i == SCENE_GREY else t, False)
     for i, (w, h) in STRIPS.items():
         new[i] = Image.new('RGBA', (w, h), STRIP)
     for i in KEY_CAPS:

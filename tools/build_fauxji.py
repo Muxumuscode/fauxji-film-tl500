@@ -35,10 +35,10 @@ PATCHES = os.path.join(HERE, '..', 'patches')
 LABEL_AT, LABEL = 0x792493, b'TL-F62\0\0'          # version string the camera shows (8 bytes; stock 'TL500-U')
 
 
-DIAG_LABEL = b'TL-D05\0\0'                      # --diag-keys build: key numbers, dial events, file-list finder (tools/diag_probe.py)
+DIAG_LABEL = b'TL-D06\0\0'                      # --diag-keys build: key numbers, dial events, file-list finder (tools/diag_probe.py)
 
 
-FILM_LABEL = b'TL-F64f\0'                       # --film build: film camera mode, folder + shots left + wind-on lock (tools/film_mode.py)
+FILM_LABEL = b'TL-F65o\0'                       # --film build: film camera mode, folder + shots left + wind-on lock (tools/film_mode.py)
 
 
 def build_elf(stock, diag_keys=False, film=False):
@@ -61,12 +61,15 @@ def build_elf(stock, diag_keys=False, film=False):
     return bytes(d)
 
 
-def build_rom(stock):
+def build_rom(stock, film=False):
     d = stock
     for p in json.load(open(os.path.join(PATCHES, 'fauxji_text.json')))['passes']:
         ents, _ = spid_strings.read_table(d)
         changes = {int(i): (ents[int(i)][2] if t is None else t) for i, t in p['changes'].items()}
         d, _ = spid_strings.rewrite(d, changes)
+    if film:                                       # the scene picker is the film picker: films' names and blurbs on the 12 cards
+        import film_mode, film_mode_art
+        d, _ = spid_strings.rewrite(d, {**film_mode.card_strings([t[1] for t in film_mode_art.INFO]), **film_mode.DISPLAY_TEXT})
     boot, _ = bootscreen.fit(bootscreen.render('firmware'))
     d = spid_files.replace(d, 'bg_power_on_off_422.jpg', boot)
     for name, fn in sounds.SOUNDS.items():
@@ -75,6 +78,23 @@ def build_rom(stock):
     rec, off, size, slot = spid_files.directory(d)['skin.bin']
     d = spid_files.replace(d, 'skin.bin', fauxji_playback.patch_skin(fuji_lv.patch_skin(fuji_menu.patch_skin(
         fauxji_layout.patch_skin(badges.patch_skin(d[off:off + size]))))))
+    if film:                                       # cartridge cards in the picker
+        rec, off, size, slot = spid_files.directory(d)['skin.bin']
+        import film_mode
+        d = spid_files.replace(d, 'skin.bin', badges.patch_cards(d[off:off + size], film_mode.CARD_IMAGE,
+                                                                 film_mode.CARD_LOOK))
+    if film:                                       # the mode icon of the live view: the scene's own icon becomes the film's cartridge
+        rec, off, size, slot = spid_files.directory(d)['skin.bin']
+        import film_mode
+        d = spid_files.replace(d, 'skin.bin', badges.patch_scene_tiles(d[off:off + size],
+                                                                       {img: film_mode.CARD_LOOK[c] for c, img in film_mode.SCENE_TILES.items()}))
+    if film:                                       # the wind-on and roll-full icons (the 'play' and 'DUAL IS' mode tiles never show in the film camera)
+        rec, off, size, slot = spid_files.directory(d)['skin.bin']
+        import film_mode
+        d = spid_files.replace(d, 'skin.bin', badges.patch_state_tiles(d[off:off + size], {film_mode.IMG_WIND: badges.wind_tile,
+                                                                                        film_mode.IMG_FULL: badges.full_tile}))
+    # (the big cartridge with the count moved the film icon out of its parent group and the owner saw no icon at all: film_mode.layout and
+    #  badges.patch_big_cartridges stay in the tools but are not applied)
     d = fuji_menu.patch_rom(d)                     # Fuji-style menu background, tabs, animations
     d = fuji_lv.patch_rom(d)                       # Fuji-style mode dial wheel
     return d
@@ -91,8 +111,10 @@ def main():
     os.makedirs(out, exist_ok=True)
     fauxji.STOCK_ELF = os.path.join(src, ELF)      # the recipes read stock tables from here
     sounds.STOCK_ROM = os.path.join(src, ROM)      # the shutter sound is reshaped from here
+    badges.DESIGN = 'cartridge' if '--film' in args else 'canister'
+    fuji_lv.FILM_BUILD = '--film' in args                                # the mode dial's SCENE position reads FILM     # the film build gets the cartridge artwork everywhere the looks are shown
     files = {ELF: build_elf(open(os.path.join(src, ELF), 'rb').read(), '--diag-keys' in args, '--film' in args),
-             ROM: build_rom(open(os.path.join(src, ROM), 'rb').read())}
+             ROM: build_rom(open(os.path.join(src, ROM), 'rb').read(), '--film' in args)}
     for f in ('ONBL1.bin', 'ONBL2.bin', 'FWUP'):
         files[f] = open(os.path.join(src, f), 'rb').read()
     for f, data in files.items():

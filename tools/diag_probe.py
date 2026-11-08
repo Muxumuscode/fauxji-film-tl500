@@ -17,7 +17,7 @@ import struct
 
 M = 0xFFFFFFFF
 R0, R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, IP, LR, PC = 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 15
-AND, SUB, ADD, TST, CMP, MOV, MVN = 0, 2, 4, 8, 10, 13, 15
+AND, SUB, ADD, TST, CMP, ORR, MOV, MVN = 0, 2, 4, 8, 10, 12, 13, 15
 EQ, NE, HS, LO, GE, LT, AL = 0x0, 0x1, 0x2, 0x3, 0xA, 0xB, 0xE
 
 VPTR = 0xC074EA7C            # CSFileList vtable pointer (stored by its constructor, literal at 0xC01A664C)
@@ -131,8 +131,11 @@ DIAL_SITES = ((0xC04C21FC, 0xC04BF860), (0xC04C2228, 0xC04C06E0), (0xC04C22D0, 0
 GET_SYSVAL = 0xC048F81C                            # GET_SYSVAL(3) = shooting mode (see fauxji_rot.py)
 
 
+STATE_SITE, STATE_BACK, STATE_STOCK = 0xC0491150, 0xC0491154, 0xE92D4FF0   # state-change function: entry `push {r4-r8,sb,sl,fp,lr}`
+
+
 def probe(base, buf0, buf1, arm_name, toast, key_call, look0=11, look1=12, finder_key=FINDER_KEY,
-          dial_targets=tuple(t for _, t in DIAL_SITES), get_sysval=GET_SYSVAL):
+          dial_targets=tuple(t for _, t in DIAL_SITES), get_sysval=GET_SYSVAL, ring=0, state_back=STATE_BACK):
     """Machine code of the probe; entry = base. buf0 / buf1 = the two 40-byte text slots (UTF-16)."""
     a = Asm(base)
     # ---- entry: replaces `bl key_call`
@@ -168,100 +171,41 @@ def probe(base, buf0, buf1, arm_name, toast, key_call, look0=11, look1=12, finde
     a.label('exit')
     a.w(pop(0x47FF))
     a.b(AL, key_call)
-    # ---- finder key press
+    # ---- finder key (AE-L) press: show the state-change log (DIAG06). The ring holds the last 8 state ids the camera was asked to go to
+    # (one byte each, newest in the low byte of word 0, then word 1); press 1 shows the newest four as "S:" + four 2-digit ids (newest
+    # first), press 2 the four before as "T:", then it starts again.
     a.label('find')
-    a.lit(R7, None)                                # r7 = &vars: [0] object, [4] type, [8] phase (0 find, 1 type, 2 open)
-    a.w(ldr(R2, R7, 8))
-    a.w(cmp_i(R2, 1))
-    a.b(EQ, 'showtype')
-    a.w(cmp_i(R2, 2))
-    a.b(EQ, 'openit')
-    a.lit(R9, MANAGER_GLOBAL)
-    a.w(ldr(R9, R9, 0))                            # manager object
-    a.w(mov_i(R6, 0))                              # found object
-    a.w(mov_r(R0, R9))
-    a.b(AL, 'valid', link=True)
-    a.w(cmp_i(IP, 0))
-    a.b(EQ, 'fdone')
-    a.lit(R2, VPTR)
-    a.w(ldr(R3, R9, 0), cmp_r(R3, R2), mov_r(R6, R9, EQ))      # the global may be the object itself
-    a.b(EQ, 'fdone')
-    a.w(mov_i(R8, 0))
-    a.label('scan')
-    a.w(ldr_x(R0, R9, R8), mov_r(R10, R0))
-    a.b(AL, 'valid', link=True)
-    a.w(cmp_i(IP, 0))
-    a.b(EQ, 'next')
-    a.lit(R2, VPTR)
-    a.w(ldr(R3, R10, 0), cmp_r(R3, R2), mov_r(R6, R10, EQ))
-    a.b(EQ, 'fdone')
-    a.label('next')
-    a.lit(R3, 0x400)
-    a.w(add_i(R8, R8, 4), cmp_r(R8, R3))
-    a.b(LT, 'scan')
-    a.label('fdone')
-    a.w(str_(R6, R7, 0))                           # vars[0] = object
-    a.w(mvn_i(R9, 0))                              # type: unknown
-    a.w(cmp_i(R6, 0))
-    a.b(EQ, 'showf')
-    a.w(ldr(R0, R6, 0x118))                        # DCF manager
-    a.b(AL, 'valid', link=True)
-    a.w(cmp_i(IP, 0))
-    a.b(EQ, 'showf')
-    a.w(ldr(R0, R0, 0x10))                         # DCF list
-    a.b(AL, 'valid', link=True)
-    a.w(cmp_i(IP, 0))
-    a.b(EQ, 'showf')
-    a.w(ldr(R9, R0, 0x20))                         # media type
-    a.label('showf')
-    a.w(str_(R9, R7, 4))                           # vars[1] = type
-    a.w(cmp_i(R6, 0), mov_i(R2, 1, NE), mov_i(R2, 0, EQ), str_(R2, R7, 8))   # next press shows the type, only when an object was found
-    a.w(mov_i(R0, ord('O')), mov_r(R9, R6))
-    a.b(AL, 'txt')
-    # ---- second press: the media type
-    a.label('showtype')
-    a.w(mov_i(R2, 2), str_(R2, R7, 8))             # next press opens
-    a.w(ldr(R9, R7, 4), mov_i(R0, ord('T')))
-    a.b(AL, 'txt')
-    # r0 = letter, r9 = value: "X:vvvvvvvv" in text slot 1 and show it. One short value per press: the pop-up box fits about
-    # 13 characters on one line (the first version put two values on a line and it wrapped and was cut off)
-    a.label('txt')
+    a.lit(R7, ring)
+    a.w(ldr(R2, R7, 8), cmp_i(R2, 0))
+    a.b(NE, 'log2')
+    a.w(ldr(R9, R7, 0), mov_i(R2, 1), str_(R2, R7, 8), mov_i(R6, ord('S')))
+    a.b(AL, 'logfmt')
+    a.label('log2')
+    a.w(ldr(R9, R7, 4), mov_i(R2, 0), str_(R2, R7, 8), mov_i(R6, ord('T')))
+    a.label('logfmt')
     a.lit(R1, buf1)
-    a.w(strh(R0, R1, 0), mov_i(R0, ord(':')), strh(R0, R1, 2), add_i(R1, R1, 4))
-    a.w(mov_r(R0, R9))
-    a.b(AL, 'hex8', link=True)
-    a.w(mov_i(R0, 0), strh(R0, R1, 0))
-    a.w(mov_i(R8, look1))
+    a.w(strh(R6, R1, 0), mov_i(R0, ord(':')), strh(R0, R1, 2), add_i(R1, R1, 4), mov_i(R8, 4))
+    a.label('idl')
+    a.w(lsl_i(R2, R9, 24), lsr_i(R2, R2, 24), lsr_i(R9, R9, 8), mov_i(R3, 0x30))
+    a.label('idt')
+    a.w(cmp_i(R2, 10), sub_i(R2, R2, 10, GE), add_i(R3, R3, 1, GE))
+    a.b(GE, 'idt')
+    a.w(strh(R3, R1, 0), add_i(R2, R2, 0x30), strh(R2, R1, 2), add_i(R1, R1, 4), sub_i(R8, R8, 1), cmp_i(R8, 0))
+    a.b(NE, 'idl')
+    a.w(mov_i(R0, 0), strh(R0, R1, 0), mov_i(R8, look1))
     a.b(AL, 'show')
-    # ---- third press: rescan
-    a.label('openit')
-    a.w(mov_i(R2, 0), str_(R2, R7, 8))             # disarm
-    a.w(ldr(R0, R7, 0), ldr(R1, R7, 4))            # object, media type
-    a.b(AL, OPEN, link=True)
-    a.w(mov_r(R9, R0), mov_i(R0, ord('R')))
-    a.b(AL, 'txt')
-    # ---- ip = 1 if r0 is 4-aligned and inside the RAM window (r0 kept)
-    a.label('valid')
-    a.w(mov_i(IP, 0))
-    a.lit(R1, RAM_LO)
-    a.w(cmp_r(R0, R1))
-    a.b(LO, 'vret')
-    a.lit(R1, RAM_HI)
-    a.w(cmp_r(R0, R1))
-    a.b(HS, 'vret')
-    a.w(tst_i(R0, 3))
-    a.b(NE, 'vret')
-    a.w(mov_i(IP, 1))
-    a.label('vret')
-    a.w(MOV_PC_LR)
-    # ---- hex8: write r0 as 8 UTF-16 hex digits at [r1], r1 advances; clobbers r0, r2, r3
-    a.label('hex8')
-    a.w(mov_i(R2, 8))
-    a.label('hx')
-    a.w(lsr_i(R3, R0, 28), cmp_i(R3, 10), add_i(R3, R3, 0x30, LO), add_i(R3, R3, 0x37, HS),
-        strh(R3, R1, 0), add_i(R1, R1, 2), lsl_i(R0, R0, 4), sub_i(R2, R2, 1), cmp_i(R2, 0))
-    a.b(NE, 'hx')
-    a.w(MOV_PC_LR)
+    # ---- the state-change log hook: the entry of the camera's state-change function 0xC0491150(fsm, id, ...) is replaced by a branch
+    # here; r1 = the requested state id. Pushes the replaced instruction and goes on at the second instruction.
+    a.label('statelog')
+    a.w(push(0x400F))                                        # push {r0-r3, lr}
+    a.lit(R2, ring)
+    a.w(ldr(R3, R2, 0), ldr(IP, R2, 4))
+    a.w(lsl_i(IP, IP, 8), dp_r(ORR, IP, IP, R3, shift=1, amt=24))        # hi = hi << 8 | lo >> 24
+    a.w(lsl_i(R3, R3, 8), lsl_i(R0, R1, 24), lsr_i(R0, R0, 24), dp_r(ORR, R3, R3, R0))   # lo = lo << 8 | (id & 255)
+    a.w(str_(R3, R2, 0), str_(IP, R2, 4))
+    a.w(pop(0x400F))
+    a.w(0xE92D4FF0)                                          # the replaced instruction: push {r4-r8, sb, sl, fp, lr}
+    a.b(AL, state_back)
     # ---- DIAG03: dial / non-key events. The live-view state handler 0xC04C1F04 tells event classes apart by type name and calls one
     # handler per class; each `bl handler` is replaced by `bl tramp_k` (r2 = the original handler, r3 = k), which shows
     # "Dial L d" (L = W wheel dial, C click dial, D drive / half-shutter dial, M mode dial; d = the wheel's direction flag, 0 for the
@@ -306,14 +250,6 @@ def probe(base, buf0, buf1, arm_name, toast, key_call, look0=11, look1=12, finde
 
 
 def build(base, **kw):
-    """(code bytes, labels). The `ldr r7,=&vars` literal needs the address of the data words that follow the literal pool, and
-    the pool size does not depend on it, so one dry run finds the address."""
+    """(code bytes, labels)."""
     a = probe(base, **kw)
-    slot = next(k for k, it in enumerate(a.items) if it[0] == 'lit' and it[2] is None)
-    a.items[slot] = ('lit', R7, 0)
-    a.build()
-    vars_addr = a.labels['VARS_OBJ']
-    a.items[slot] = ('lit', R7, vars_addr)
-    code = a.build()
-    assert a.labels['VARS_OBJ'] == vars_addr
-    return code, a.labels
+    return a.build(), a.labels

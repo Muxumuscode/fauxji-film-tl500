@@ -144,7 +144,7 @@ def fit(text, make, max_w, max_h, start, squeeze=1.0):
     return make(4)
 
 
-def canister(h, number, film, dim=False, ss=3, code=None):
+def canister(h, number, film, dim=False, ss=3, code=None, detail=True, flat=False, vcode=False, crisp=False):
     """35 mm cartridge from the product photos (see the module docstring): black plastic caps and spool knob, label with a white strip
     on the left (the frame count, or `code` in the picker), the film name vertical in white on the colour field, an optional band,
     a green foot, the leader with sprocket holes out of the slit. number = None: no digits. Returns an RGBA image h tall."""
@@ -177,10 +177,16 @@ def canister(h, number, film, dim=False, ss=3, code=None):
     lw, lh = round(60 * u), round(80 * u)
     label = Image.new('RGBA', (lw, lh), (0, 0, 0, 0))
     ld = ImageDraw.Draw(label)
-    sw = round(28 * u)                                                   # white strip width
+    if crisp:
+        ld.fontmode = '1'                                               # skin icons: no anti-aliasing (few flat colours, long runs)
+    sw = round(28 * u)                                                  # white strip width
     ld.rectangle([0, 0, sw, lh], fill=strip + (255,))
     fx0 = sw
-    label.alpha_composite(gradient(lw - fx0, round(64 * u), ftop, fbot), (fx0, 0))
+    if flat:                                                             # small skin icons: one colour (a gradient bands badly at 64 px)
+        mid = tuple((a_ + b_) // 2 for a_, b_ in zip(ftop, fbot))
+        ld.rectangle([fx0, 0, lw, round(64 * u)], fill=mid + (255,))
+    else:
+        label.alpha_composite(gradient(lw - fx0, round(64 * u), ftop, fbot), (fx0, 0))
     ld.rectangle([fx0, round(64 * u), lw, lh], fill=green + (255,))      # green foot
     if band:
         ld.rectangle([fx0, round(52 * u), lw, round(62 * u)], fill=band + (255,))
@@ -188,7 +194,7 @@ def canister(h, number, film, dim=False, ss=3, code=None):
     ld.line([fx0, 0, fx0, lh], fill=(0, 0, 0, 40), width=max(1, round(0.5 * u)))
     field_h = (50 if band else 62) * u
     cx = fx0 + (lw - fx0) / 2
-    if h >= 110:
+    if h >= 110 and detail:
         fnm = fit(name, name_font, field_h - 8 * u, 15 * u, round(16 * u), NAME_SQUEEZE)
         vtext(label, name, fnm, cx, field_h / 2 + 1 * u, white, NAME_SQUEEZE)
     # frame count (or the picker's short code) on the white strip
@@ -203,12 +209,20 @@ def canister(h, number, film, dim=False, ss=3, code=None):
             for k, tx in enumerate(('135', 'EXP.')):
                 l, t, r, b = fs.getbbox(tx)
                 ld.text((sw / 2 - (r - l) / 2 - l, (50 + 7 * k) * u - t), tx, font=fs, fill=(70, 70, 74, 255))
+    elif code and vcode:                                                # icons: the code as upright letters, one above the other, down the strip
+        n = len(code)
+        cell = (lh - 8 * u) / n                                         # room for each letter
+        fv = fit('W', font, sw - 6 * u, cell * 0.92, round(60 * u))     # the widest letter must fit the strip, every letter its cell
+        for k, ch in enumerate(code):
+            l, t, r, b = fv.getbbox(ch)
+            cy = 4 * u + cell * (k + 0.5)
+            ld.text((sw / 2 - (r - l) / 2 - l, cy - (b - t) / 2 - t), ch, font=fv, fill=ink + (255,))
     elif code:
         fc = fit(code, font, sw - 9 * u, 20 * u, round(30 * u))
         l, t, r, b = fc.getbbox(code)
         ld.text((sw / 2 - (r - l) / 2 - l, 30 * u - (b - t) / 2 - t), code, font=fc, fill=ink + (255,))
     # cylinder shading: darker towards both edges
-    for k in range(round(4 * u)):
+    for k in range(0 if crisp else round(4 * u)):
         a = round(46 * (1 - k / (4 * u)) ** 2)
         ld.line([k, 0, k, lh], fill=(0, 0, 0, a))
         ld.line([lw - 1 - k, 0, lw - 1 - k, lh], fill=(0, 0, 0, a))
