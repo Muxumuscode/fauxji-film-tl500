@@ -10,9 +10,9 @@ Nothing of Samsung's is included in this repository.
 > trademarks. They are used here only to say which look each setting imitates.
 > **Flash at your own risk.** See [Safety](#safety) first. You are changing the software of a camera that is out of production.
 
-Current version: **TL-F62**, built on firmware **008264** only.
+Current version: **TL-F63**, built on firmware **008264** only.
 
-Film camera build (`--film`, see below): **TL-F65o**, same firmware, in development on the `polish` branch.
+Film camera build (`--film`, see below): **TL-F65t**, same firmware, in development on the `polish` branch.
 
 ## The main event: fixes that make the camera better to use
 
@@ -45,15 +45,22 @@ cartridges. The `--film` build uses them everywhere; the plain build still has t
 
 ## Film camera mode (new in v0.3, experimental)
 
-Build it with `python tools/build_fauxji.py <stock dir> <out dir> --film` (version label TL-F65o). The SCENE spot on the mode dial becomes a
+Build it with `python tools/build_fauxji.py <stock dir> <out dir> --film` (version label TL-F65t). The SCENE spot on the mode dial becomes a
 film camera:
 
 - It behaves like P: the 1/60 minimum shutter with auto ISO, open menus, and macro, flash and self-timer on the direction keys.
-- The scene picker is a film picker: one cartridge card per look (11 looks; PROVIA appears twice to fill the twelve cards).
-- Every roll of 36 is its own folder named after the film (PROV001, ACRO002 ...) under `FILMS/` on the card, outside DCIM, so normal
-  playback never lists them. Rolls are counted per film, and a part-shot roll continues when you pick its film again.
-- The shots-left counter counts the roll down. After every shot the front dial must be turned right to wind on (a wind-on icon shows); AE-L
-  starts the next roll when the roll is full (a roll-full icon shows).
+- The scene picker is a film picker: one cartridge card per look (11 looks), and a twelfth card, **Mystery**: every mystery roll is loaded
+  with a surprise look. The camera doesn't show which one (the live view still does, of course); you find out when you develop it.
+- Every roll of 36 is its own folder named after the film (PROV001, ACRO002, MYST001 ...) under `FILMS/` on the card, outside DCIM, so
+  normal playback never lists them. Rolls are counted per film, and a part-shot roll continues when you pick its film again.
+- The counter counts up like a film camera's: it shows the frame you are about to shoot (1 to 36). After every shot the front dial must be
+  turned right to wind on (a wind-on icon shows); AE-L starts the next roll when the roll is full (a roll-full icon shows).
+- Every photo says what made it: EXIF Make **FAUXJI FILM**, Model **TL500 Classic Chrome** (the film it was shot on, also in P, A, S and
+  M), Software the build label. Photo apps that group by camera then group by film.
+- Turning the front dial to wind on plays a ratchet click (when the camera's sounds are on).
+- Every film photo gets an orange '90s date stamp, `26 11 08` in seven-segment digits, burned into the JPEG like a film camera's date back
+  (outside the film camera the Imprint setting works as before).
+- The FAUXJI FILM TL500 boot screen (its original text, redrawn).
 - No picture review on the camera: PLAY shows a file-error screen instead, and there is no quick review after a shot. Develop your film on a
   computer: the photos are on the card.
 
@@ -64,6 +71,15 @@ film camera:
 Still rough: Bleach Bypass looks black and white in the live view (the saved photo is right), ISO can still be changed in the menu in this
 mode, and the newest icon painting is not yet confirmed on a camera. The full list is in [docs/ROADMAP.md](docs/ROADMAP.md).
 
+## Sajin Genzō 사진現像: develop your rolls on a computer
+
+[safelight/](safelight/README.md) is the desktop photo lab that goes with the film camera (Windows and Linux): it finds the rolls on the card,
+shows them as negatives on a light table, keeps mystery rolls secret until they are developed, and develops whole rolls like a lab
+(push / pull, developers, cross-processing, bleach bypass, expired film, grain, halation, light leaks, papers and borders) into prints and a
+contact sheet. You can view any negative large and rotate sideways shots. It also works for photos from any camera or phone (pick a film,
+the lab adds its colour). **Download** SajinGenzo.exe (Windows) from the [Releases page](https://github.com/Muxumuscode/fauxji-film-tl500/releases);
+an Android version is planned ([safelight/ANDROID.md](safelight/ANDROID.md)). Build it with `safelight/build.ps1` (Windows) or `safelight/build.sh` (Linux).
+
 ## Coming up
 
 Next on the list, no promises on order:
@@ -72,7 +88,8 @@ Next on the list, no promises on order:
   and leave the rest out, or the other way round.
 - **Film camera polish.** Lock ISO to auto, a friendly "develop your film" screen instead of the file error, the look previewed behind the
   film picker, and a bigger cartridge with the shots left inside it.
-- **Smaller ideas:** custom recipe slots with ready-made looks, the film look shown in playback, an orange film-style date stamp.
+
+- **Smaller ideas:** custom recipe slots with ready-made looks, the film look shown in playback.
 
 Ideas and bug reports are welcome in the issue tracker.
 
@@ -114,7 +131,7 @@ The bootloader files (`ONBL1.bin`, `ONBL2.bin`) and `FWUP` are copied unchanged.
    `DSC: FULL <current> -> <new>`). Start the update as Samsung's own firmware instructions for the TL500 describe.
 3. Do not switch the camera off or remove the battery until it finishes. Remove the card afterwards.
 
-The camera's version screen should now read **TL-F62**.
+The camera's version screen should now read **TL-F63** (builds made before 8 Nov 2026 said TL-F62 for the same firmware).
 
 ## Safety
 
