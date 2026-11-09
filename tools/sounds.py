@@ -166,6 +166,25 @@ def shutter_f2():
     return x / np.abs(x).max() * 20000
 
 
+def ratchet():
+    """Film build: the wind-on lever / thumb wheel. A pawl clicking over five ratchet teeth, speeding up a little, then the heavier clunk of
+    the frame stop. Synthesized (no samples). Not played by the camera yet: the call that starts a sound from our code is not found
+    (docs/ROADMAP.md, "Wind-on sound"); `python tools/sounds.py preview <dir>` writes it as fauxji_ratchet.wav (also in docs/sounds/ratchet.wav)."""
+    rng = np.random.default_rng(36)
+    n_total = int(0.20 * RATE)
+    x = np.zeros(n_total)
+    n = int(0.03 * RATE)
+    for k, t0 in enumerate((0.000, 0.026, 0.050, 0.072, 0.092)):            # the teeth
+        c = _clack(n, rng, 5400 + 300 * k, 0.7, rattle=1) * (0.45 + 0.08 * k)
+        i = int(t0 * RATE)
+        x[i:i + n] += c[:n_total - i]
+    c = _clack(int(0.06 * RATE), rng, 2300, 1.8, rattle=3)                 # the frame stop
+    i = int(0.125 * RATE)
+    x[i:i + len(c)] += c[:n_total - i]
+    x *= np.exp(-np.maximum(0, np.arange(n_total) / RATE - 0.17) / 0.01)
+    return x / np.abs(x).max() * 18000
+
+
 SOUNDS = {'shutter': shutter_f2, 'chime': chime}
 
 # The shutter sounds the camera actually plays are built into the program, not read
@@ -194,7 +213,7 @@ if __name__ == '__main__':
     cmd = sys.argv[1]
     if cmd == 'preview':
         os.makedirs(sys.argv[2], exist_ok=True)
-        clips = {'chime': chime()}
+        clips = {'chime': chime(), 'ratchet': ratchet()}
         clips.update({'shutter_%s' % k: shutter(k) for k in SHUTTERS})
         clips.update({'shutter_v3_%s' % k: shutter_v3(k) for k in SHUTTERS_V3})
         for name, x in clips.items():

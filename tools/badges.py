@@ -239,6 +239,8 @@ def card(film, w=256, h=285):
     im = Image.new('RGBA', (w, h), (50, 50, 51, 255))
     ImageDraw.Draw(im).rectangle([0, 0, w - 1, h - 1], outline=(99, 100, 102, 255), width=2)
     ch = h - 40
+    if film >= len(fma.FILMS):                               # the mystery roll (film_mode.MYSTERY): a blank dark cartridge and a big orange '?'
+        return mystery_card(w, h)
     cart = fma.canister(ch * 2, None, film, ss=2, code=fma.FILMS[film][1], detail=True, vcode=True)
     cart = cart.resize((round(cart.width * ch / cart.height), ch), Image.LANCZOS)
     im.alpha_composite(cart, ((w - cart.width) // 2, (h - ch) // 2))
@@ -260,6 +262,29 @@ def patch_cards(k, card_image, card_look):
             raise ValueError('card image %d is %d bytes, slot %d' % (idx, len(blk), size))
         k[a:a + len(blk)] = blk
     return bytes(k)
+
+
+def mystery_card(w=256, h=285):
+    """The mystery roll's picker card: the ACROS cartridge body (near-black, says nothing about the film) with '?' on the strip, and a large
+    orange question mark over the colour field."""
+    import film_mode_art as fma
+    im = Image.new('RGBA', (w, h), (50, 50, 51, 255))
+    d = ImageDraw.Draw(im)
+    d.rectangle([0, 0, w - 1, h - 1], outline=(99, 100, 102, 255), width=2)
+    ch = h - 40
+    fma.FILMS.append(('', '?', (40, 40, 44), (18, 18, 20), 'mystery: no name, plain dark field'))   # a nameless film, for this drawing only
+    try:
+        cart = fma.canister(ch * 2, None, len(fma.FILMS) - 1, ss=2, code='?', detail=True, vcode=False)
+    finally:
+        fma.FILMS.pop()
+    cart = cart.resize((round(cart.width * ch / cart.height), ch), Image.LANCZOS)
+    x0, y0 = (w - cart.width) // 2, (h - ch) // 2
+    im.alpha_composite(cart, (x0, y0))
+    q = fma.font(int(ch * 0.55))
+    cx, cy = x0 + cart.width * 0.58, y0 + ch * 0.50
+    for dx, dy, col in ((3, 3, (0, 0, 0, 200)), (0, 0, ORANGE_TILE)):
+        d.text((cx + dx, cy + dy), '?', font=q, fill=col, anchor='mm', stroke_width=2, stroke_fill=(20, 20, 20, 255))
+    return im.convert('RGB').quantize(colors=48, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE).convert('RGBA')
 
 
 def scene_tile(film, w=58, h=54):

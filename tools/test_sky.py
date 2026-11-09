@@ -30,6 +30,7 @@ class CPU:
             n=op.shift.value
             if op.shift.type==ARM_SFT_LSL: v=(v<<n)&M32
             elif op.shift.type==ARM_SFT_LSR: v=v>>n
+            elif op.shift.type==ARM_SFT_ASR: v=((v-(1<<32) if v>>31 else v)>>n)&M32
             else: raise Exception('shift')
         return v
     def ri(s,reg):
@@ -55,11 +56,12 @@ class CPU:
                 pass
             base=m
             import re
-            mm=re.match(r'^(push|pop|stmdb|ldm|mvn|mov|add|cmp|ldrsh|ldrh|ldrb|ldr|strh|strb|str|tst|umull|orr|sub|and|lsl|lsr)',m); base=mm.group(1) if mm else None
+            mm=re.match(r'^(push|pop|stmdb|ldm|mvn|mov|add|cmp|ldrsh|ldrh|ldrb|ldr|strh|strb|str|tst|umull|orr|sub|and|rsb|lsl|lsr)',m); base=mm.group(1) if mm else None
             if i.id==ARM_INS_B: base='b'
             if i.id==ARM_INS_BL: base='bl'
             if i.id==ARM_INS_LSL: base='lsl'
             if i.id==ARM_INS_LSR: base='lsr'
+            if i.id==ARM_INS_ASR: base='asr'
             if base in('stmdb','ldm'): ops=ops[1:]               # capstone lists the base register (sp!) first; it is not in the register list
             if base=='stmdb': base='push'
             if base=='ldm': base='pop'
@@ -79,11 +81,13 @@ class CPU:
                 s.C=(a>=b) if base=='sub' else (a+b>M32)
                 s.V=(((a^b)&(a^res))>>31) if base=='sub' else ((~(a^b)&(a^res))>>31)&1
                 s.r[rd]=res
-            elif base in('mov','add','orr','sub'):
+            elif base in('mov','add','orr','sub','and','rsb'):
                 rd=s.ri(ops[0].reg)
                 if base=='mov': v=s.val(ops[1],pc)
                 elif base=='add': v=(s.val(ops[1],pc)+s.val(ops[2],pc))&M32
                 elif base=='sub': v=(s.val(ops[1],pc)-s.val(ops[2],pc))&M32
+                elif base=='rsb': v=(s.val(ops[2],pc)-s.val(ops[1],pc))&M32
+                elif base=='and': v=s.val(ops[1],pc)&s.val(ops[2],pc)
                 else: v=s.val(ops[1],pc)|s.val(ops[2],pc)
                 s.r[rd]=v
             elif base=='tst':
@@ -108,8 +112,12 @@ class CPU:
             elif base=='umull':
                 p=s.r[s.ri(ops[2].reg)]*s.r[s.ri(ops[3].reg)]
                 s.r[s.ri(ops[0].reg)]=p&M32; s.r[s.ri(ops[1].reg)]=p>>32
-            elif base in('lsl','lsr'):
-                s.r[s.ri(ops[0].reg)]=s.val(ops[1],pc)
+            elif base in('lsl','lsr','asr'):
+                v=s.val(ops[1],pc)
+                if len(ops)==3:                                  # `asr rd, rm, #n` / `lsl rd, rm, rs`: the amount is its own operand
+                    n=s.val(ops[2],pc)&255
+                    v=((v<<n)&M32) if base=='lsl' else (v>>n) if base=='lsr' else ((v-(1<<32) if v>>31 else v)>>n)&M32
+                s.r[s.ri(ops[0].reg)]=v
             elif base in('b','bl'):
                 if base=='bl': s.r[14]=pc+4
                 s.r[15]=ops[0].imm&M32

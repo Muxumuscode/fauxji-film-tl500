@@ -4,27 +4,33 @@ What it does
   * Every key event goes through `filmhook` first (it replaces the key dispatcher's first call, 0xC04C1938, and hands on to the
     stock key hook). It reads the shooting mode, GET_SYSVAL(3): P 2, A 3, S 4, M 5, SCENE 10 (measured on the camera).
   * Folders. When the mode changes between SCENE and anything else, the camera's "DCIM" folder name is switched to the current roll's
-    folder, FILM001, FILM002 ... in the card's root (or back to DCIM) and the camera rescans its file list: CSFileList::Open(obj, type)
-    0xC01A5BA4, which returns the number of files it found. The name is switched by pointing the six code pointers that carry it at RAM
-    buffers (the camera builds every photo path from root + "DCIM" + "NNNPHOTO" + "SAM_nnnn.JPG"; the folder creator uses "%s/DCIM"
-    formats). Normal playback scans /DCIM, so the rolls are never listed there. Outside SCENE the buffers hold the stock strings.
-  * Rolls. The current roll is the first FILMnnn with fewer than 36 files; if the next folder is the empty one just created after a
-    full roll, the full roll stays current (nothing starts silently). A full roll is started over with the film-look key (AE-L = key 14,
-    state 1): it makes the next roll and then lets the key through, so the stock FILM SIM cycles the look. A roll that is part shot
-    keeps its film: the key is swallowed with "Roll in use". An empty roll lets the look be chosen freely. A roll is 36 frames.
-  * Counter. A hook at the end of getRemainPhotoNum makes the camera's own shots-left number min(stock, 36 - files in the roll) in SCENE
+    folder, FILMS/PROV001, FILMS/ACRO002 ... (the parent FILMS is made first, `mkparent`), or back to DCIM, and the camera rescans its file
+    list: CSFileList::Open(obj, type) 0xC01A5BA4, which returns the number of files it found. The name is switched by pointing the six code
+    pointers that carry it at RAM buffers (the camera builds every photo path from root + "DCIM" + "NNNPHOTO" + "SAM_nnnn.JPG"; the folder
+    creator uses "%s/DCIM" formats). Normal playback scans /DCIM, so the rolls are never listed there. Outside SCENE the buffers hold the
+    stock strings.
+  * Films and rolls. Each scene card is one film (CARD_LOOK); entering a card applies its look. Rolls are counted per film: the current roll
+    is the first one with fewer than 36 files, probed from the roll that film was last on since power-on (`tab_last`); if the next folder is
+    the empty one just created after a full roll, the full roll stays current (nothing starts silently). A roll is 36 frames.
+  * The film-look key (AE-L = key 14, press) only reloads: on a full roll it starts the next roll of the same film; on a part-shot roll it is
+    swallowed with "Roll in use"; on an empty roll it is swallowed silently. The key never reaches the stock FILM SIM (the film is the card's).
+  * Counter. A hook at the end of getRemainPhotoNum makes the camera's own shots-left number min(stock, 36 - files in the roll) in a scene card
     (at 0 the camera shows its stock "Memory Full" and will not shoot). The switch forces a full icon redraw so it shows at once.
   * Wind-on lock. A rising file count (read in that hook) marks a photo as taken; while locked the shutter keys are swallowed (pop-up
     "Wind on >") until the front dial (click dial) is turned right (`Dial C 1`), which shows "Wound".
-  * Pop-ups: "Film nn left" when SCENE is entered or a roll is started, "Film off" when it is left. They appear on the next key press
+  * Pop-ups: "PROV001 nn left" when SCENE is entered or a roll is started, "Film off" when it is left. They appear on the next key press
     after the dial moves (the mode dial itself raises no key event); the stock key hook is skipped for that key (it would hide them).
+  * Mode icon spot: the look's cartridge, the wind-on icon while locked, the roll-full icon (the spare twelfth scene tile) while full
+    (`iconfix`, re-applied at the end of every full redraw and after every shots-left calculation).
   * Direction keys (macro, flash, self-timer, display) work: the state object's cached mode (+0xC) is made P in a scene card.
-  * SCENE is P. The scene picker is not wanted, so the SCENE position must behave like P (program exposure with the 1/60 floor and auto
-    ISO, the unlocked menus): GET_SYSVAL(3) reports SCENE (10) as P (2) to every reader, this code reads the real value (`rawmode`).
+  * SCENE is P. The scene picker is the film picker, and the SCENE position behaves like P (program exposure with the 1/60 floor and auto
+    ISO, the unlocked menus): GET_SYSVAL(3) reports a scene card (10..22) as P (2) to every reader; this code reads the real value (`rawmode`).
+  * Roll full. At 0 frames on a full roll the camera's "Memory Full" reads "Roll full - press AE-L" (GetStaticString wrapped for id 687); a
+    full CARD with frames left on the roll keeps the stock text.
+  * No playback in a scene card: the PLAY event (`filmevent`) and requests for the Playback state (id 5, `filmstate`) are dropped with a
+    "No playback" pop-up. These, and the roll-full text, check the real mode too, so they stop as soon as the dial leaves SCENE.
 If the camera's file list object cannot be found, or its chain is not valid, nothing is changed (the hook retries on the next key).
-  * Roll full. At 0 frames the camera's "Memory Full" is shown as "Roll full - press AE-L" while in SCENE (GetStaticString wrapped for id 687).
-  * No playback in SCENE: requests for the Playback state (id 5) are dropped with a "No playback" pop-up (`filmstate`).
-Not yet: the review right after a shot, the big canister screens.
+Not done: the big cartridge with the count inside (film_mode.layout, not applied), locking ISO to Auto, a single-frame drive.
 Code and data live in dead factory regions: shared routines after fauxji_rot's `plzoom` (R4), data and hooks after `gate3` (R5, extended
 to 0xC04274B8: the functions at 0xC04272C0 and 0xC04274B8 have no live caller, tools/liveness.py). Tests: tools/test_film.py.
 """
@@ -67,6 +73,11 @@ EVENT_PLAY = 0x11
 RAW_GET = 0xC049094C                          # raw getter: r0 = index, r1 = pointer for the value
 GETVAL_SITE, GETVAL_BACK, GETVAL_STOCK = 0xC048F83C, 0xC048F840, 0xE59D0000   # end of GET_SYSVAL: `ldr r0,[sp]` (fp = index, [sp] = value), then `add sp,sp,#4`
 MODE_P = 2
+COUNT_UP = True                               # the counter shows the frame number (1 .. 36) instead of the frames left
+RATCHET = 0xC04260F4                          # tools/film_sound.py RATCHET (checked there): plays the wind-on sound
+STAMP_BEQ, STAMP_SKIP, STAMP_CALL = 0xC03C5C54, 0xC03C5C6C, 0xC03C5C64   # tools/film_stamp.py: the capture code's stamp switch
+RSB = 3
+MOVNE_PC_LR, MOVEQ_PC_LR = 0x11A0F00E, 0x01A0F00E
 # the film-themed "roll full": the camera's "Memory Full" (SPID string 687) is what it shows at 0 frames. GetStaticString (0xC05BA87C, every UI text
 # comes through it: r0 = string context, r1 = id, returns a pointer to the UTF-16 text) is wrapped: in SCENE, for id 687, our text is returned.
 STR_SITE, STR_BACK, STR_STOCK = 0xC05BA87C, 0xC05BA880, 0xE1A02000   # entry `mov r2,r0`, then `cmp r1,#0`
@@ -85,13 +96,20 @@ NAME_LET, NAME_DIG = 6, 10   # in the name "FILMS/ACRO001": the four letters of 
 FMT_LET, FMT_DIG = 9, 13     # in "%s/FILMS/ACRO001": the same, in both format buffers
 VARS = 0x48                  # 32 bytes: [0] CSFileList object (cache), [4] film active, [8] files seen, [12] locked, [16] roll number, [20] new-roll request, [24] look, [28] the mode icon spot as last set (0 = stock, else state * 16 + look + 1)
 TAB_DCIM, TAB_FILM = 0x68, 0xB0
-TEXT_ON, TEXT_OFF = 0xF8, 0x118               # 'ACRO001 36 left' (32 bytes), 'Film off' (20)
+TEXT_ON, TEXT_OFF = 0xF8, 0x118               # 'ACRO001 #01' (32 bytes: the roll and the frame about to be shot), 'Film off' (20)
 TEXT_WIND, TEXT_WOUND, TEXT_USE = 0x12C, 0x140, 0x14C    # 'Wind on >' (20), 'Wound' (12), 'Roll in use' (24)
-TEXT_FULL = 0x164                            # 'Roll full - press AE-L' (48 bytes), the replacement for "Memory Full"
-TEXT_NOPLAY = 0x194                          # 'No playback' (32 bytes)
+TAB_LAST = 0x164                             # 12 words: the roll each film was last on (0 = not seen since power-on), so entering SCENE
+                                             # probes from there instead of rescanning every full roll from 001
+TEXT_ONFULL = 0x194                          # 'ACRO001 full' (32 bytes)
 ROOT_SUFFIX, ROOT_BACKUP = 0x1B4, 0x1BC      # '/FILMS' (8 bytes), the card root string as the camera had it (48 bytes)
-TAB_LOOK, TAB_ID = 0x1EC, 0x218              # 11 x 4 letters (the folder name of each look), 16 bytes: scene card number - 10 -> look
-CODE_AT = 0x228
+TAB_LOOK, TAB_ID = 0x1EC, 0x21C              # 12 x 4 letters (the folder name of each film), 16 bytes: scene card number - 10 -> film
+CODE_AT = 0x22C
+# Data kept outside the block (the R5 region is full): in fauxji_rot's R3 (the spare end of the string area) and in R1 (both free since the
+# tilt tag is off; R2 holds tools/film_exif.py and tools/film_stamp.py, R1 tools/film_sound.py).
+TAB_MYST_AT = 0xC04265C0                     # 32 bytes: the mystery film's look for roll number & 31 (a shuffle fixed at build time)
+TEXT_NOPLAY_AT = 0xC04265E0                  # 'No playback' (24 bytes)
+TEXT_FULL_AT = 0xC0426190                    # 'Roll full - press AE-L' (48 bytes), in R1 after tools/film_sound.py's player
+EXTRA_DATA_END = (0xC04265F8, 0xC04261C4)    # R3 up to tools/film_stamp.py's data; R1 up to the next factory function
 # One parent folder for the rolls: the roll's folder name is "FILMS/ACRO001" (every place that builds a path formats root + name + folder +
 # file with snprintf, so a name with a slash is just a deeper path; the name sites and both folder-creator formats carry it). The folder
 # creator only makes one level, so the parent is made first, with the camera's own single-folder creator 0xC01B0140(list, path) (-> 0xC03BCD4C):
@@ -105,24 +123,45 @@ MKDIR, ROOT_OFF, ROOT_SIZE, ROOT_MAXLEN = 0xC01B0140, 0x40, 48, 0x28
 # or full `iconfix` hides every child and shows the 'play' child (skin image 17, repainted as the wind-on icon) or the 'DUAL IS' child (image 231,
 # the roll-full icon): neither mode shows in the live view of the film camera. Groups: (first child, last child, wind child, full child).
 OSD_VIS = ui.OSD_SET_VISIBLE
-ICON_GROUPS = ((804, 823, 823, 809, 811), (875, 895, 895, 880, 883))     # first child, last child, wind child, full child, first scene tile
+ICON_GROUPS = ((804, 823, 823, 822, 811), (875, 895, 895, 894, 883))     # first child, last child, wind child, full child, first scene tile
+# The roll-full icon is the twelfth scene tile (822 / 894): iconfix shows tile = first tile + look for the 11 looks only, so that tile is free.
+# Up to TL-F65o it was the 'DUAL IS' child (809 / 880, skin image 231), which the DUAL IS mode itself shows: that mode then showed the crossed
+# cartridge, and leaving a full roll for DUAL IS hid its icon.
 # In SCENE the mode icon showed P (the camera reports SCENE as P, FILM21 owner report), so iconfix now always shows the look's cartridge tile there: the
 # scene tiles are in look order (tile = first tile + look, the twelfth repeats PROVIA). A hook at the end of the full redraw (DRAW_ICONS, 0xC04B74AC,
 # `add sp,sp,#0x14` before its `pop {sl,fp,pc}`) re-applies it after every redraw, so the stock P tag cannot come back.
 DRAW_END, DRAW_BACK, DRAW_END_STOCK = 0xC04B74AC, 0xC04B74B0, 0xE28DD014
-IMG_WIND, IMG_FULL = 17, 231
+IMG_WIND, IMG_FULL = 17, 241                  # the 'play' tile; the twelfth scene tile (card 22's in SCENE_TILES)
 PARENT = b'/FILMS\0\0'
 # The scene picker is the film picker: the 13 scene cards are the modes 10..22 (measured: no card has 11), in this on-screen order
 # (Beauty Shot 10, Night 12, Portrait 13, Children 14, Landscape 15, Close Up 16, Text 17, Sunset 18, Dawn 19, Backlight 20, Fireworks 21,
 # Beach & Snow 22). Each card shows one look (PHOTO STYLE menu value 0..10); the 12th card repeats PROVIA.
-LOOK_CODES = ('PROV', 'BLCH', 'NOST', 'ASTI', 'VELV', 'REAL', 'CCHR', 'CNEG', 'ETRN', 'ACRO', 'SEPI')   # roll folders: ACRO001, ACRO002 ...
-CARD_LOOK = {10: 0, 12: 1, 13: 2, 14: 3, 15: 4, 16: 5, 17: 6, 18: 7, 19: 8, 20: 9, 21: 10, 22: 0}
+LOOK_CODES = ('PROV', 'BLCH', 'NOST', 'ASTI', 'VELV', 'REAL', 'CCHR', 'CNEG', 'ETRN', 'ACRO', 'SEPI', 'MYST')   # roll folders: ACRO001 ...
+# card -> film. Films 0..10 are the looks (PHOTO STYLE menu values); film 11 is the MYSTERY roll on the twelfth card: each of its rolls gets a look
+# from TAB_MYST (indexed by the roll number, so a part-shot mystery roll keeps its look after power-off, with nothing stored), which is not shown
+# on the camera (no cartridge tile, no film icon) and is revealed when the roll is developed (the look's name is in each photo's EXIF Model).
+MYSTERY = 11
+FILMS = 12
+CARD_LOOK = {10: 0, 12: 1, 13: 2, 14: 3, 15: 4, 16: 5, 17: 6, 18: 7, 19: 8, 20: 9, 21: 10, 22: MYSTERY}
+MYST_SEED = 0x7A1500                         # fixed so the build is reproducible; change it for a different (secret) sequence
+
+
+def mystery_table(seed=MYST_SEED):
+    """32 looks for the mystery roll (roll number & 31): every look at least twice, shuffled, no look twice in a row."""
+    import random
+    rng = random.Random(seed)
+    while True:
+        t = [k % 11 for k in range(32)]
+        rng.shuffle(t)
+        if all(t[i] != t[(i + 1) % 32] for i in range(32)):
+            return bytes(t)
 
 
 # The picker's cards in the film build (build_fauxji.py): the scene names become the films' names (SPID strings: name n, description n + 1)
 # and the sample pictures (skin images 195-206) become cartridges. Card number -> string id of the scene name, skin image, look.
 LOOK_NAMES = ('Provia', 'Bleach Bypass', 'Nostalgic Neg.', 'Astia', 'Velvia', 'Reala Ace', 'Classic Chrome', 'Classic Neg.', 'Eterna',
-              'Acros', 'Sepia')
+              'Acros', 'Sepia', 'Mystery')
+MYSTERY_BLURB = 'A surprise film on every roll. You find out which one when you develop it.'
 CARD_STRING = {10: 21, 12: 19, 13: 29, 14: 31, 15: 33, 16: 35, 17: 37, 18: 39, 19: 41, 20: 43, 21: 45, 22: 47}   # Beauty Shot, Night, Portrait ...
 CARD_IMAGE = {10: 197, 12: 203, 13: 204, 14: 198, 15: 202, 16: 199, 17: 195, 18: 206, 19: 200, 20: 196, 21: 201, 22: 205}
 
@@ -168,7 +207,7 @@ def card_strings(blurbs):
     for card, sid in CARD_STRING.items():
         look = CARD_LOOK[card]
         out[sid] = LOOK_NAMES[look]
-        out[sid + 1] = blurbs[look]
+        out[sid + 1] = MYSTERY_BLURB if look == MYSTERY else blurbs[look]
     return out
 
 
@@ -260,8 +299,9 @@ def base_r4():
 def addrs(b=None):
     b = base() if b is None else b
     return dict(buf=b + BUF, vars=b + VARS, tab_dcim=b + TAB_DCIM, tab_film=b + TAB_FILM, text_on=b + TEXT_ON, text_off=b + TEXT_OFF,
-                text_wind=b + TEXT_WIND, text_wound=b + TEXT_WOUND, text_use=b + TEXT_USE, text_full=b + TEXT_FULL,
-                text_noplay=b + TEXT_NOPLAY, root_suffix=b + ROOT_SUFFIX, root_backup=b + ROOT_BACKUP, tab_look=b + TAB_LOOK, tab_id=b + TAB_ID, code=b + CODE_AT)
+                text_wind=b + TEXT_WIND, text_wound=b + TEXT_WOUND, text_use=b + TEXT_USE, text_full=TEXT_FULL_AT,
+                text_noplay=TEXT_NOPLAY_AT, root_suffix=b + ROOT_SUFFIX, root_backup=b + ROOT_BACKUP, tab_look=b + TAB_LOOK, tab_id=b + TAB_ID, tab_last=b + TAB_LAST, tab_myst=TAB_MYST_AT,
+                text_onfull=b + TEXT_ONFULL, code=b + CODE_AT)
 
 
 def helpers(b4=None, b=None, icon=0):
@@ -322,7 +362,15 @@ def helpers(b4=None, b=None, icon=0):
     a.w(mov_i(R0, 1, HI), str_c(R0, R2, 12, HI), str_(R1, R2, 8))
     a.w(cmp_i(R1, FRAMES), mov_i(R1, FRAMES, HI))
     a.w(mov_i(R2, FRAMES), dp_r(SUB, R1, R2, R1))            # r1 = frames left
-    a.w(cmp_r(R3, R1), mov_r(R3, R1, HI))                    # shots left = min(stock, frames left)
+    if COUNT_UP:
+        # the counter shows the frame about to be shot (1 .. 36), like a film camera's counter window. The camera only refuses to shoot at 0
+        # (the shots-left value is what its "card full" test reads), so a full roll is still 0; a card with less room than the roll has
+        # frames keeps the stock (smaller) number, so the camera never thinks it has more room than it does.
+        a.w(cmp_i(R1, 0), mov_i(R3, 0, EQ))
+        a.b(EQ, 'crest')                                     # full roll: 0
+        a.w(cmp_r(R3, R1), P.dp_i(RSB, R3, R1, FRAMES + 1, cond=HS))   # room for the roll: frame number = 37 - frames left
+    else:
+        a.w(cmp_r(R3, R1), mov_r(R3, R1, HI))                # shots left = min(stock, frames left)
     a.label('crest')
     a.w(push(0x0008))                                        # the stock number, kept over the call
     a.b(AL, icon, link=True)                                 # `iconlazy` in the other block (its address is passed in): a shot that locked the roll
@@ -380,6 +428,12 @@ def helpers(b4=None, b=None, icon=0):
     a.w(pop(0x8000))                                         # pop {pc}
     out = a.build()
     return out, a.labels
+
+
+def scene_test(a, H):
+    """Flags LS if the REAL shooting mode is a scene card, HI otherwise. Clobbers r0-r3, ip (callers push what they need)."""
+    a.b(AL, H['rawmode'], link=True)
+    a.w(sub_i(R1, R0, SCENE_MODE), cmp_i(R1, SCENE_COUNT - 1))
 
 
 def code(b=None, H=None):
@@ -512,6 +566,12 @@ def code(b=None, H=None):
     a.b(AL, OPEN, link=True)
     a.w(mov_r(R5, R0))
     a.label('ddone')
+    a.w(cmp_i(R6, 0))
+    a.b(EQ, 'dclear')
+    a.w(ldr(R0, R7, 24), lsl2(R0, R0), ldr(R2, R7, 16))      # in a film: remember its roll (the next entry starts probing there)
+    a.lit(R1, A['tab_last'])
+    a.w(str_x(R2, R1, R0))
+    a.label('dclear')
     a.w(mov_i(R0, 0), str_(R0, R7, 20), str_(R0, R7, 12))    # request cleared, unlocked (a loaded camera is ready for frame 1)
     a.w(str_(R5, R7, 8))                                     # files seen
     a.w(mov_i(R0, 1), pop(0x8000))
@@ -552,7 +612,7 @@ def code(b=None, H=None):
     a.w(dp_r(ADD, R3, R5, R4, shift=0, amt=4), add_i(R3, R3, 1))     # code = state * 16 + look + 1
     a.w(ldr(IP, R2, 28), cmp_i(R6, 1), cmp_rc(R3, IP, EQ))
     a.b(EQ, 'icdone')                                        # lazy and nothing changed
-    a.w(str_(R3, R2, 28))
+    a.w(str_(R3, R2, 28), mov_r(R6, IP))                     # r6 = the code set before
     for g, (first, last, wind, full, tile) in enumerate(ICON_GROUPS):
         a.lit(R7, first)
         a.lit(R8, last + 1)
@@ -567,17 +627,38 @@ def code(b=None, H=None):
         a.w(cmp_i(R4, 0), mov_r(R0, R1, EQ))
         a.lit(R1, full)
         a.w(cmp_i(R4, 1), mov_r(R0, R1, EQ), mov_i(R1, 1), mov_i(R2, 0), mov_i(R3, 0))
+        a.w(cmp_i(R4, 2), cmp_ic(R5, MYSTERY, EQ))
+        a.b(EQ, 'icnone%d' % g)                              # the mystery film's tile: nothing (the film is a secret)
         a.b(AL, OSD_VIS, link=True)                          # show the icon
+        a.label('icnone%d' % g)
+    a.w(cmp_i(R5, MYSTERY))
+    a.b(NE, 'icfilm')
+    a.lit(R0, FILM_GROUP)                                    # the mystery film: the live view's film icon (the look's cartridge) is hidden
+    a.w(mov_i(R1, 0), mov_i(R2, 0), mov_i(R3, 0))
+    a.b(AL, OSD_VIS, link=True)
+    a.b(AL, 'icdone')
+    a.label('icfilm')
+    a.w(mov_r(R3, R6))
+    a.b(AL, 'icunhide', link=True)                           # coming from the mystery film: the film icon back
     a.label('icdone')
     a.w(pop(0x81F0))                                         # pop {r4-r8, pc}
-    # not a scene card: put back what we changed (only our own children: the tiles, the wind-on child, the roll-full child if that was shown)
+    # r3 = a mode-spot code set earlier (state * 16 + film + 1, 0 = none): if it was the mystery film's, show the film icon again; clobbers r0-r3, ip
+    a.label('icunhide')
+    a.w(sub_i(R0, R3, 1), P.dp_i(P.AND, R0, R0, 15), cmp_i(R3, 0), MOVEQ_PC_LR)
+    a.w(cmp_i(R0, MYSTERY), MOVNE_PC_LR)
+    a.lit(R0, FILM_GROUP)
+    a.w(mov_i(R1, 1), mov_i(R2, 0), mov_i(R3, 0))
+    a.b(AL, OSD_VIS)                                         # (tail call: returns to our caller)
+    # not a scene card: put back what we changed (only our own children: the twelve tiles, the last of which is the roll-full icon, and the
+    # wind-on child; the stock children of the other modes are never touched)
     a.label('icclean')
     a.lit(R2, A['vars'])
     a.w(ldr(R3, R2, 28), cmp_i(R3, 0))
     a.b(EQ, 'icdone')
-    a.w(sub_i(R4, R3, 1), mov_i(R0, 0), str_(R0, R2, 28))
-    a.w(lsr_i(R4, R4, 4))                                    # r4 = the state we had set
+    a.w(mov_i(R0, 0), str_(R0, R2, 28))
+    a.b(AL, 'icunhide', link=True)                           # (r3 = the code set last)
     for g, (first, last, wind, full, tile) in enumerate(ICON_GROUPS):
+        assert tile < full < wind == tile + 12
         a.lit(R7, tile)
         a.lit(R8, wind + 1)                                  # the twelve tiles and the wind-on child are consecutive
         a.label('icl%d' % g)
@@ -585,24 +666,20 @@ def code(b=None, H=None):
         a.b(AL, OSD_VIS, link=True)
         a.w(add_i(R7, R7, 1), cmp_r(R7, R8))
         a.b(LO, 'icl%d' % g)
-        a.lit(R0, full)
-        a.w(cmp_i(R4, 1), mov_i(R1, 0), mov_i(R2, 0), mov_i(R3, 0))
-        a.b(NE, 'icn%d' % g)
-        a.b(AL, OSD_VIS, link=True)                          # the roll-full child was shown: hide it
-        a.label('icn%d' % g)
     a.w(pop(0x81F0))
     # ---- the end of every full redraw: replaces `add sp,sp,#0x14` (the stock epilogue pops {sl, fp, pc} next); the mode icon spot is set again
     a.label('filmdraw')
-    a.w(add_i(13, 13, 0x14))
+    a.w(add_i(13, 13, 0x14), push(0x0001))                   # r0 = the redraw's return value, kept for its caller
     a.b(AL, 'iconfix', link=True)                            # clobbers r0-r3, ip and lr only (the pop restores the rest)
+    a.w(pop(0x0001))
     a.b(AL, DRAW_BACK)
     # ---- look-11 pop-up with a full icon redraw (the stock shots-left number is recalculated when it is redrawn)
     a.label('popup11')
     a.w(push(0x4000), mov_i(R0, LOOK_ON))
     a.b(AL, ui.ARM_NAME, link=True)
     a.w(mov_i(R0, 0))
-    a.b(AL, ui.DRAW_ICONS, link=True)
-    a.b(AL, 'iconfix', link=True)
+    a.b(AL, ui.DRAW_ICONS, link=True)                        # (its end runs filmdraw, so iconfix already ran; it is called again in case a
+    a.b(AL, 'iconfix', link=True)                            #  redraw path skips that epilogue: 40 OSD calls are cheap insurance)
     a.w(mov_i(R0, LOOK_ON))
     a.b(AL, ui.TOAST_CODE, link=True)
     a.w(pop(0x8000))
@@ -621,22 +698,34 @@ def code(b=None, H=None):
     a.w(mov_i(R0, ui.PSS_ID))
     a.b(AL, ui.NOTIFY2, link=True)
     a.w(pop(0x8010))                                         # pop {r4, pc}
-    # ---- "ACRO001 nn left" for r5 files in the roll (0 left for a full roll or a failed scan); clobbers r0-r3, ip
+    # ---- r0 = the look of the current film (vars[24]): the film itself, or for the mystery film the shuffle entry of its roll (vars[16]);
+    # r7 = vars; clobbers r1
+    a.label('filmlook')
+    a.w(ldr(R0, R7, 24), cmp_i(R0, MYSTERY))
+    a.w(MOVNE_PC_LR)
+    a.w(ldr(R0, R7, 16), P.dp_i(P.AND, R0, R0, 31))
+    a.lit(R1, A['tab_myst'])
+    a.w(ldrb_x(R0, R1, R0), MOV_PC_LR)
+    # ---- "ACRO001 #nn" (the frame about to be shot) for r5 files in the roll, "ACRO001 full" for a full roll or a failed scan; clobbers r0-r3, ip
     a.label('msgleft')
     a.w(push(0x4000))
     a.lit(R2, A['text_on'])
+    a.lit(IP, A['text_onfull'])
+    a.w(cmp_i(R5, FRAMES), mov_r(R2, IP, HS))
     a.lit(R3, SLOT0)
     a.w(mov_i(R1, 32))
     a.b(AL, H['copy'], link=True)
     a.lit(R2, A['buf'])
     for k in range(7):                                       # the roll's name (after "FILMS/"), as UTF-16
         a.w(ldrb(R0, R2, NAME_LET + k), strh(R0, R3, 2 * k))
-    a.w(cmp_i(R5, FRAMES), mov_i(R5, FRAMES, HI))
-    a.w(mov_i(R0, FRAMES), dp_r(SUB, R0, R0, R5), mov_i(R2, 0x30))
+    a.w(cmp_i(R5, FRAMES))
+    a.b(HS, 'lshow')
+    a.w(add_i(R0, R5, 1), mov_i(R2, 0x30))                   # frame number 1 .. 36
     a.label('ltens')
     a.w(cmp_i(R0, 10), sub_i(R0, R0, 10, GE), add_i(R2, R2, 1, GE))
     a.b(GE, 'ltens')
-    a.w(strh(R2, R3, 16), add_i(R0, R0, 0x30), strh(R0, R3, 18))
+    a.w(strh(R2, R3, 18), add_i(R0, R0, 0x30), strh(R0, R3, 20))
+    a.label('lshow')
     a.b(AL, 'popup11', link=True)
     a.w(pop(0x8000))
     # ---- film-themed "roll full". Replaces `mov r2,r0` at the entry of GetStaticString (r0 = context, r1 = id): in SCENE the id of "Memory Full" (687)
@@ -648,8 +737,19 @@ def code(b=None, H=None):
     a.lit(IP, A['vars'])
     a.w(ldr(IP, IP, 4), cmp_i(IP, 0))
     a.b(EQ, 'sorig')
+    a.w(push(0x400B))                                        # push {r0, r1, r3, lr} (r2 is set by the replaced instruction)
+    a.lit(R2, A['vars'])
+    a.w(ldr(R2, R2, 8), lsr_i(IP, R2, 16), cmp_i(IP, 0))
+    a.b(NE, 'sfno')                                          # a garbage count: the stock text
+    a.w(cmp_i(R2, FRAMES))
+    a.b(LO, 'sfno')                                          # the roll has frames left: the card itself is full, "Memory Full" is right
+    scene_test(a, H)
+    a.w(pop(0x400B))
+    a.b(HI, 'sorig')                                         # the dial already left the scene cards (no key yet): the stock text
     a.lit(R0, A['text_full'])
     a.w(MOV_PC_LR)
+    a.label('sfno')
+    a.w(pop(0x400B))
     a.label('sorig')
     a.w(mov_r(R2, R0))                                       # the replaced instruction
     a.b(AL, STR_BACK)
@@ -687,7 +787,12 @@ def code(b=None, H=None):
     a.b(EQ, 'plain')                                         # same card as before
     a.label('change')                                        # entering SCENE, leaving it, or a different card (= a different film)
     a.w(mov_i(R2, 0), str_(R2, R7, 20))                      # no new-roll request
-    a.w(cmp_i(R6, 0), str_c(R8, R7, 24, NE), str_c(R2, R7, 16, NE))   # a film: its look, and its roll count starts from the first roll
+    a.w(cmp_i(R6, 0))
+    a.b(EQ, 'chgo')
+    a.w(str_(R8, R7, 24), lsl2(R3, R8))                      # a film: its look, and its roll count starts from the roll it was last on
+    a.lit(R2, A['tab_last'])
+    a.w(ldr_x(R2, R2, R3), str_(R2, R7, 16))                 # (0 = not seen since power-on: from the first roll)
+    a.label('chgo')
     a.b(AL, 'doswitch', link=True)
     a.w(cmp_i(R0, 0))
     a.b(EQ, 'plain')
@@ -700,8 +805,8 @@ def code(b=None, H=None):
     a.b(AL, 'popup11', link=True)
     a.b(AL, 'fpop')
     a.label('on')
-    a.w(ldr(R0, R7, 24))
-    a.b(AL, 'applylook', link=True)                          # the camera's film look = the chosen card's
+    a.b(AL, 'filmlook', link=True)
+    a.b(AL, 'applylook', link=True)                          # the camera's film look = the chosen card's (the mystery film: its roll's)
     a.b(AL, 'msgleft', link=True)
     a.label('fpop')
     a.w(pop(0x47FF))
@@ -717,6 +822,10 @@ def code(b=None, H=None):
     a.b(EQ, 'storig')
     a.w(cmp_i(R1, STATE_PLAYBACK))
     a.b(NE, 'storig')
+    a.w(push(0x400F))                                        # push {r0-r3, lr}: the arguments stay as they were
+    scene_test(a, H)
+    a.w(pop(0x400F))
+    a.b(HI, 'storig')                                        # the dial already left the scene cards (no key yet): playback is allowed
     a.label('sdrop')
     a.w(push(0x47FF))
     a.lit(R2, A['text_noplay'])
@@ -740,7 +849,11 @@ def code(b=None, H=None):
     a.w(push(0x401F), mov_r(R4, R1))                         # push {r0-r4, lr}: r2 / r3 stay as the caller left them
     a.w(ldr(R2, R4, 0), add_i(R2, R2, 8), ldr(IP, R2, 4), ldrsh0(R0, R2), dp_r(ADD, R0, R4, R0), mov_r(LR, PC), mov_r(PC, IP))
     a.w(cmp_i(R0, EVENT_PLAY), pop(0x401F))                  # (pop keeps the flags)
-    a.b(EQ, 'sdrop')
+    a.b(NE, 'eorig')
+    a.w(push(0x400F))
+    scene_test(a, H)
+    a.w(pop(0x400F))
+    a.b(LS, 'sdrop')                                         # still in a scene card: dropped
     a.label('eorig')
     a.w(EVENT_STOCK)                                         # the replaced instruction: push {r4-r8, sb, sl, fp, lr}
     a.b(AL, EVENT_BACK)
@@ -777,6 +890,11 @@ def code(b=None, H=None):
     a.b(AL, 'doswitch', link=True)
     a.w(cmp_i(R0, 0))
     a.b(EQ, 'gnd')
+    a.w(ldr(R0, R7, 24), cmp_i(R0, MYSTERY))
+    a.b(NE, 'gmsg')
+    a.b(AL, 'filmlook', link=True)                           # a new mystery roll: a new surprise look
+    a.b(AL, 'applylook', link=True)
+    a.label('gmsg')
     a.b(AL, 'msgleft', link=True)
     a.label('gnd')
     a.w(pop(0x47FF))
@@ -803,6 +921,15 @@ def code(b=None, H=None):
     a.w(pop(0x47FF), mov_i(R0, 0), MOV_PC_LR)                # swallowed: "not handled"
     a.label('gorig')
     a.b(AL, GATE_STOCK)
+    # ---- the date stamp in the film camera without Setup > Imprint (tools/film_stamp.py): replaces the capture code's `beq` that skips the stamp
+    # when the Imprint flag is clear (0xC03C5C54). In the film camera the stamp call is made anyway (layout 2, the image's own size selector;
+    # tools/film_stamp.py's `fmt98` then writes YY MM DD); otherwise the stamp is skipped as before. r8 = the capture object; ip is free.
+    a.label('forcestamp')
+    a.lit(IP, A['vars'])
+    a.w(ldr(IP, IP, 4), cmp_i(IP, 0))
+    a.b(EQ, STAMP_SKIP)
+    a.w(ldr(R1, R8, 0x1BC), mov_i(R2, 2), add_i(R0, R8, 0xA8))
+    a.b(AL, STAMP_CALL)
     # ---- unlock: replaces `bl 0xC04C06E0` (front dial = click dial event; the event's method +0x10 returns 1 for a turn to the right).
     # Always hands on to the stock handler afterwards.
     a.label('filmdial')
@@ -817,10 +944,10 @@ def code(b=None, H=None):
     a.b(NE, 'dno')
     a.lit(R2, A['vars'])
     a.w(mov_i(R3, 0), str_(R3, R2, 12))                      # wound: unlocked
+    a.b(AL, RATCHET, link=True)                              # the wind-on ratchet sound (tools/film_sound.py; silent if sounds are off)
     a.w(mov_i(R0, 0))
     a.b(AL, ui.DRAW_ICONS, link=True)                        # the stock tile back ...
     a.b(AL, 'iconfix', link=True)                            # ... or the roll-full icon
-    a.lit(R2, A['vars'])
     a.lit(R2, A['text_wound'])
     a.lit(R3, SLOT1)
     a.w(mov_i(R1, 12))
@@ -849,32 +976,34 @@ def blob(b=None, b4=None):
     out[BUF:BUF + BUFSZ] = _table('DCIM')
     out[TAB_DCIM:TAB_DCIM + BUFSZ] = _table('DCIM')
     out[TAB_FILM:TAB_FILM + BUFSZ] = _table('FILMS/AAAA000')
-    out[TAB_LOOK:TAB_LOOK + 44] = ''.join(LOOK_CODES).encode()
+    out[TAB_LOOK:TAB_LOOK + 4 * FILMS] = ''.join(LOOK_CODES).encode()
     for card, look in CARD_LOOK.items():
         out[TAB_ID + card - SCENE_MODE] = look
-    out[TEXT_ON:TEXT_ON + 32] = _utf16('AAAAAAA 00 left', 32)
+    out[TEXT_ON:TEXT_ON + 32] = _utf16('AAAAAAA #00', 32)
+    out[TEXT_ONFULL:TEXT_ONFULL + 32] = _utf16('AAAAAAA full', 32)
     out[TEXT_OFF:TEXT_OFF + 20] = _utf16('Film off', 20)
     out[TEXT_WIND:TEXT_WIND + 20] = _utf16('Wind on >', 20)
     out[TEXT_WOUND:TEXT_WOUND + 12] = _utf16('Wound', 12)
     out[TEXT_USE:TEXT_USE + 24] = _utf16('Roll in use', 24)
-    out[TEXT_FULL:TEXT_FULL + 48] = _utf16(TEXT_FULL_STR, 48)
-    out[TEXT_NOPLAY:TEXT_NOPLAY + 32] = _utf16('No playback', 32)
     out[ROOT_SUFFIX:ROOT_SUFFIX + 8] = PARENT
     allp = dict(H)
     allp.update(labels)
-    return [(b, bytes(out) + c), (b4, hbytes)], allp
+    r3 = mystery_table() + _utf16('No playback', 24)
+    assert TAB_MYST_AT + 32 == TEXT_NOPLAY_AT and TEXT_NOPLAY_AT + 24 <= EXTRA_DATA_END[0]
+    assert TEXT_FULL_AT + 48 <= EXTRA_DATA_END[1]
+    return [(b, bytes(out) + c), (b4, hbytes), (TAB_MYST_AT, r3), (TEXT_FULL_AT, _utf16(TEXT_FULL_STR, 48))], allp
 
 
 def patch(d):
     """Apply to a built (normal) .elf: blocks, pointer patches, hook sites. Call after the fauxji_ui / fauxji_rot patches."""
     d = bytearray(d)
     blocks, labels = blob()
-    (b, data), (b4, hdata) = blocks
+    (b, data), (b4, hdata) = blocks[:2]
     import fauxji_rot
-    assert b + len(data) <= FILM_END, hex(b + len(data))           # both blocks stay inside dead factory regions
+    assert b + len(data) <= FILM_END, hex(b + len(data))           # every block stays inside dead factory regions
     assert b4 + len(hdata) <= fauxji_rot.R4_END, hex(b4 + len(hdata))
-    d[b - B:b - B + len(data)] = data
-    d[b4 - B:b4 - B + len(hdata)] = hdata
+    for at, blk in blocks:
+        d[at - B:at - B + len(blk)] = blk
     import fauxji
     if struct.unpack_from('<I', d, LIVE_POOL - B)[0] == LIVE_TABLE_STOCK:        # first time: copy the stock-patched live table
         tab_at, tab = live_table(d, b, len(data))

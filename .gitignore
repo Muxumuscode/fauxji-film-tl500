@@ -7,3 +7,9 @@ research-out/
 __pycache__/
 tools/.cache/
 ghidra-project/
+
+# Samsung artwork extracted from the stock firmware for research: never published
+docs/images/film-mode/scene_cards_stock.png
+docs/images/film-mode/scene_tiles.png
+docs/images/film-mode/digits.png
+*_stock.png
