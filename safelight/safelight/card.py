@@ -146,6 +146,12 @@ def scan(path):
     return rolls
 
 
+def is_plain_folder(rolls):
+    """True for a folder of ordinary photos: no FAUXJI roll folder, and no photo that the FAUXJI camera made (no film in its EXIF).
+    Such photos have no film look yet, so they are loaded as a roll of 'photos from any camera' where the film is chosen."""
+    return bool(rolls) and all(not ROLL_RE.match(r.code.upper()) and not any(f.film for f in r.frames) for r in rolls)
+
+
 def find_cards():
     """Mounted folders that look like a FAUXJI card (a FILMS folder at the root)."""
     roots = []

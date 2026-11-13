@@ -6,6 +6,7 @@ import tempfile
 import unittest
 
 import numpy as np
+from PIL import Image
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, os.path.dirname(__file__))
@@ -306,6 +307,285 @@ class Library_(unittest.TestCase):
         # importing again does not duplicate
         self.lib.import_roll(myst)
         self.assertEqual(len(os.listdir(os.path.join(self.lib.roll_dir('MYST001_20261108'), 'originals'))), 4)
+
+
+
+class Versions(unittest.TestCase):
+    """Several developments of one roll: names, favourites, picks per frame, clean-up candidates."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        root = fixtures.make_card(os.path.join(self.tmp, 'card'))
+        self.lib = Library(os.path.join(self.tmp, 'lib'))
+        roll = {r.code: r for r in card.scan(root)}['PROV001']
+        self.libroll = self.lib.import_roll(roll)
+        self.rid = os.path.basename(self.libroll.path)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_versions(self):
+        L = self.lib
+        f1, lc1 = L.develop(self.libroll, lab.Recipe(), max_side=400, look='Vintage print')
+        f2, lc2 = L.develop(self.libroll, lab.Recipe(push=2), max_side=400)          # (the same second: still its own folder)
+        f3, lc3 = L.develop(self.libroll, lab.Recipe(paper='matte'), max_side=400)
+        self.assertEqual(len({f1, f2, f3}), 3)
+        self.assertEqual([f for f, _ in L.developments(self.rid)], [f3, f2, f1])         # newest first
+        self.assertTrue(L.version_name(lc1).startswith('Provia  ·  Vintage print  ·  '))   # film, recipe card, when
+        self.assertIn('push +2', L.version_name(lc2))                                      # no card: what was done
+        L.set_version(f2, name='  Contrasty  ')
+        L.set_version(f3, favourite=True)
+        devs = dict(L.developments(self.rid))
+        self.assertEqual(L.version_name(devs[f2]), 'Contrasty')
+        self.assertTrue(devs[f3]['favourite'])
+        L.set_version(f2, name='')
+        self.assertNotIn('name', dict(L.developments(self.rid))[f2])                    # back to the automatic name
+        # by frame: every print of each frame, newest first; the newest is chosen until you pick
+        fp = L.frame_prints(self.rid)
+        n = len(self.libroll.frames)
+        self.assertEqual(sorted(fp), list(range(1, n + 1)))
+        self.assertEqual([x[1] for x in fp[1]], [f3, f2, f1])
+        self.assertEqual(L.chosen_prints(self.rid)[2], os.path.join(f3, 'frame_02.jpg'))
+        L.set_pick(self.rid, 2, f1)
+        self.assertEqual(L.picks(self.rid), {2: os.path.basename(f1)})
+        self.assertEqual(L.chosen_prints(self.rid)[2], os.path.join(f1, 'frame_02.jpg'))
+        # clean-up keeps favourites and developments that hold a pick
+        self.assertEqual([f for f, _ in L.cleanup_candidates(self.rid)], [f2])
+        self.assertGreater(L.folder_size(f2), 0)
+        shutil.rmtree(f1)                                                               # a development gone: its picks go too
+        self.assertEqual(L.picks(self.rid), {})
+        self.assertEqual(L.chosen_prints(self.rid)[2], os.path.join(f3, 'frame_02.jpg'))
+
+
+class PhonePhotos(unittest.TestCase):
+    """Photos from phones: turned the way the phone says, broken files left out, very large ones brought down."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_exif_orientation(self):
+        im = Image.new('RGB', (80, 40), (200, 30, 30))                   # stored lying down ...
+        ex = im.getexif()
+        ex[0x112] = 6                                                    # ... with the note "turn me 90° clockwise"
+        p = os.path.join(self.tmp, 'portrait.jpg')
+        im.save(p, exif=ex)
+        self.assertEqual(lab.load(p).shape[:2], (80, 40))                # loaded upright
+        self.assertEqual(lab.load(p, 40).shape[:2], (40, 20))
+        plain = os.path.join(self.tmp, 'plain.jpg')
+        Image.new('RGB', (80, 40)).save(plain)
+        self.assertEqual(lab.load(plain).shape[:2], (40, 80))            # no note (the TL500): as stored
+
+    def test_broken_files_are_left_out(self):
+        good = os.path.join(self.tmp, 'a.jpg')
+        fixtures.frame(1).save(good)
+        bad = os.path.join(self.tmp, 'b.jpg')
+        with open(bad, 'wb') as f:
+            f.write(b'this is not a photo')
+        lib = Library(os.path.join(self.tmp, 'lib'))
+        rid = lib.import_files([good, bad], 'PROV', 'Mixed')
+        self.assertEqual(len(lib.load_roll(rid).frames), 1)
+        with self.assertRaises(ValueError):
+            lib.import_files([bad], 'PROV', 'Broken')
+
+    def test_full_size_has_a_ceiling(self):
+        from safelight import library
+        old = library.MAX_FULL
+        library.MAX_FULL = 200
+        try:
+            src = os.path.join(self.tmp, 'big.jpg')
+            Image.new('RGB', (900, 600), (90, 120, 150)).save(src)
+            lib = Library(os.path.join(self.tmp, 'lib'))
+            roll = lib.load_roll(lib.import_files([src], 'PROV', 'Big'))
+            folder, lc = lib.develop(roll, lab.Recipe(border='none', leaks=False))
+            self.assertEqual(max(Image.open(os.path.join(folder, 'frame_01.jpg')).size), 200)
+        finally:
+            library.MAX_FULL = old
+
+
+class Darkroom(unittest.TestCase):
+    """Frames with their own settings, single prints, picks of single prints."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.lib = Library(os.path.join(self.tmp, 'lib'))
+        src = os.path.join(self.tmp, 'phone')
+        os.makedirs(src)
+        for k in range(4):
+            fixtures.frame(10 + k).save(os.path.join(src, 'IMG_%d.jpg' % k))
+        self.rid = self.lib.import_files([os.path.join(src, n) for n in sorted(os.listdir(src))], 'VELV', 'Trip')
+        self.roll = self.lib.load_roll(self.rid)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_frame_settings_and_develop(self):
+        L, rid = self.lib, self.rid
+        L.set_frame_settings(rid, [2], lab.Recipe(paper='neutral', grain=0, leaks=False, seed=99), 'ACRO')
+        L.set_frame_settings(rid, [3], lab.Recipe(push=1), None)
+        fs = L.frame_settings(rid)
+        self.assertEqual(sorted(fs), [2, 3])
+        self.assertEqual((fs[2]['film'], fs[2]['recipe']['paper']), ('ACRO', 'neutral'))
+        self.assertNotIn('seed', fs[2]['recipe'])
+        folder, lc = L.develop(self.roll, lab.Recipe(grain=0, leaks=False), max_side=300)
+        by = {fr['frame']: fr for fr in lc['frames']}
+        self.assertEqual(by[1]['film'], 'Velvia')
+        self.assertNotIn('own_settings', by[1])
+        self.assertEqual(by[2]['film'], 'Acros')                          # frame 2: its own film ...
+        self.assertTrue(by[2]['own_settings'] and by[2]['recipe']['paper'] == 'neutral')
+        self.assertEqual(by[3]['film'], 'Velvia')                         # frame 3: own lab settings, the roll's film
+        a = np.asarray(Image.open(os.path.join(folder, by[2]['file'])).convert('RGB'), np.float32)
+        self.assertLess(np.abs(a[..., 0] - a[..., 2]).mean(), 2.0)         # ... printed in black and white
+        L.set_frame_settings(rid, [2, 3], None)
+        self.assertEqual(L.frame_settings(rid), {})
+
+    def test_fauxji_frames_keep_their_film(self):
+        root = fixtures.make_card(os.path.join(self.tmp, 'card'))
+        prov = self.lib.import_roll({r.code: r for r in card.scan(root)}['PROV001'])
+        rid = os.path.basename(prov.path)
+        self.lib.set_frame_settings(rid, [1], lab.Recipe(push=2), 'ACRO')
+        r, film = self.lib.effective(prov, prov.frames[0], lab.Recipe(seed=5), self.lib.frame_settings(rid)[1])
+        self.assertEqual((film.code, r.push, r.seed), ('PROV', 2, 5))   # the lab settings count, the film is the camera's
+
+    def test_single_prints_and_picks(self):
+        L, rid = self.lib, self.rid
+        self.assertFalse(L.revealed(rid))
+        made = L.print_frames(self.roll, [2], lab.Recipe(), max_side=300, look='Vintage print')
+        made += L.print_frames(self.roll, [2, 4], lab.Recipe(push=1), max_side=300)
+        names = [os.path.basename(m) for m in made]
+        self.assertEqual(names, ['frame_02-v1.jpg', 'frame_02-v2.jpg', 'frame_04-v1.jpg'])
+        self.assertTrue(L.revealed(rid))                                  # a single print reveals a mystery roll too
+        self.assertEqual(L.developments(rid), [])                         # single prints are not developments
+        fp = L.frame_prints(rid)
+        self.assertEqual(sorted(fp), [2, 4])
+        self.assertEqual(len(fp[2]), 2)
+        lc, fr = L.print_info(made[0])
+        self.assertTrue(lc['single'] and fr['frame'] == 2 and lc['look'] == 'Vintage print')
+        self.assertTrue(L.version_name(lc).startswith('Single print v1  ·  Velvia  ·  Vintage print'))
+        folder, _ = L.develop(self.roll, lab.Recipe(), max_side=300)
+        self.assertEqual(len(L.frame_prints(rid)[2]), 3)
+        L.set_pick(rid, 2, made[0])                                       # a single print as the pick
+        self.assertEqual(L.picks(rid), {2: 'darkroom/frame_02-v1.jpg'})
+        self.assertEqual(L.chosen_prints(rid)[2], made[0])
+        self.assertEqual(L.chosen_prints(rid)[1], os.path.join(folder, 'frame_01.jpg'))
+        self.assertEqual([f for f, _ in L.cleanup_candidates(rid)], [folder])
+        w, h = Image.open(made[0]).size
+        L.rotate_print_path(made[0], 90)
+        self.assertEqual(Image.open(made[0]).size, (h, w))
+        self.assertEqual(L.rotations(rid), {2: 90})
+        os.remove(made[0])
+        self.assertEqual(L.picks(rid), {})                                 # a pick of a print that is gone is forgotten
+
+
+class BlackAndWhite(unittest.TestCase):
+    """The B&W lab additions: a coloured filter (photos from any camera), toning, neutral paper."""
+
+    def setUp(self):
+        h, w = 60, 90
+        a = np.zeros((h, w, 3), np.float32)
+        a[:30] = (0.25, 0.45, 0.85)                  # blue sky on top
+        a[30:] = (0.85, 0.55, 0.40)                  # skin-ish below
+        self.a = a
+        self.acros = films.BY_CODE['ACRO']
+        self.plain = dict(grain=0, leaks=False, expired=0, paper='glossy', border='none')
+
+    def dev(self, **kw):
+        return lab.develop(self.a, self.acros, lab.Recipe(**{**self.plain, **kw}), frame=3, emulate=True)
+
+    def test_filters(self):
+        none, red, green = self.dev(), self.dev(bw_filter='red'), self.dev(bw_filter='green')
+        sky = lambda x: x[:30].mean()                                 # noqa: E731
+        skin = lambda x: x[30:].mean()                                # noqa: E731
+        self.assertLess(sky(red), sky(none) - 0.05)                    # a red filter darkens the blue sky ...
+        self.assertGreater(skin(red), skin(none))                      # ... and lightens skin
+        self.assertLess(skin(green), skin(none))                       # green darkens skin
+        for out in (none, red):
+            self.assertLess(np.abs(out[..., 0] - out[..., 2]).max(), 1e-5)    # still neutral grey
+
+    def test_tones_and_neutral_paper(self):
+        neutral = self.dev(paper='neutral')
+        self.assertLess(np.abs(neutral[..., 0] - neutral[..., 2]).max(), 1e-5)  # neutral fibre adds no colour
+        vintage = self.dev(paper='vintage')
+        self.assertGreater((vintage[..., 0] - vintage[..., 2]).mean(), 0.02)    # the vintage paper warms B&W (why neutral exists)
+        sel = self.dev(tone='selenium')
+        self.assertGreater((sel[..., 2] - sel[..., 1]).mean(), 0.001)          # selenium: a cool cast
+        sep = self.dev(tone='sepia')
+        self.assertGreater((sep[..., 0] - sep[..., 2]).mean(), 0.05)            # sepia: brown
+        self.assertIn('red filter', lab.Recipe(bw_filter='red').describe())
+        self.assertIn('selenium toned', lab.Recipe(tone='selenium').describe())
+
+    def test_colour_films_ignore_bw_settings(self):
+        prov = films.BY_CODE['PROV']
+        a = lab.develop(self.a, prov, lab.Recipe(**self.plain), frame=3, emulate=True)
+        b = lab.develop(self.a, prov, lab.Recipe(**self.plain, bw_filter='red', tone='selenium'), frame=3, emulate=True)
+        self.assertTrue(np.allclose(a, b))
+
+    def test_old_labcards_still_load(self):
+        old = {k: v for k, v in lab.Recipe().to_dict().items() if k not in ('bw_filter', 'tone')}
+        r = lab.Recipe.from_dict(old)
+        self.assertEqual((r.bw_filter, r.tone), ('none', 'none'))
+
+
+class RecipeCards(unittest.TestCase):
+    def setUp(self):
+        from safelight import recipes
+        self.recipes = recipes
+        self.tmp = tempfile.mkdtemp()
+        self.lib = Library(os.path.join(self.tmp, 'lib'))
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_builtin(self):
+        R = self.recipes
+        names = [c.name.lower() for c in R.LOOKS + R.BUILTIN]
+        self.assertEqual(len(names), len(set(names)))
+        self.assertEqual([c.name for c in R.LOOKS], list(lab.PRESETS))
+        for c in R.BUILTIN:
+            self.assertIn(c.film, films.BY_CODE)
+            self.assertIn(c.kind, R.KINDS)
+            self.assertTrue(c.note)
+        bw = [c for c in R.BUILTIN if c.kind == 'bw']
+        self.assertTrue(bw and all(films.BY_CODE[c.film].mono for c in bw))
+        silver = next(c for c in R.BUILTIN if c.name == 'Silver gelatin')
+        self.assertEqual((silver.film, silver.recipe.paper), ('ACRO', 'neutral'))
+
+    def test_find(self):
+        R = self.recipes
+        cards = R.LOOKS + R.BUILTIN
+        silver = next(c for c in R.BUILTIN if c.name == 'Silver gelatin')
+        self.assertIs(R.find(cards, silver.recipe, 'ACRO'), silver)
+        self.assertIsNone(R.find(cards, silver.recipe, 'PROV'))         # the card's film is not the roll's: Custom
+        self.assertIs(R.find(cards, silver.recipe, None), silver)       # no roll yet: the lab settings decide
+        self.assertEqual(R.find(cards, lab.Recipe(), 'PROV').name, 'Vintage print')
+        self.assertIsNone(R.find(cards, lab.Recipe(push=2, expired=1), 'PROV'))
+
+    def test_save_list_import_delete(self):
+        R = self.recipes
+        c = R.Card('Moody nights', lab.Recipe(push=1, halation=2.0, bw_filter='red', seed=1234), 'ETRN', 'night', 'For rain.')
+        self.lib.save_card(c)
+        mine = self.lib.recipe_cards()
+        self.assertEqual([x.name for x in mine], ['Moody nights'])
+        self.assertEqual((mine[0].film, mine[0].kind, mine[0].recipe.halation, mine[0].recipe.seed), ('ETRN', 'night', 2.0, 0))
+        self.assertTrue(mine[0].matches(c.recipe, 'ETRN'))
+        # a shared card from a newer version, with values this one doesn't know: still loads
+        shared = os.path.join(self.tmp, 'shared.json')
+        d = c.to_dict()
+        d.update(name='From a friend', film='ZZZZ')
+        d['recipe'].update(paper='platinum', future_setting=3)
+        Library._write(shared, d)
+        got = self.lib.import_card(shared)
+        self.assertEqual((got.film, got.recipe.paper), (None, 'vintage'))
+        bad = os.path.join(self.tmp, 'bad.json')
+        Library._write(bad, {'hello': 1})
+        with self.assertRaises(ValueError):
+            self.lib.import_card(bad)
+        self.assertEqual(len(self.lib.recipe_cards()), 2)
+        self.lib.delete_card('Moody nights')
+        self.assertEqual([x.name for x in self.lib.recipe_cards()], ['From a friend'])
+        self.assertEqual(self.lib.rolls(), [])                          # the presets folder is not a roll
 
 
 if __name__ == '__main__':

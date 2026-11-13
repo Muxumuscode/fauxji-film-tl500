@@ -8,7 +8,7 @@ import random
 from dataclasses import dataclass, asdict
 
 import numpy as np
-from PIL import Image, ImageDraw, ImageFilter, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps
 
 
 # ---------------------------------------------------------------- recipe
@@ -30,6 +30,23 @@ PAPERS = {
     'glossy': 'Glossy',
     'matte': 'Matte (soft blacks)',
     'warm': 'Warm-tone fibre',
+    'neutral': 'Neutral fibre (black and white)',
+}
+# Black and white only. A coloured filter on the lens changes which colours come out light or dark (a red filter: dark skies, light
+# skin); it works on photos from any camera (the FAUXJI camera already made its B&W frames). Weights on R, G, B before the mix.
+BW_FILTERS = {
+    'none': 'No filter',
+    'yellow': 'Yellow (a little darker sky)',
+    'orange': 'Orange (dark sky, smooth skin)',
+    'red': 'Red (dramatic sky, light skin)',
+    'green': 'Green (darker skin, light foliage)',
+}
+FILTER_WEIGHTS = {'none': (1.0, 1.0, 1.0), 'yellow': (1.15, 1.05, 0.55), 'orange': (1.45, 0.95, 0.30), 'red': (1.9, 0.6, 0.12),
+                  'green': (0.7, 1.35, 0.6)}
+TONES = {
+    'none': 'Untoned',
+    'selenium': 'Selenium (deeper, cool blacks)',
+    'sepia': 'Sepia (warm brown)',
 }
 BORDERS = {
     'none': 'No border',
@@ -53,6 +70,8 @@ class Recipe:
     paper: str = 'vintage'
     border: str = 'white'
     auto_levels: bool = False     # gentle lab correction
+    bw_filter: str = 'none'       # black and white: a coloured filter (photos from any camera)
+    tone: str = 'none'            # black and white: toning of the print
     seed: int = 0                 # the roll's own randomness (leaks, expired-film cast)
 
     def describe(self):
@@ -67,6 +86,10 @@ class Recipe:
             bits.append('expired %d yr' % self.expired)
         if self.paper != 'glossy':
             bits.append(PAPERS[self.paper].lower().split(' (')[0])
+        if self.bw_filter != 'none':
+            bits.append('%s filter' % self.bw_filter)
+        if self.tone != 'none':
+            bits.append('%s toned' % self.tone)
         return ', '.join(bits) or 'box speed, standard developer'
 
     def to_dict(self):
@@ -103,7 +126,9 @@ def surprise(rng=None):
     return Recipe(push=rng.choice(PUSH_PULL), developer=rng.choice(list(DEVELOPERS)),
                   process=rng.choices(list(PROCESSES), weights=(6, 2, 2))[0], expired=rng.choice((0, 0, 0, 2, 5, 10)),
                   grain=rng.choice((0.8, 1.0, 1.3)), halation=rng.choice((0.6, 1.0, 1.4)), leaks=rng.random() < 0.6,
-                  paper=rng.choice(list(PAPERS)), border=rng.choice(list(BORDERS)), seed=rng.randrange(1 << 30))
+                  paper=rng.choice(list(PAPERS)), border=rng.choice(list(BORDERS)),
+                  bw_filter=rng.choice(('none', 'none', 'yellow', 'orange', 'red', 'green')),
+                  tone=rng.choice(('none', 'none', 'selenium', 'sepia')), seed=rng.randrange(1 << 30))
 
 
 # ---------------------------------------------------------------- helpers
@@ -113,6 +138,7 @@ def load(path, max_side=None):
     with Image.open(path) as im:
         if max_side:
             im.draft('RGB', (max_side, max_side))
+        im = ImageOps.exif_transpose(im)             # phones store upright photos sideways with a note: turn them (TL500: no note)
         im = im.convert('RGB')
         if max_side and max(im.size) > max_side:
             im.thumbnail((max_side, max_side), Image.LANCZOS)
@@ -182,13 +208,17 @@ LOOKS = {
 }
 
 
-def film_look(a, film):
-    """The film's colour on a photo from any camera (the in-camera FAUXJI looks, approximated in sRGB)."""
+def film_look(a, film, bw_filter='none'):
+    """The film's colour on a photo from any camera (the in-camera FAUXJI looks, approximated in sRGB). bw_filter: a coloured lens
+    filter for the black-and-white films (BW_FILTERS)."""
     look = LOOKS.get(film.code)
     if not look:
         return a
     if 'mix' in look:
-        r, g, b = look['mix']
+        fw = FILTER_WEIGHTS.get(bw_filter, FILTER_WEIGHTS['none'])
+        r, g, b = (m * w for m, w in zip(look['mix'], fw))
+        s = r + g + b
+        r, g, b = r / s, g / s, b / s
         l = a[..., 0] * r + a[..., 1] * g + a[..., 2] * b
         l = _curve(l, look['contrast'])
         return np.clip(np.repeat(l[..., None], 3, axis=2), 0, 1)
@@ -205,7 +235,7 @@ def develop(a, film, recipe, frame=1, roll_seed=0, emulate=False):
     emulate: the photo comes from another camera, so the film's colour (film_look) is applied first."""
     a = a.astype(np.float32, copy=True)
     if emulate:                                       # a photo from another camera: the film's colour first
-        a = film_look(a, film)
+        a = film_look(a, film, recipe.bw_filter)
     h, w = a.shape[:2]
     rng = np.random.default_rng(_seed(roll_seed, recipe.seed, frame))
     grain = film.grain * recipe.grain
@@ -275,10 +305,15 @@ def develop(a, film, recipe, frame=1, roll_seed=0, emulate=False):
         a = _leak(a, rng, strong=frame == 1)
 
     # monochrome films stay neutral (or sepia)
+    # toning (black and white): selenium deepens the blacks and cools them a little; sepia turns the print brown
     if film.mono:
         l = luma(a)
-        if film.code == 'SEPI':
+        if film.code == 'SEPI' or recipe.tone == 'sepia':
             a = np.stack([l * 1.07 + 0.02, l * 0.95 + 0.01, l * 0.78], axis=2)
+        elif recipe.tone == 'selenium':
+            l = np.clip(l, 0, 1) ** 1.12
+            shade = (1 - l) * l * 4                                  # strongest in the dark mid-tones
+            a = np.stack([l + 0.010 * shade, l - 0.006 * shade, l + 0.022 * shade], axis=2)
         else:
             a = np.repeat(l[..., None], 3, axis=2)
 
@@ -313,6 +348,10 @@ def develop(a, film, recipe, frame=1, roll_seed=0, emulate=False):
         a = 0.035 + a * 0.93
     elif recipe.paper == 'warm':
         a = a * np.array([1.03, 1.0, 0.92], dtype=np.float32) + np.array([0.015, 0.008, 0.0], dtype=np.float32)
+    elif recipe.paper == 'neutral':
+        # a neutral fibre print: no colour of its own, deep but not crushed blacks, a slight sheen roll-off in the highlights
+        a = 0.015 + a * 0.975
+        a = a - 0.03 * np.clip(a - 0.85, 0, None)
 
     return np.clip(a, 0, 1)
 
@@ -491,4 +530,4 @@ def frame_caption(film, frame_no, taken):
 
 
 __all__ = ['Recipe', 'surprise', 'load', 'to_image', 'negative', 'develop', 'bordered', 'rotate', 'strip', 'contact_sheet', 'thumb_image',
-           'tank_stages', 'frame_caption', 'DEVELOPERS', 'PROCESSES', 'PAPERS', 'BORDERS', 'PUSH_PULL']
+           'tank_stages', 'frame_caption', 'DEVELOPERS', 'PROCESSES', 'PAPERS', 'BORDERS', 'PUSH_PULL', 'BW_FILTERS', 'TONES']

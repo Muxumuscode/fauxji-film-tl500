@@ -7,14 +7,30 @@ import math
 import time
 
 from PySide6.QtCore import QPointF, QRectF, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPainterPath, QPen, QRadialGradient
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QLinearGradient, QPainter, QPainterPath, QPen, QRadialGradient
 from PySide6.QtWidgets import QButtonGroup, QHBoxLayout, QLabel, QListView, QListWidget, QPushButton, QVBoxLayout, QWidget
 
 RED = '#e0372f'
 
 
+class ElidedLabel(QLabel):
+    """A one-line label that shortens its text with … when there is no room, instead of pushing its neighbours away."""
+
+    def minimumSizeHint(self):
+        return QSize(24, super().minimumSizeHint().height())
+
+    def paintEvent(self, e):
+        p = QPainter(self)
+        p.setFont(self.font())
+        p.setPen(self.palette().color(self.foregroundRole()))
+        r = self.contentsRect()
+        p.drawText(r, int(self.alignment()) | Qt.TextSingleLine, self.fontMetrics().elidedText(self.text(), Qt.ElideRight, r.width()))
+        p.end()
+
+
 class Canvas(QWidget):
     """The picture, fitted and rotated, with overlays: a flash after each rotation, a 'rotated' badge, a 'developing' note."""
+    double_clicked = Signal()
 
     def __init__(self):
         super().__init__()
@@ -26,6 +42,13 @@ class Canvas(QWidget):
         self._flash_id = 0
         self.caption = ''
         self.hint = ''
+        self.info = ''                       # full screen: film, recipe, date (key I), in a box at the bottom
+        self.badge = ''                      # full screen: 'ORIGINAL' while Space is held
+        self.margin = 24                     # room around the picture (full screen: none)
+        self.pm2 = None                      # full screen, compare: the other print (split slider, or side by side)
+        self.labels = ('', '')               # compare: what the left and the right picture are
+        self.split = 0.5
+        self._cmp_rect = None
         self.dev = None                      # the developing animation's state while a roll is in the lab
         self.dev_timer = QTimer(self)
         self.dev_timer.setInterval(33)
@@ -37,16 +60,17 @@ class Canvas(QWidget):
         self.update()
 
     def flash(self, text, ms=1000):
-        self._flash_id += 1
-        fid = self._flash_id
+        if not hasattr(self, '_flash_timer'):              # owned by the canvas, so it never fires after the canvas is gone
+            self._flash_timer = QTimer(self)
+            self._flash_timer.setSingleShot(True)
+            self._flash_timer.timeout.connect(self._unflash)
         self.flash_text = text
         self.update()
-        QTimer.singleShot(ms, lambda: self._unflash(fid))
+        self._flash_timer.start(ms)
 
-    def _unflash(self, fid):
-        if fid == self._flash_id:
-            self.flash_text = ''
-            self.update()
+    def _unflash(self):
+        self.flash_text = ''
+        self.update()
 
     def paintEvent(self, e):
         p = QPainter(self)
@@ -58,11 +82,13 @@ class Canvas(QWidget):
             return
         p.fillRect(self.rect(), QColor('#0d0c0c'))
         W, H = self.width(), self.height()
-        if self.pm is not None and not self.pm.isNull():
+        if self.pm is not None and not self.pm.isNull() and self.pm2 is not None and not self.pm2.isNull():
+            self._paint_compare(p, W, H)
+        elif self.pm is not None and not self.pm.isNull():
             pw, ph = self.pm.width(), self.pm.height()
             side = self.rotation in (90, 270)
             bw, bh = (ph, pw) if side else (pw, ph)                 # the box the turned picture needs
-            s = min((W - 24) / bw, (H - 24) / bh)
+            s = min((W - self.margin) / bw, (H - self.margin) / bh)
             p.save()
             p.translate(W / 2, H / 2)
             p.rotate(self.rotation)
@@ -75,10 +101,24 @@ class Canvas(QWidget):
             self._pill(p, QPointF(10, 8), self.caption, '#171515', '#b5aea3', anchor='tl')
             if self.hint:
                 self._pill(p, QPointF(W - 10, H - 10), self.hint, '#171515', '#8d877d', anchor='br')
-        if self.rotation and self.pm is not None:
+        if self.rotation and self.pm is not None and self.pm2 is None:
             self._pill(p, QPointF(10, H - 10), 'Rotated %d°  ·  saved' % self.rotation, '#2a1715', '#f0a49c', anchor='bl')
         if self.loading:
             self._pill(p, QPointF(10, 36), self.loading, '#262424', '#e8e4dc', anchor='tl')
+        if self.badge and self.pm is not None:
+            self._pill(p, QPointF(W - 10, 8), self.badge, '#2a1715', '#f0a49c', anchor='tr')
+        if self.info and self.pm is not None:
+            f = QFont(self.font())
+            f.setPointSize(10)
+            p.setFont(f)
+            r = p.fontMetrics().boundingRect(0, 0, int(W * 0.8), H, Qt.AlignLeft | Qt.TextWordWrap, self.info)
+            box = QRectF(r).adjusted(-16, -12, 16, 12)
+            box.moveCenter(QPointF(W / 2, H - 48 - box.height() / 2))
+            p.setPen(Qt.NoPen)
+            p.setBrush(QColor(20, 18, 18, 225))
+            p.drawRoundedRect(box, 10, 10)
+            p.setPen(QColor('#e8e4dc'))
+            p.drawText(box.adjusted(16, 12, -16, -12), Qt.AlignLeft | Qt.TextWordWrap, self.info)
         if self.flash_text:
             f = QFont(self.font())
             f.setPointSize(30)
@@ -129,6 +169,59 @@ class Canvas(QWidget):
         self.dev_timer.stop()
         self.update()
 
+    @staticmethod
+    def _fit(pm, box):
+        s = min(box.width() / pm.width(), box.height() / pm.height())
+        w, h = pm.width() * s, pm.height() * s
+        return QRectF(box.center().x() - w / 2, box.center().y() - h / 2, w, h)
+
+    def _paint_compare(self, p, W, H):
+        """Two prints of one frame. Same shape: one over the other with a split line to drag. Different shapes (another border,
+        another turn): side by side."""
+        a1, a2 = self.pm.width() / self.pm.height(), self.pm2.width() / self.pm2.height()
+        top, bottom = 44, 70
+        if abs(a1 / a2 - 1) < 0.004:                                      # (another border changes the shape a little)
+            r = self._fit(self.pm, QRectF(self.margin, top, W - 2 * self.margin, H - top - bottom))
+            self._cmp_rect = r
+            p.drawPixmap(r, self.pm, QRectF(self.pm.rect()))
+            x = r.left() + r.width() * self.split
+            p.save()
+            p.setClipRect(QRectF(x, r.top(), r.right() - x, r.height()))
+            p.drawPixmap(r, self.pm2, QRectF(self.pm2.rect()))
+            p.restore()
+            p.setPen(QPen(QColor('#f2eee6'), 2))
+            p.drawLine(QPointF(x, r.top()), QPointF(x, r.bottom()))
+            p.setBrush(QColor(RED))
+            p.setPen(QPen(QColor('#f2eee6'), 2))
+            p.drawEllipse(QPointF(x, r.center().y()), 11, 11)
+        else:
+            self._cmp_rect = None
+            half = (W - 3 * 12) / 2
+            r1 = self._fit(self.pm, QRectF(12, top, half, H - top - bottom))
+            r2 = self._fit(self.pm2, QRectF(24 + half, top, half, H - top - bottom))
+            p.drawPixmap(r1, self.pm, QRectF(self.pm.rect()))
+            p.drawPixmap(r2, self.pm2, QRectF(self.pm2.rect()))
+        # what each side is: left at the left edge, right at the right edge, above the key hints, each at most half the width
+        f = QFont(self.font())
+        f.setPointSize(9)
+        fm = QFontMetrics(f)
+        room = int(W / 2 - 40)
+        self._pill(p, QPointF(10, H - 40), fm.elidedText('◀  ' + self.labels[0], Qt.ElideMiddle, room), '#171515', '#e8e4dc', anchor='bl')
+        self._pill(p, QPointF(W - 10, H - 40), fm.elidedText(self.labels[1] + '  ▶', Qt.ElideMiddle, room), '#2a1715', '#f0a49c',
+                   anchor='br')
+
+    def mouseMoveEvent(self, e):
+        r = self._cmp_rect
+        if self.pm2 is not None and r is not None and e.buttons() & Qt.LeftButton:
+            self.split = min(1.0, max(0.0, (e.position().x() - r.left()) / max(1.0, r.width())))
+            self.update()
+        super().mouseMoveEvent(e)
+
+    def mouseDoubleClickEvent(self, e):
+        if self.dev is None and self.pm is not None:
+            self.double_clicked.emit()
+        super().mouseDoubleClickEvent(e)
+
     def mousePressEvent(self, e):
         """A click during developing hangs the prints still in the queue at once (skips the rest of the animation)."""
         d = self.dev
@@ -136,6 +229,8 @@ class Canvas(QWidget):
             d['line'].extend(([d['cur']] if d['cur'] is not None else []) + d['queue'])
             d['cur'], d['queue'] = None, []
             self.update()
+        if self.pm2 is not None and self._cmp_rect is not None and e.button() == Qt.LeftButton:
+            self.mouseMoveEvent(e)                                       # a click moves the split line there
         super().mousePressEvent(e)
 
     def _tick(self):
@@ -288,6 +383,8 @@ class Canvas(QWidget):
             r.moveBottomLeft(at.toPoint())
         elif anchor == 'br':
             r.moveBottomRight(at.toPoint())
+        elif anchor == 'tr':
+            r.moveTopRight(at.toPoint())
         else:
             r.moveTopLeft(at.toPoint())
         p.setPen(QPen(QColor(fg).darker(160)))
@@ -301,9 +398,11 @@ class FrameView(QWidget):
     """Toolbar (view modes, rotate buttons with their keys), the canvas, and a caption with the keyboard hints."""
     rotate = Signal(int)
     mode_changed = Signal(str)
+    fullscreen = Signal()
 
     def __init__(self, modes=None, hint=''):
         super().__init__()
+        self.full = None                     # the FullScreen window showing this view, while it is open
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 2, 0, 0)
         lay.setSpacing(4)
@@ -327,19 +426,24 @@ class FrameView(QWidget):
         self.rot_label = QLabel('')
         self.rot_label.setObjectName('muted')
         bar.addWidget(self.rot_label)
-        self.b_left = QPushButton('⟲  Rotate left   L')
-        self.b_right = QPushButton('⟳  Rotate right   R')
+        self.b_left = QPushButton('⟲  Rotate  L')
+        self.b_right = QPushButton('⟳  Rotate  R')
         self.b_left.setToolTip('Turn this frame 90° anticlockwise (key L). It stays turned everywhere: filmstrip, previews, prints, '
                                'contact sheet.')
         self.b_right.setToolTip('Turn this frame 90° clockwise (key R). It stays turned everywhere: filmstrip, previews, prints, '
                                 'contact sheet.')
         self.b_left.clicked.connect(lambda: self.rotate.emit(-90))
         self.b_right.clicked.connect(lambda: self.rotate.emit(90))
+        self.b_full = QPushButton('⛶  Full screen  F')
+        self.b_full.setToolTip('See this picture on the whole screen (key F, or double-click the picture). Esc to come back.')
+        self.b_full.clicked.connect(self.fullscreen.emit)
         bar.addWidget(self.b_left)
         bar.addWidget(self.b_right)
+        bar.addWidget(self.b_full)
         lay.addLayout(bar)
         self.canvas = Canvas()
         self.canvas.hint = hint
+        self.canvas.double_clicked.connect(self.fullscreen.emit)
         lay.addWidget(self.canvas, 1)
         self.set_enabled(False)
 
@@ -359,6 +463,7 @@ class FrameView(QWidget):
     def set_enabled(self, on):
         self.b_left.setEnabled(on)
         self.b_right.setEnabled(on)
+        self.b_full.setEnabled(on)
         for b in self.mode_buttons.values():
             b.setEnabled(on)
 
@@ -368,11 +473,17 @@ class FrameView(QWidget):
         self.canvas.set_picture(pm, rotation)
         self.rot_label.setText(('turned %d°   ' % (rotation % 360)) if rotation % 360 else '')
         self.set_enabled(pm is not None)
+        if self.full is not None:
+            self.full.follow()
 
     def set_rotation(self, rotation, delta):
         self.canvas.rotation = rotation % 360
-        self.canvas.flash('↻  %d°' % (rotation % 360) if delta > 0 else '↺  %d°' % (rotation % 360))
+        text = '↻  %d°' % (rotation % 360) if delta > 0 else '↺  %d°' % (rotation % 360)
+        self.canvas.flash(text)
         self.rot_label.setText(('turned %d°   ' % (rotation % 360)) if rotation % 360 else 'straight   ')
+        if self.full is not None:
+            self.full.follow()
+            self.full.canvas.flash(text)
 
     def clear(self, text=''):
         self.canvas.empty = text
@@ -381,6 +492,111 @@ class FrameView(QWidget):
         self.canvas.set_picture(None)
         self.rot_label.setText('')
         self.set_enabled(False)
+        if self.full is not None:
+            self.full.follow()
+
+
+class FullScreen(QWidget):
+    """One picture on the whole screen, following a FrameView (the light table's big view or the prints'): whatever that view shows,
+    this shows, so stepping and rotating go through the main window as usual.
+    Keys: Esc / F close, ← → previous / next, R / L rotate, V switch view (light table), hold Space for the original, I info."""
+    step = Signal(int)
+    rotate = Signal(int)
+    original = Signal(bool)                  # Space pressed (True) / released (False)
+    switch_view = Signal()
+    compare = Signal(int)                    # C: start (0); Up / Down: the other print to compare with (-1 / +1)
+    closed = Signal()
+
+    def __init__(self, parent, view, info, hint):
+        super().__init__(parent, Qt.Window)
+        self.setAttribute(Qt.WA_DeleteOnClose)
+        self.setWindowTitle('Full screen')
+        self.view, self.info_fn = view, info
+        self.holding = False                 # Space held: the original is shown
+        self.show_info = False
+        self.comparing = False
+        self.setStyleSheet('background: #000;')
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        self.canvas = Canvas()
+        self.canvas.margin = 0
+        self.canvas.hint = hint
+        self.canvas.double_clicked.connect(self.close)
+        lay.addWidget(self.canvas)
+        view.full = self
+        self.follow()
+        self.setFocusPolicy(Qt.StrongFocus)
+
+    def follow(self):
+        """Show what the followed view shows (unless the original is up)."""
+        if self.holding:
+            return
+        src = self.view.canvas
+        self.canvas.caption, self.canvas.loading, self.canvas.empty = src.caption, src.loading, src.empty or 'Nothing to show'
+        self.canvas.badge = ''
+        self.canvas.info = self.info_fn() if self.show_info and src.pm is not None else ''
+        self.canvas.set_picture(src.pm, src.rotation)
+
+    def show_compare(self, pm2, left, right):
+        """Compare the print on screen with another print of the same frame (pm2)."""
+        self.comparing = True
+        self.canvas.pm2, self.canvas.labels = pm2, (left, right)
+        self.canvas.update()
+
+    def end_compare(self):
+        self.comparing = False
+        self.canvas.pm2 = None
+        self.canvas.update()
+
+    def show_original(self, pm, rotation):
+        if self.holding:
+            self.canvas.badge = 'ORIGINAL  ·  as it was before the lab'
+            self.canvas.loading = ''
+            self.canvas.set_picture(pm, rotation)
+
+    def keyPressEvent(self, e):
+        k = e.key()
+        if k in (Qt.Key_Escape, Qt.Key_F):
+            self.close()
+        elif k in (Qt.Key_Left, Qt.Key_Right) and not self.holding:
+            self.end_compare()
+            self.step.emit(1 if k == Qt.Key_Right else -1)
+        elif k == Qt.Key_C and not self.holding:
+            if self.comparing:
+                self.end_compare()
+            else:
+                self.compare.emit(0)
+        elif k in (Qt.Key_Up, Qt.Key_Down) and self.comparing:
+            self.compare.emit(1 if k == Qt.Key_Down else -1)
+        elif k in (Qt.Key_R, Qt.Key_L) and not self.holding and not self.comparing:
+            self.rotate.emit(90 if k == Qt.Key_R else -90)
+        elif k == Qt.Key_V and not self.holding:
+            self.switch_view.emit()
+        elif k == Qt.Key_I:
+            self.show_info = not self.show_info
+            self.follow()
+        elif k == Qt.Key_Space and not e.isAutoRepeat() and not self.holding and not self.comparing and self.view.canvas.pm is not None:
+            self.holding = True
+            self.canvas.badge = 'ORIGINAL'
+            self.canvas.loading = 'loading the original…'
+            self.canvas.update()
+            self.original.emit(True)
+        else:
+            super().keyPressEvent(e)
+
+    def keyReleaseEvent(self, e):
+        if e.key() == Qt.Key_Space and not e.isAutoRepeat() and self.holding:
+            self.holding = False
+            self.original.emit(False)
+            self.follow()
+        else:
+            super().keyReleaseEvent(e)
+
+    def closeEvent(self, e):
+        if self.view.full is self:
+            self.view.full = None
+        self.closed.emit()
+        super().closeEvent(e)
 
 
 def filmstrip(icon, bg):
