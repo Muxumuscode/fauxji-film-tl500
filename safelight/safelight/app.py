@@ -2034,7 +2034,7 @@ class MainWindow(QMainWindow):
     def dev_mood(recipe, film):
         """What the developing animation shows of the choices made (expired film, a light leak, black and white, cross-processing)."""
         return {'expired': recipe.expired, 'leak': bool(recipe.leaks and not film.mono), 'mono': film.mono,
-                'cross': recipe.process == 'cross'}
+                'cross': recipe.process == 'cross', 'push': recipe.push}
 
     def develop(self):
         """Develop the whole roll. The big view becomes the darkroom: each print comes up in the developer tray, goes through the stop

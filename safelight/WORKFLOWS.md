@@ -191,12 +191,15 @@ fixer; dust drifts in the safelight beam; a click speeds the animation up and a 
 it shows the user's choices: expired film comes up foggy and clears, a light leak glows into frame 1, black and white runs under a
 dimmer red, cross-processing in a green developer.
 
+Also done 13 Nov 2026: tongs carry each print in and lift it out; a darkroom clock beside the tray shows the real time of each step (the
+developer's follows push / pull: 5:30 pulled, 7:00 box speed, 9:00 / 11:00 pushed) with a sweeping hand; drips from the pegged prints;
+steam over the developer and the fixer.
+
 Still in the queue:
-1. Tongs lower and lift the print; a darkroom clock whose speed follows push / pull; drips from the clothespins; steam.
-2. Sounds (faucet, tick, swish, done ding), with an off switch. Needs sound files and QtMultimedia in the build.
-3. A mystery roll's film name appears on the drying line (today: the reveal window after the animation).
-4. The payoff: lights on when the last print dries, prints slide off the line and fan out into the contact sheet / full screen.
-5. Later, bigger: a GPU tray with reflections; rocking the tray with the mouse.
+1. Sounds (faucet, tick, swish, done ding), with an off switch. Needs sound files and QtMultimedia in the build.
+2. A mystery roll's film name appears on the drying line (today: the reveal window after the animation).
+3. The payoff: lights on when the last print dries, prints slide off the line and fan out into the contact sheet / full screen.
+4. Later, bigger: a GPU tray with reflections; rocking the tray with the mouse.
 
 **Scan authenticity: DONE 13 Nov 2026** (`lab._soften`, `lab._shoulder`, `Recipe.authentic`; unit-tested). The idea was: soften and resample very sharp, high-resolution or
 HDR photos to a film-scan-like effective resolution *before* the grain, add a highlight shoulder and a shorter, lifted tonal range, and

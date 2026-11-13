@@ -364,6 +364,13 @@ class Canvas(QWidget):
             p.setPen(Qt.NoPen)
             p.drawRoundedRect(QRectF(-4, -6, 8, 16), 2, 2)                # the clothespin
             p.restore()
+            if not d['fast']:                                             # a drop forms at the bottom edge, falls, fades
+                t = (now * 0.45 + k * 0.37) % 1.0
+                if t < 0.55:
+                    p.setPen(Qt.NoPen)
+                    p.setBrush(QColor(210, 180, 170, int(190 * (1 - t / 0.55))))
+                    dy = ly + 4 + th + (t ** 2) * 70
+                    p.drawEllipse(QPointF(hx + tw * (0.3 + 0.4 * ((k * 7) % 3) / 2), dy), 1.6, 2.4 + t * 3)
         # the tray
         top = ly + th + 26
         bar_h = 56
@@ -381,6 +388,13 @@ class Canvas(QWidget):
         p.setPen(Qt.NoPen)
         p.setBrush(lg)
         p.drawRoundedRect(liquid, 8, 8)
+        if stage in (0, 2) and not d['fast']:                            # the warm developer and the fixer steam a little
+            for i in range(9):
+                t = (now * 0.12 + i * 0.113) % 1.0
+                sx = liquid.left() + liquid.width() * (0.08 + 0.84 * ((i * 0.381) % 1.0)) + math.sin(now * 0.9 + i) * 14
+                sy = liquid.top() + 6 - t * 46
+                p.setBrush(QColor(235, 215, 210, int(20 * math.sin(math.pi * t))))
+                p.drawEllipse(QPointF(sx, sy), 10 + t * 16, 6 + t * 9)
         if d['cur'] is not None:
             pm = d['cur']
             s = min(liquid.width() * 0.86 / pm.width(), liquid.height() * 0.86 / pm.height())
@@ -400,6 +414,8 @@ class Canvas(QWidget):
                 p.drawImage(r, self._emerged(emerge))
             if not lights_on:
                 p.fillRect(r, QColor(170, 20, 15, 70))                    # everything is red under the safelight
+            if ph < 0.16 or ph > 0.90:                                    # tongs carry the print in, and lift it out
+                self._tongs(p, r, ph)
             # the liquid moving over the print (the tray is rocked)
             p.setBrush(Qt.NoBrush)                                        # (the paper's brush would fill the waves)
             p.setPen(QPen(QColor(255, 240, 230, 40), 1.5))
@@ -417,6 +433,8 @@ class Canvas(QWidget):
             f2.setPointSize(13)
             p.setFont(f2)
             p.drawText(liquid, Qt.AlignCenter, d.get('end_text') if d['finish'] else d['note'])
+        if d['cur'] is not None and tray.left() >= 64:                    # the darkroom clock, in the margin beside the tray
+            self._clock(p, tray.left() / 2, top + 34, min(26.0, tray.left() / 2 - 8), ph, stage, mood.get('push', 0), now)
         # the stages and the progress
         y = H - bar_h
         n = len(self.STAGES)
@@ -445,6 +463,74 @@ class Canvas(QWidget):
         p.setFont(fh)
         p.setPen(QColor('#6a655e'))
         p.drawText(QRectF(16, H - 20, W - 32, 16), Qt.AlignRight | Qt.AlignVCenter, hint)
+
+    @staticmethod
+    def _tongs(p, r, ph):
+        """A pair of steel tongs holding the print by its top edge: they bring it in, let go, and come back to take it out."""
+        cx, top = r.center().x(), r.top()
+        if ph < 0.16:
+            lift = max(0.0, (ph - 0.08) / 0.08) * 70                      # after sliding in they let go and rise away
+            grip = 1.0 - max(0.0, (ph - 0.08) / 0.08) * 0.6
+        else:
+            lift = max(0.0, (0.94 - ph) / 0.04) * 70                      # they come back down, grip, and the print slides out
+            grip = 0.4 + 0.6 * (1 - max(0.0, (0.94 - ph) / 0.04))
+        if lift >= 69.5:
+            return
+        pad = 5 + (1 - grip) * 9
+        tip_y = top + 3 - lift
+        piv = QPointF(cx + 38, tip_y - 78)
+        steel = QColor(176, 170, 168)
+        p.save()
+        p.setBrush(Qt.NoBrush)
+        for s in (-1, 1):
+            tip = QPointF(cx + s * pad, tip_y)
+            p.setPen(QPen(QColor(60, 58, 58), 7, Qt.SolidLine, Qt.RoundCap))
+            p.drawLine(tip, piv)
+            p.setPen(QPen(steel, 4.5, Qt.SolidLine, Qt.RoundCap))
+            p.drawLine(tip, piv)
+            p.setPen(QPen(QColor(110, 20, 16), 4.5, Qt.SolidLine, Qt.RoundCap))   # (red in the safelight)
+            p.drawLine(QPointF(tip.x(), tip.y()), QPointF(tip.x(), tip.y() + 9))
+        p.setPen(QPen(QColor(60, 58, 58), 7, Qt.SolidLine, Qt.RoundCap))
+        p.drawLine(piv, QPointF(piv.x() + 30, piv.y() - 36))
+        p.setPen(QPen(steel, 4.5, Qt.SolidLine, Qt.RoundCap))
+        p.drawLine(piv, QPointF(piv.x() + 30, piv.y() - 36))
+        p.restore()
+
+    def _clock(self, p, cx, cy, rad, ph, stage, push, now):
+        """The darkroom clock: shows the real time this step would take (the developer's follows push / pull), the hand sweeping through
+        it as the step plays."""
+        starts = (0.0, 0.58, 0.70, 0.86)
+        ends = (0.58, 0.70, 0.86, 1.0)
+        dev = {-1: 330, 0: 420, 1: 540, 2: 660}.get(push, 420)             # seconds: pull is shorter, push longer
+        secs = (dev, 30, 300, 600)
+        if stage > 3:
+            return
+        frac = max(0.0, min(1.0, (ph - starts[stage]) / (ends[stage] - starts[stage])))
+        p.save()
+        p.setPen(QPen(QColor(90, 30, 28), 2))
+        p.setBrush(QColor(20, 14, 14))
+        p.drawEllipse(QPointF(cx, cy), rad, rad)
+        p.setPen(QPen(QColor(140, 60, 55), 1))
+        for i in range(12):
+            a = math.radians(i * 30)
+            p.drawLine(QPointF(cx + math.sin(a) * rad * 0.82, cy - math.cos(a) * rad * 0.82),
+                       QPointF(cx + math.sin(a) * rad * 0.94, cy - math.cos(a) * rad * 0.94))
+        a = math.radians(360 * frac)                                       # the step's own sweep
+        p.setPen(QPen(QColor(224, 55, 47), 2.2, Qt.SolidLine, Qt.RoundCap))
+        p.drawLine(QPointF(cx, cy), QPointF(cx + math.sin(a) * rad * 0.78, cy - math.cos(a) * rad * 0.78))
+        p.setPen(QPen(QColor(200, 150, 145), 1))
+        a2 = math.radians((now * 36) % 360)                                # a seconds hand that never stops
+        p.drawLine(QPointF(cx, cy), QPointF(cx + math.sin(a2) * rad * 0.62, cy - math.cos(a2) * rad * 0.62))
+        p.setBrush(QColor(224, 55, 47))
+        p.setPen(Qt.NoPen)
+        p.drawEllipse(QPointF(cx, cy), 2.6, 2.6)
+        f = QFont(self.font())
+        f.setPointSize(8)
+        p.setFont(f)
+        p.setPen(QColor('#d9a19a'))
+        e, t = int(secs[stage] * frac), secs[stage]
+        p.drawText(QRectF(cx - 40, cy + rad + 4, 80, 14), Qt.AlignCenter, '%d:%02d / %d:%02d' % (e // 60, e % 60, t // 60, t % 60))
+        p.restore()
 
     def _pill(self, p, at, text, bg, fg, anchor):
         f = QFont(self.font())

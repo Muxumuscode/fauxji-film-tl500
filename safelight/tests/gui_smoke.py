@@ -517,5 +517,23 @@ wait(lambda: 'paths' in seen2, 20)
 assert len(seen2['paths']) == 3 and seen2['name'] == 'plainfolder' and w.source_rolls == [], seen2
 assert w.c_film.isVisible()
 print('plain folder: ok')
+# the developing animation paints at every moment of every step, with every mood, without a hitch (tongs, clock, steam, drips, fog)
+from safelight import viewer as V                                   # noqa: E402
+cv = V.Canvas()
+cv.resize(900, 560)
+cv.show()
+pm_a = A.to_pixmap(fixtures.frame(7))
+for mood in ({}, {'expired': 12, 'leak': True, 'mono': True, 'cross': True, 'push': 2}, {'push': -1}):
+    cv.start_develop('TEST', mood)
+    cv.dev['line'] = [pm_a] * 3
+    cv.dev['cur'], cv.dev['started'], cv.dev['total'] = pm_a, 1, 12
+    for ph in (0.0, 0.05, 0.2, 0.5, 0.59, 0.72, 0.9, 0.97, 1.0):
+        cv.dev['t0'] = time.monotonic() - ph * 2.4
+        cv.grab()
+    cv.dev['fast'] = True
+    cv.grab()
+    cv.dev_cancel()
+cv.close()
+print('animation paints: ok')
 print('lab log rows:', len(w.library.lablog()), 'stats', w.library.stats())
 print('GUI SMOKE OK ->', out)
