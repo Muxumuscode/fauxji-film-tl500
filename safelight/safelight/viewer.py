@@ -6,8 +6,10 @@ preview render, rewriting a print) happens once, in the background, on the unrot
 import math
 import time
 
+import numpy as np
+
 from PySide6.QtCore import QPointF, QRectF, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QFont, QFontMetrics, QLinearGradient, QPainter, QPainterPath, QPen, QRadialGradient
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QImage, QLinearGradient, QPainter, QPainterPath, QPen, QRadialGradient
 from PySide6.QtWidgets import QButtonGroup, QHBoxLayout, QLabel, QListView, QListWidget, QPushButton, QVBoxLayout, QWidget
 
 RED = '#e0372f'
@@ -140,8 +142,11 @@ class Canvas(QWidget):
     # arrive faster than the animation, it speeds up so it never falls behind.
     STAGES = (('DEVELOPER', 0.0), ('STOP BATH', 0.58), ('FIXER', 0.70), ('WASH', 0.86), ('DRY', 1.0))
 
-    def start_develop(self, title):
-        self.dev = {'title': title, 'queue': [], 'cur': None, 't0': 0.0, 'line': [], 'done': 0, 'total': 0,
+    def start_develop(self, title, mood=None):
+        """mood: what the animation shows of the user's choices: expired (years: the prints come up foggy and clear), leak (the first
+        print catches a light leak), mono (black and white: a dimmer red), cross (cross-processing: a green developer)."""
+        self.dev = {'title': title, 'queue': [], 'cur': None, 't0': 0.0, 'line': [], 'done': 0, 'total': 0, 'mood': dict(mood or {}),
+                    'fast': False, 'started': 0, 'img': None,
                     'note': 'Loading the film into the tank…', 'finish': None, 'finished_at': None, 'start': time.monotonic()}
         self.dev_timer.start()
         self.update()
@@ -229,6 +234,9 @@ class Canvas(QWidget):
             d['line'].extend(([d['cur']] if d['cur'] is not None else []) + d['queue'])
             d['cur'], d['queue'] = None, []
             self.update()
+        elif d is not None and not d['fast']:
+            d['fast'] = True                                              # a click speeds the animation up (a second skips the rest)
+            self.update()
         if self.pm2 is not None and self._cmp_rect is not None and e.button() == Qt.LeftButton:
             self.mouseMoveEvent(e)                                       # a click moves the split line there
         super().mousePressEvent(e)
@@ -244,6 +252,8 @@ class Canvas(QWidget):
             d['cur'] = None
         if d['cur'] is None and d['queue']:                    # the next print goes in at once (no empty-tray flicker)
             d['cur'], d['t0'] = d['queue'].pop(0), now
+            d['started'] += 1
+            d['img'] = None
         if d['finish'] and d['cur'] is None and not d['queue']:
             if d['finished_at'] is None:
                 d['finished_at'] = now
@@ -257,7 +267,48 @@ class Canvas(QWidget):
     def _phase(self, now):
         d = self.dev
         dur = 2.4 / (1.0 + 0.6 * len(d['queue']))        # a backlog makes the prints move faster
+        if d['fast']:
+            dur /= 3.0
         return (now - d['t0']) / dur if d['cur'] is not None else 0.0
+
+    PAPER = np.array([243.0, 238.0, 226.0], dtype=np.float32)
+
+    def _prepare(self, pm, first):
+        """The current print as arrays, once: its colours, how light each pixel is, and (the first print, with leaks) a light leak."""
+        im = pm.toImage().convertToFormat(QImage.Format_RGB888)
+        if im.width() > 560:
+            im = im.scaledToWidth(560, Qt.SmoothTransformation)
+        w, h = im.width(), im.height()
+        ptr = im.constBits()
+        rgb = np.frombuffer(ptr, dtype=np.uint8, count=im.bytesPerLine() * h).reshape(h, im.bytesPerLine())[:, :w * 3].reshape(h, w, 3)
+        rgb = rgb.astype(np.float32)
+        light = (rgb[..., 0] * 0.299 + rgb[..., 1] * 0.587 + rgb[..., 2] * 0.114) / 255.0
+        leak = None
+        if first and self.dev['mood'].get('leak'):
+            xs = np.linspace(0, 1, w, dtype=np.float32)[None, :]
+            ys = np.linspace(0, 1, h, dtype=np.float32)[:, None]
+            g = np.clip(1.0 - np.sqrt((xs - 0.0) ** 2 * 1.0 + (ys - 0.25) ** 2 * 1.6) * 1.7, 0, 1) ** 1.6
+            leak = g[..., None] * np.array([255.0, 120.0, 40.0], dtype=np.float32)
+        return rgb, light, leak
+
+    def _emerged(self, emerge):
+        """The print as it looks at this moment in the developer: the darkest tones appear first, then the mid-tones, the highlights
+        last (as on real paper); expired film is foggy at first; a light leak glows in late. Returns a QImage."""
+        d = self.dev
+        if d['img'] is None:
+            d['img'] = self._prepare(d['cur'], d['started'] == 1)
+        rgb, light, leak = d['img']
+        a = np.clip((emerge - 0.6 * light) / 0.4, 0, 1)[..., None]
+        out = self.PAPER * (1 - a) + rgb * a
+        if leak is not None:
+            out = out + leak * (emerge ** 3) * 0.55 * a
+        years = d['mood'].get('expired', 0)
+        if years:
+            v = min(0.45, years * 0.035) * (1 - 0.75 * emerge)            # fog: it clears as the print comes up
+            out = out * (1 - v) + np.array([150.0, 138.0, 128.0], dtype=np.float32) * v
+        out = np.ascontiguousarray(np.clip(out, 0, 255).astype(np.uint8))
+        h, w = out.shape[:2]
+        return QImage(out.data, w, h, w * 3, QImage.Format_RGB888).copy()
 
     def _paint_develop(self, p):
         d = self.dev
@@ -266,13 +317,23 @@ class Canvas(QWidget):
         ph = self._phase(now)
         stage = max(k for k, (_, at) in enumerate(self.STAGES[:-1]) if ph >= at) if d['cur'] is not None else (4 if d['finish'] else 0)
         lights_on = d['cur'] is not None and ph >= 0.70                  # after the fixer the room light may go on
-        # the darkroom: black, a red safelight glowing from the top
-        p.fillRect(self.rect(), QColor('#0a0808'))
+        mood = d['mood']
+        # the darkroom: black, a red safelight glowing from the top (dimmer for black and white); the room light goes on after the fixer
+        p.fillRect(self.rect(), QColor('#1d1a18' if lights_on else '#0a0808'))
         g = QRadialGradient(QPointF(W * 0.5, -H * 0.15), H * 1.1)
-        glow = QColor(170, 20, 18, 120 if not lights_on else 60)
+        glow = QColor(170, 20, 18, (70 if mood.get('mono') else 120) if not lights_on else 40)
         g.setColorAt(0.0, glow)
         g.setColorAt(1.0, QColor(10, 8, 8, 0))
         p.fillRect(self.rect(), g)
+        if not lights_on:                                                # dust drifting in the safelight beam
+            p.setPen(Qt.NoPen)
+            for i in range(34):
+                x = (i * 97.3 + now * (5 + (i % 4) * 3)) % W
+                y = (i * 53.1 + math.sin(now * 0.5 + i) * 18 + now * (3 + i % 5)) % H
+                beam = max(0.0, 1.0 - abs(x - W * 0.5) / (W * (0.12 + 0.45 * y / H)))      # a cone from the lamp
+                if beam > 0:
+                    p.setBrush(QColor(255, 190, 180, int(70 * beam * (0.5 + 0.5 * math.sin(now * 1.3 + i)))))
+                    p.drawEllipse(QPointF(x, y), 1.2 + (i % 3) * 0.5, 1.2 + (i % 3) * 0.5)
         f = QFont(self.font())
         f.setPointSize(10)
         f.setLetterSpacing(QFont.AbsoluteSpacing, 2)
@@ -313,6 +374,8 @@ class Canvas(QWidget):
         liquid = tray.adjusted(10, 10, -10, -10)
         lg = QLinearGradient(liquid.topLeft(), liquid.bottomRight())
         tint = {0: QColor(40, 30, 20), 1: QColor(30, 30, 34), 2: QColor(26, 34, 30), 3: QColor(22, 30, 40)}.get(stage, QColor(20, 20, 22))
+        if mood.get('cross') and stage == 0:
+            tint = QColor(26, 46, 28)                                    # cross-processing: slide film in the wrong (green) developer
         lg.setColorAt(0, tint.lighter(140))
         lg.setColorAt(1, tint)
         p.setPen(Qt.NoPen)
@@ -333,9 +396,8 @@ class Canvas(QWidget):
             p.drawRect(r)                                                 # the paper
             emerge = min(1.0, max(0.0, (ph - 0.06) / 0.50))
             emerge = emerge * emerge * (3 - 2 * emerge)                   # the picture comes up slowly, then fast
-            p.setOpacity(emerge)
-            p.drawPixmap(r, pm, QRectF(0, 0, pm.width(), pm.height()))
-            p.setOpacity(1.0)
+            if emerge > 0:
+                p.drawImage(r, self._emerged(emerge))
             if not lights_on:
                 p.fillRect(r, QColor(170, 20, 15, 70))                    # everything is red under the safelight
             # the liquid moving over the print (the tray is rocked)
@@ -373,6 +435,16 @@ class Canvas(QWidget):
         frac = (d['done'] / d['total']) if d['total'] else 0.0
         p.setBrush(QColor('#e0372f'))
         p.drawRoundedRect(QRectF(16, y + 28, (W - 32) * frac, 6), 3, 3)
+        # the room light comes on: a quick white flash as the print goes into the fixer
+        if d['cur'] is not None and 0.70 <= ph < 0.80:
+            p.fillRect(self.rect(), QColor(255, 250, 240, int(150 * (1 - (ph - 0.70) / 0.10))))
+        # a hint that the animation can be sped up
+        hint = ('click: skip the rest' if d['fast'] else 'click: speed up') if not d['finish'] else 'click: skip the rest'
+        fh = QFont(self.font())
+        fh.setPointSize(8)
+        p.setFont(fh)
+        p.setPen(QColor('#6a655e'))
+        p.drawText(QRectF(16, H - 20, W - 32, 16), Qt.AlignRight | Qt.AlignVCenter, hint)
 
     def _pill(self, p, at, text, bg, fg, anchor):
         f = QFont(self.font())

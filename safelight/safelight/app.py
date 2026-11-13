@@ -103,6 +103,10 @@ TIPS = {
     'border': 'The border around each print.\nWhite: a plain white border.\nBlack film-holder edge: the rough black edge of a negative '
               'carrier filed out for full-frame prints, with the film, frame and date in orange.\nInstant-print frame: a wide bottom, '
               'with the caption.',
+    'scan': 'Photos from other cameras only. Authentic scan: a film frame cannot hold the hair-sharp detail and the HDR range of a '
+            'modern phone photo, so the lab softens it to what film could resolve (before the grain goes on, so grain and detail belong '
+            'together) and rolls the highlights off softly like a print instead of clipping them. Nothing is thrown away: it is a tone '
+            'curve. Untick it to keep every pixel.',
     'auto': 'A gentle lab correction: stretches the darkest and brightest tones a little so flat frames get some snap. Leave it off for '
             'the film\'s own look.',
     'size': 'The size of the prints: full (the photo\'s own size: 3648 px from the FAUXJI camera, about 3 s a frame; very large photos '
@@ -148,6 +152,7 @@ big, rotate it with the buttons or R / L;
 <tr><td valign=top><b>Paper</b></td><td>%(paper)s</td></tr>
 <tr><td valign=top><b>Border</b></td><td>%(border)s</td></tr>
 <tr><td valign=top><b>Lab correction</b></td><td>%(auto)s</td></tr>
+<tr><td valign=top><b>Authentic scan</b></td><td>%(scan)s</td></tr>
 <tr><td valign=top><b>Print size</b></td><td>%(size)s</td></tr>
 <tr><td valign=top><b>Surprise me</b></td><td>%(surprise)s</td></tr>
 </table>
@@ -856,6 +861,7 @@ class MainWindow(QMainWindow):
         self.c_paper = self._combo(lab.PAPERS)
         self.c_border = self._combo(lab.BORDERS)
         self.c_auto = QCheckBox('Lab correction')
+        self.c_scan = QCheckBox('Authentic scan')
         self.c_filter = self._combo(lab.BW_FILTERS)
         self.c_tone = self._combo(lab.TONES)
         self.c_size = QComboBox()
@@ -875,6 +881,7 @@ class MainWindow(QMainWindow):
         form.addRow('Paper', self.c_paper)
         form.addRow('Border', self.c_border)
         form.addRow('', self.c_auto)
+        form.addRow('', self.c_scan)
         form.addRow('Print size', self.c_size)
         lab_inner = QWidget()
         lab_inner.setObjectName('labform')
@@ -896,7 +903,7 @@ class MainWindow(QMainWindow):
         self.c_look.setToolTip(TIPS['look'])
         for w, key in ((self.c_push, 'push'), (self.c_dev, 'developer'), (self.c_proc, 'process'), (self.c_exp, 'expired'),
                        (self.c_grain, 'grain'), (self.c_hal, 'halation'), (self.c_leaks, 'leaks'), (self.c_paper, 'paper'),
-                       (self.c_border, 'border'), (self.c_auto, 'auto'), (self.c_size, 'size'), (self.c_filter, 'filter'),
+                       (self.c_border, 'border'), (self.c_auto, 'auto'), (self.c_scan, 'scan'), (self.c_size, 'size'), (self.c_filter, 'filter'),
                        (self.c_tone, 'tone')):
             w.setToolTip(TIPS[key])
             lbl = form.labelForField(w)
@@ -909,6 +916,7 @@ class MainWindow(QMainWindow):
         self.c_exp.valueChanged.connect(lambda *_: self.recipe_changed())
         self.c_leaks.toggled.connect(lambda *_: self.recipe_changed())
         self.c_auto.toggled.connect(lambda *_: self.recipe_changed())
+        self.c_scan.toggled.connect(lambda *_: self.recipe_changed())
         row = QHBoxLayout()
         b = QPushButton('Surprise me')
         b.setToolTip(TIPS['surprise'])
@@ -1001,7 +1009,8 @@ class MainWindow(QMainWindow):
         return lab.Recipe(push=self.c_push.currentData(), developer=self.c_dev.currentData(), process=self.c_proc.currentData(),
                           expired=self.c_exp.value(), grain=self.c_grain.value() / 100.0, halation=self.c_hal.value() / 100.0,
                           leaks=self.c_leaks.isChecked(), paper=self.c_paper.currentData(), border=self.c_border.currentData(),
-                          auto_levels=self.c_auto.isChecked(), bw_filter=self.c_filter.currentData(), tone=self.c_tone.currentData())
+                          auto_levels=self.c_auto.isChecked(), bw_filter=self.c_filter.currentData(), tone=self.c_tone.currentData(),
+                          authentic=self.c_scan.isChecked())
 
     def set_recipe(self, r):
         self._quiet = True
@@ -1013,6 +1022,7 @@ class MainWindow(QMainWindow):
         self.c_hal.setValue(round(r.halation * 100))
         self.c_leaks.setChecked(r.leaks)
         self.c_auto.setChecked(r.auto_levels)
+        self.c_scan.setChecked(r.authentic)
         self._quiet = False
         self.recipe_changed()
 
@@ -2020,6 +2030,12 @@ class MainWindow(QMainWindow):
         self.refresh_library()
         self._update_buttons()
 
+    @staticmethod
+    def dev_mood(recipe, film):
+        """What the developing animation shows of the choices made (expired film, a light leak, black and white, cross-processing)."""
+        return {'expired': recipe.expired, 'leak': bool(recipe.leaks and not film.mono), 'mono': film.mono,
+                'cross': recipe.process == 'cross'}
+
     def develop(self):
         """Develop the whole roll. The big view becomes the darkroom: each print comes up in the developer tray, goes through the stop
         bath, fixer and wash, and is hung on the drying line; then the prints tab opens."""
@@ -2034,7 +2050,7 @@ class MainWindow(QMainWindow):
         was_secret = self.secret()
         self.tabs.setCurrentIndex(0)
         canvas = self.dview.canvas
-        canvas.start_develop('DEVELOPING  %s  ·  %s' % (r.code, recipe.describe().upper()))
+        canvas.start_develop('DEVELOPING  %s  ·  %s' % (r.code, recipe.describe().upper()), self.dev_mood(recipe, self.shown_film()))
 
         def work(report):
             libroll = r if in_lib else self.library.import_roll(r, progress=lambda d, n: report(('load', d, n, None)))
@@ -2531,7 +2547,7 @@ class MainWindow(QMainWindow):
         self._update_buttons()
         self.tabs.setCurrentIndex(0)
         canvas = self.dview.canvas
-        canvas.start_develop('PRINTING  %s  ·  %s' % (r.code, self.frames_text(nums).upper()))
+        canvas.start_develop('PRINTING  %s  ·  %s' % (r.code, self.frames_text(nums).upper()), self.dev_mood(recipe, self.shown_film()))
 
         def work(report):
             libroll = r if in_lib else self.library.import_roll(r, progress=lambda d, n: report(('load', d, n, None)))

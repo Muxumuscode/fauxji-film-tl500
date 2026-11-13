@@ -288,6 +288,13 @@ class PhotoLab(QWidget):
             self.border.addItem(v, k)
         self.border.activated.connect(lambda *_: self.lab_previews())
         order.addWidget(self.border)
+        order.addSpacing(16)
+        self.scan = QCheckBox('Authentic scan')
+        self.scan.setChecked(True)
+        self.scan.setToolTip('Softens a sharp phone photo to what film could resolve and rolls the highlights off like a print. '
+                             'Untick to keep every pixel.')
+        self.scan.toggled.connect(lambda *_: self.lab_previews())
+        order.addWidget(self.scan)
         order.addStretch(1)
         lay.addLayout(order)
         self.dark_note = QCheckBox('')
@@ -556,6 +563,7 @@ class PhotoLab(QWidget):
                     break
                 r = lab.Recipe.from_dict(c.recipe.to_dict())
                 r.seed = 3
+                r.authentic = self.scan.isChecked()
                 if border:
                     r.border = border
                 im = lab.to_image(lab.develop(a, film, r, frame=2, emulate=own))
@@ -583,6 +591,7 @@ class PhotoLab(QWidget):
         c = self.chosen_card()
         recipe = lab.Recipe.from_dict(c.recipe.to_dict())
         recipe.seed = 0
+        recipe.authentic = self.scan.isChecked()
         if self.border.currentData():
             recipe.border = self.border.currentData()
         if self.dark_note.isVisible() and self.dark_note.isChecked():
@@ -599,7 +608,9 @@ class PhotoLab(QWidget):
         m.busy = True
         m._update_buttons()
         self.go(3)
-        self.canvas.start_develop('AT THE LAB  ·  %s  ·  %s' % ((roll.name or roll.code).upper(), c.name.upper()))
+        film = self.order_film()
+        self.canvas.start_develop('AT THE LAB  ·  %s  ·  %s' % ((roll.name or roll.code).upper(), c.name.upper()),
+                                  m.dev_mood(recipe, films.UNKNOWN if film is films.MYSTERY or self.secret() else film))
 
         def work(report):
             libroll = roll if in_lib else m.library.import_roll(roll, progress=lambda d, n: report(('load', d, n, None)))

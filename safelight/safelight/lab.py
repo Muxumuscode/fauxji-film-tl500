@@ -72,6 +72,7 @@ class Recipe:
     auto_levels: bool = False     # gentle lab correction
     bw_filter: str = 'none'       # black and white: a coloured filter (photos from any camera)
     tone: str = 'none'            # black and white: toning of the print
+    authentic: bool = True        # authentic scan (photos from other cameras): film-like softness and a soft highlight shoulder
     seed: int = 0                 # the roll's own randomness (leaks, expired-film cast)
 
     def describe(self):
@@ -90,6 +91,8 @@ class Recipe:
             bits.append('%s filter' % self.bw_filter)
         if self.tone != 'none':
             bits.append('%s toned' % self.tone)
+        if not self.authentic:
+            bits.append('every pixel kept')
         return ', '.join(bits) or 'box speed, standard developer'
 
     def to_dict(self):
@@ -237,6 +240,9 @@ def develop(a, film, recipe, frame=1, roll_seed=0, emulate=False):
     if emulate:                                       # a photo from another camera: the film's colour first
         a = film_look(a, film, recipe.bw_filter)
     h, w = a.shape[:2]
+    scan = emulate and recipe.authentic
+    if scan:                                          # authentic scan: no film resolves a phone's hair-sharp detail
+        a = _soften(a)
     rng = np.random.default_rng(_seed(roll_seed, recipe.seed, frame))
     grain = film.grain * recipe.grain
     contrast = 1.0
@@ -317,6 +323,11 @@ def develop(a, film, recipe, frame=1, roll_seed=0, emulate=False):
         else:
             a = np.repeat(l[..., None], 3, axis=2)
 
+    # authentic scan, tones: a film print has a shorter range than a phone's HDR file: a soft shoulder in the highlights (each film
+    # kind has its own latitude) and a touch of lift in the blacks. Float throughout: nothing is lost, the curve only rolls off.
+    if scan:
+        a = _shoulder(a, SHOULDER.get(film.kind, 0.74))
+
     # grain: clumpy, strongest in the mid-tones. A grain clump is 2 px of the camera's 3648 px frame; a smaller image (a preview) gets
     # finer noise with the amplitude a downscale would leave, so previews look like the full-size print scaled down.
     if grain > 0:
@@ -354,6 +365,29 @@ def develop(a, film, recipe, frame=1, roll_seed=0, emulate=False):
         a = a - 0.03 * np.clip(a - 0.85, 0, None)
 
     return np.clip(a, 0, 1)
+
+
+SOFT_SIGMA = 0.00045                                       # film / lens softness: 1.6 px at the camera's 3648 px frame, in proportion at any size
+SHOULDER = {'slide': 0.80, 'effect': 0.78, 'bw': 0.72, 'negative': 0.68, 'cine': 0.62}   # where the highlights start to roll off
+
+
+def _soften(a):
+    """The softness of a film frame (lens, grain and scanner): detail finer than about 3600 px across is not there, whatever the
+    phone's sensor recorded. Proportional to the image width, so a preview and a print agree."""
+    sigma = a.shape[1] * SOFT_SIGMA
+    if sigma < 0.35:
+        return a
+    im = to_image(a).filter(ImageFilter.GaussianBlur(sigma))
+    return np.asarray(im, dtype=np.float32) / 255.0
+
+
+def _shoulder(a, t):
+    """Highlights roll off softly above t instead of clipping hard (and the blacks lift a little): the range of a print."""
+    a = np.clip(a, 0, None)
+    k = 0.8                                           # below t nothing changes; above, the slope eases from 1 smoothly
+    u = np.maximum(a - t, 0) / (1 - t)
+    y = np.where(a > t, t + (1 - t) * np.tanh(k * u) / k, a)
+    return np.clip(0.010 + y * 0.990, 0, 1)
 
 
 FULL_WIDTH = 3648                                         # the TL500's full-size frame

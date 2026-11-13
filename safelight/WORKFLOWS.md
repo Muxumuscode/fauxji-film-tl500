@@ -183,6 +183,26 @@ opens Load photos with the photos filled in.
 5. Darkroom: frame changes, copy / paste, single prints.
 6. Start screen and the Photo Lab steps.
 
+## Queue (agreed 13 Nov 2026, not started)
+
+**Developing animation: make the fun part cooler.**
+Done 13 Nov 2026 (`viewer.Canvas`): prints come up shadows first, then mid-tones, highlights last; the room light flashes on at the
+fixer; dust drifts in the safelight beam; a click speeds the animation up and a second click skips the rest (hint at the bottom edge);
+it shows the user's choices: expired film comes up foggy and clears, a light leak glows into frame 1, black and white runs under a
+dimmer red, cross-processing in a green developer.
+
+Still in the queue:
+1. Tongs lower and lift the print; a darkroom clock whose speed follows push / pull; drips from the clothespins; steam.
+2. Sounds (faucet, tick, swish, done ding), with an off switch. Needs sound files and QtMultimedia in the build.
+3. A mystery roll's film name appears on the drying line (today: the reveal window after the animation).
+4. The payoff: lights on when the last print dries, prints slide off the line and fan out into the contact sheet / full screen.
+5. Later, bigger: a GPU tray with reflections; rocking the tray with the mouse.
+
+**Scan authenticity: DONE 13 Nov 2026** (`lab._soften`, `lab._shoulder`, `Recipe.authentic`; unit-tested). The idea was: soften and resample very sharp, high-resolution or
+HDR photos to a film-scan-like effective resolution *before* the grain, add a highlight shoulder and a shorter, lifted tonal range, and
+keep the processing in float (no real data loss). A setting such as *Authentic scan* (default on in the Photo Lab, a plain choice in
+the Darkroom), with a way to keep every pixel.
+
 ## Decided
 
 | Question | Decision |

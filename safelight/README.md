@@ -31,6 +31,9 @@ Windows and Linux. Your originals are never changed.
   the filmstrip, in previews, every development and the contact sheet. Prints are turned the same way in the PRINTS tab (the file and the
   contact sheet are rewritten a moment after the last click).
 - **Every setting is explained:** hover over it, or open **? Lab guide**.
+- **Authentic scan** (photos from other cameras; on by default, in the lab and in the Photo Lab's order): a film frame cannot hold a
+  phone's hair-sharp detail or HDR range, so the lab softens the photo to what film could resolve (before the grain, so grain and detail
+  belong together) and rolls the highlights off softly like a print. Untick it to keep every pixel.
 - **The Film menu** is always in the lab. For your own photos it picks the film (a whole roll, or THIS FRAME); for a FAUXJI roll it is
   greyed out, because the camera already gave those photos their film's look. A folder of ordinary photos opened with **Open folder…**
   is loaded as your own photos, with the film to choose.
@@ -61,7 +64,8 @@ Windows and Linux. Your originals are never changed.
   - black and white: a coloured filter (yellow, orange, red, green; photos from other cameras) and toning (selenium, sepia)
   - lab correction (gentle auto levels), print size (full 3648 px, 2400 px, 1600 px)
   - **Surprise me** lets the lab pick.
-- **Developing is animated** in the big view: under a red safelight each print comes up in the developer tray (the liquid moving over
+- **Developing is animated** (the picture comes up shadows first, the room light flashes on at the fixer, expired film is foggy, a light leak
+  glows into the first frame; click to speed up, again to skip) in the big view: under a red safelight each print comes up in the developer tray (the liquid moving over
   it), goes through the stop bath, fixer and wash, and is hung on a drying line with a clothespin; a stage bar and the frame counter
   run along the bottom. Click to skip to the end.
 - **Prints and contact sheet.** The prints tab works like the light table: the print big, the prints along the bottom. **Export prints…** copies them anywhere.

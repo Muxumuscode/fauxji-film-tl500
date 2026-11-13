@@ -357,6 +357,50 @@ class Versions(unittest.TestCase):
         self.assertEqual(L.chosen_prints(self.rid)[2], os.path.join(f3, 'frame_02.jpg'))
 
 
+class AuthenticScan(unittest.TestCase):
+    """Authentic scan: a sharp, high-range phone photo is softened and its highlights roll off; FAUXJI photos are left alone."""
+
+    def setUp(self):
+        rng = np.random.default_rng(4)
+        h, w = 120, 1600
+        a = rng.random((h, w, 3)).astype(np.float32) * 0.25 + 0.55           # a noisy, bright, hair-sharp frame
+        a[:, 800:] = np.clip(a[:, 800:] + 0.35, 0, 1)                        # with a clipped highlight half
+        self.a = a
+        self.prov = films.BY_CODE['PROV']
+        self.base = dict(grain=0, leaks=False, expired=0, paper='glossy', border='none')
+
+    def dev(self, authentic, emulate=True, film=None):
+        return lab.develop(self.a, film or self.prov, lab.Recipe(**self.base, authentic=authentic), frame=3, emulate=emulate)
+
+    def test_softens_and_rolls_off(self):
+        on, off = self.dev(True), self.dev(False)
+        hf = lambda x: np.abs(np.diff(x[..., 1], axis=1)).mean()             # noqa: E731
+        self.assertLess(hf(on), hf(off) * 0.9)                               # less fine detail
+        clipped = lambda x: (x[:, 810:] >= 0.999).mean()                   # noqa: E731
+        self.assertLess(clipped(on), clipped(off) * 0.5)                      # far fewer highlights pinned at pure white
+        self.assertGreater(on.min(), off.min() - 1e-6)                       # blacks never go lower
+        self.assertTrue(0 <= on.min() and on.max() <= 1)
+
+    def test_latitude_depends_on_the_film(self):
+        self.assertLess(lab.SHOULDER['cine'], lab.SHOULDER['slide'])          # a cinema film holds highlights longer than a slide film
+        slide, cine = (self.dev(True, film=films.BY_CODE[c])[:, 810:].mean() for c in ('VELV', 'ETRN'))
+        self.assertNotAlmostEqual(float(slide), float(cine), places=3)       # and each film gets its own curve
+
+    def test_midtones_are_left_alone(self):
+        x = np.linspace(0, 0.6, 50, dtype=np.float32)[None, :, None].repeat(3, axis=2)
+        y = lab._shoulder(x, 0.68)
+        self.assertLess(np.abs(y - x).max(), 0.011)                          # only the small black lift below the shoulder
+        h = np.linspace(0.7, 1.0, 50, dtype=np.float32)[None, :, None].repeat(3, axis=2)
+        top = h[0, :, 0] >= 0.85
+        self.assertTrue((lab._shoulder(h, 0.68)[0, top, 0] < h[0, top, 0]).all())            # the highlights roll off ...
+        self.assertTrue((np.diff(lab._shoulder(h, 0.68)[0, :, 0]) > 0).all())                # ... and still rise
+
+    def test_not_for_fauxji_photos(self):
+        self.assertTrue(np.allclose(self.dev(True, emulate=False), self.dev(False, emulate=False)))   # already film-like
+        self.assertIn('every pixel kept', lab.Recipe(authentic=False).describe())
+        self.assertTrue(lab.Recipe.from_dict({k: v for k, v in lab.Recipe().to_dict().items() if k != 'authentic'}).authentic)
+
+
 class PhonePhotos(unittest.TestCase):
     """Photos from phones: turned the way the phone says, broken files left out, very large ones brought down."""
 
