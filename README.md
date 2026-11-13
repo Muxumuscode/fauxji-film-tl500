@@ -12,7 +12,7 @@ Nothing of Samsung's is included in this repository.
 
 Current version: **TL-F63**, built on firmware **008264** only.
 
-Film camera build (`--film`, see below): **TL-F65t**, same firmware, in development on the `polish` branch.
+Film camera build (`--film`, see below): **TL-F65u**, same firmware, in development on the `polish` branch.
 
 ## The main event: fixes that make the camera better to use
 
@@ -45,7 +45,7 @@ cartridges. The `--film` build uses them everywhere; the plain build still has t
 
 ## Film camera mode (new in v0.3, experimental)
 
-Build it with `python tools/build_fauxji.py <stock dir> <out dir> --film` (version label TL-F65t). The SCENE spot on the mode dial becomes a
+Build it with `python tools/build_fauxji.py <stock dir> <out dir> --film` (version label TL-F65u). The SCENE spot on the mode dial becomes a
 film camera:
 
 - It behaves like P: the 1/60 minimum shutter with auto ISO, open menus, and macro, flash and self-timer on the direction keys.

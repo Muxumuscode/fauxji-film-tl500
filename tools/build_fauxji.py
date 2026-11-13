@@ -40,7 +40,7 @@ KNOWN_LABELS = (b'TL500-U\0', b'TL-F62\0\0', LABEL)  # what the label bytes may 
 DIAG_LABEL = b'TL-D06\0\0'                      # --diag-keys build: key numbers, dial events, file-list finder (tools/diag_probe.py)
 
 
-FILM_LABEL = b'TL-F65t\0'                       # --film build: film camera mode (film_mode), EXIF names (film_exif), ratchet (film_sound), stamp (film_stamp)
+FILM_LABEL = b'TL-F65u\0'                       # --film build: film camera mode (film_mode), EXIF names (film_exif), ratchet (film_sound), stamp (film_stamp)
 
 
 def build_elf(stock, diag_keys=False, film=False):
@@ -65,6 +65,8 @@ def build_elf(stock, diag_keys=False, film=False):
         d = bytearray(film_sound.patch(bytes(d)))                 # the wind-on ratchet: its sample and its player
         import film_stamp
         d = bytearray(film_stamp.patch(bytes(d), film_mode.addrs()['vars']))   # orange '98 date stamp in the film camera
+        import film_ae
+        d = bytearray(film_ae.patch(bytes(d), film_mode.addrs()['vars']))      # the film camera gets P's zoom-shift and flash-floor fixes
         label = FILM_LABEL
     assert bytes(d[LABEL_AT:LABEL_AT + 8]) in KNOWN_LABELS, 'unexpected version label'
     d[LABEL_AT:LABEL_AT + 8] = label

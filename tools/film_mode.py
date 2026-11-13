@@ -293,7 +293,7 @@ def base_r4():
     import fauxji_rot
     blobs, _ = fauxji_rot.build()
     end = max(x + len(c) for x, c in blobs if fauxji_rot.R4 <= x < fauxji_rot.R4_END)
-    return (end + 15) & ~15
+    return ((end + 15) & ~15) + 16                           # 16 bytes kept for tools/film_ae.py's `plfilm` (right after fauxji_rot's code)
 
 
 def addrs(b=None):

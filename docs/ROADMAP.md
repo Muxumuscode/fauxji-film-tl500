@@ -18,7 +18,7 @@ Risk = how likely it is to fight us (unknown code paths, timing, crashes).
 | Fuji-style menus, shooting screen, mode dial, pop-ups | done, on camera |
 | Minimum shutter 1/60 with auto ISO in P, A and S (the camera raises ISO, cap 1600, instead of slowing down); auto ISO in M | done, on camera |
 | **1/125 problem fixed**: stock raised the minimum shutter to 1/125 and more when zoomed in (the zoom hand-shake shift) and with the flash; skipped for P, A and S since FAUXJI51 | done, verified on camera (FAUXJI54, "it worked great") |
-| **Film camera mode** (`--film` build, latest TL-F65t) | working on camera, open items below |
+| **Film camera mode** (`--film` build, latest TL-F65u) | working on camera, open items below |
 | Auto-rotate | researching (see below) |
 | Names on the FILM BKT 9-look chooser | later pile |
 | Playback screens | later pile |
@@ -27,7 +27,7 @@ Risk = how likely it is to fight us (unknown code paths, timing, crashes).
 
 ## Film camera mode: state and what is left (8 Nov 2026)
 
-Build it with `python tools/build_fauxji.py <stock dir> <out dir> --film` (latest label **TL-F65t**; the plain build is unchanged and differs from
+Build it with `python tools/build_fauxji.py <stock dir> <out dir> --film` (latest label **TL-F65u**; the plain build is unchanged and differs from
 FAUXJI63 only in the version label). Notes per build are in docs/FEATURES.md (FILM01 ... FILM23), tests: `python tools/test_film.py`,
 `python tools/test_film_layout.py <SPID.Rom>`.
 
@@ -122,6 +122,9 @@ Ideas to make the film camera more fun, roughly by fun-per-effort. Computer-side
     sharing. The "lab" look stays the default; corrections are optional.
   * **Make it a ritual:** a roll counter and "lab log" per film, stats (favourite film, most shot roll), and a "surprise" development mode
     that picks the push/pull and paper for you.
+- [x] **Sajin Genzō: Photo Lab and Darkroom** (BUILT 13 Nov 2026): two workflows for photos from any camera, versions with a by-frame
+  view, full-screen viewer, recipe cards (including B&W), Authentic scan, HEIC, a richer developing animation with sounds; left: a GPU tray
+  with reflections. Plan and status in [safelight/WORKFLOWS.md](../safelight/WORKFLOWS.md).
 - [ ] **Sajin Genzō for Android** (planned, not started): a native rewrite with GPU processing; plan, milestones and the store
   questions (film names) in [safelight/ANDROID.md](../safelight/ANDROID.md).
 - [ ] **Motor drive** (M). In a scene card, Continuous drive works without winding on, as if a motor winder were fitted; bracketing stays off.
