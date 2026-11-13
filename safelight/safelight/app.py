@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (QSizePolicy, QApplication, QCheckBox, QComboBox, 
                                QScrollArea, QSlider, QSpinBox, QSplitter, QTabWidget, QTableWidget, QTableWidgetItem, QTreeWidget,
                                QTextBrowser, QTreeWidgetItem, QVBoxLayout, QWidget, QLineEdit, QButtonGroup, QInputDialog, QAbstractItemView, QStackedWidget)
 
-from . import APP_NAME, APP_NATIVE, __version__, card, films, lab, recipes
+from . import APP_NAME, APP_NATIVE, __version__, card, films, lab, recipes, sounds
 from .library import DARKROOM, Library, frame_number
 from .photolab import PhotoLab, StartPage
 from .viewer import ElidedLabel, FrameView, FullScreen, filmstrip
@@ -185,6 +185,8 @@ the contact sheet and a lab card of what was done. <b>Lab log</b> lists every de
 <p>Light table and prints: <b>← →</b> previous / next, <b>R</b> / <b>L</b> rotate right / left, <b>Space</b> next view (negative,
 original, print preview), <b>F</b> full screen (or double-click). Ctrl / Shift + click selects several frames; <b>Ctrl+C</b> /
 <b>Ctrl+V</b> copy and paste a frame's settings.<br>
+The developing animation: click to speed it up, again to skip; move the mouse over the tray to rock it; <b>♪ Sound</b> at the top
+turns its sounds off.<br>
 Full screen: <b>← →</b>, <b>R</b> / <b>L</b>, hold <b>Space</b> for the original, <b>I</b> info, <b>V</b> next view (light table),
 <b>C</b> compare two prints of a frame (<b>↑ ↓</b> another, drag the line), <b>Esc</b> close.<br>
 The name at the top left goes back to the start screen.</p>
@@ -572,6 +574,16 @@ class MainWindow(QMainWindow):
             b.clicked.connect(lambda _=False, mode=mode: self.set_mode(mode))
             top.addWidget(b)
         top.addSpacing(10)
+        self.btn_sound = QPushButton('♪  Sound')
+        self.btn_sound.setCheckable(True)
+        self.btn_sound.setObjectName('seg')
+        on = self.settings.value('sound') not in (False, 'false', 0, '0')
+        self.btn_sound.setChecked(on and sounds.enabled)
+        sounds.enabled = sounds.enabled and on
+        self.btn_sound.setToolTip('The sounds of the developing animation (a swish, running water, the bell). Click to turn them off or on.')
+        self.btn_sound.toggled.connect(self.set_sound)
+        top.addWidget(self.btn_sound)
+        top.addSpacing(6)
         for b in (self.btn_log, self.btn_lib, self.btn_guide):
             top.addWidget(b)
         outer.addLayout(top)
@@ -1411,6 +1423,12 @@ class MainWindow(QMainWindow):
             if key:
                 self.select_library_roll(key)
 
+    def set_sound(self, on):
+        sounds.enabled = bool(on) and not os.environ.get('SAJIN_SILENT')
+        self.settings.setValue('sound', bool(on))
+        if on:
+            sounds.play('clink')
+
     def show_start(self):
         """The start screen again (the name at the top left): choose the way, or change 'open straight in'."""
         if self.busy:
@@ -2084,7 +2102,8 @@ class MainWindow(QMainWindow):
                 if was_secret:
                     Reveal(self, films.BY_NAME.get(labcard['film'].lower(), films.UNKNOWN)).exec()
 
-            canvas.dev_finish(after, 'DRY  ·  %d PRINTS' % len(labcard['frames']))
+            canvas.dev_finish(after, 'DRY  ·  %d PRINTS' % len(labcard['frames']),
+                              reveal=('YOUR MYSTERY ROLL WAS  %s' % labcard['film'].upper()) if was_secret else None)
 
         self.run(work, done, progress=prog)
 
@@ -2586,7 +2605,8 @@ class MainWindow(QMainWindow):
                 if was_secret:
                     Reveal(self, libroll.true_film).exec()
 
-            canvas.dev_finish(after, 'DRY  ·  %d PRINT%s' % (len(made), '' if len(made) == 1 else 'S'))
+            canvas.dev_finish(after, 'DRY  ·  %d PRINT%s' % (len(made), '' if len(made) == 1 else 'S'),
+                              reveal=('YOUR MYSTERY ROLL WAS  %s' % libroll.true_film.name.upper()) if was_secret else None)
 
         self.run(work, done, progress=prog)
 

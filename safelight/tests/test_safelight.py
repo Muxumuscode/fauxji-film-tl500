@@ -5,6 +5,8 @@ import sys
 import tempfile
 import unittest
 
+os.environ.setdefault('SAJIN_SILENT', '1')                  # no sounds while testing
+
 import numpy as np
 from PIL import Image
 
@@ -355,6 +357,25 @@ class Versions(unittest.TestCase):
         shutil.rmtree(f1)                                                               # a development gone: its picks go too
         self.assertEqual(L.picks(self.rid), {})
         self.assertEqual(L.chosen_prints(self.rid)[2], os.path.join(f3, 'frame_02.jpg'))
+
+
+class Sounds(unittest.TestCase):
+    def test_sounds_are_made_in_code(self):
+        import wave
+        from safelight import sounds
+        for name in sounds.MAKERS:
+            x = sounds.samples(name)
+            self.assertTrue(0.1 < len(x) / sounds.RATE < 2.0, name)
+            self.assertTrue(0.02 < np.abs(x).max() <= 1.0, name)               # audible, and never clipped
+            self.assertFalse(np.isnan(x).any())
+            with wave.open(sounds.wav_file(name)) as w:
+                self.assertEqual((w.getnchannels(), w.getsampwidth(), w.getframerate()), (1, 2, sounds.RATE))
+
+    def test_muted_is_silent(self):
+        from safelight import sounds
+        self.assertFalse(sounds.enabled)                                       # (the tests run with SAJIN_SILENT)
+        sounds.play('bell')                                                    # nothing happens, nothing raises
+        self.assertNotIn('bell', sounds._last)
 
 
 class AuthenticScan(unittest.TestCase):

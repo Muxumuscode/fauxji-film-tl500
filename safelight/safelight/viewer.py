@@ -8,6 +8,8 @@ import time
 
 import numpy as np
 
+from . import sounds
+
 from PySide6.QtCore import QPointF, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QImage, QLinearGradient, QPainter, QPainterPath, QPen, QRadialGradient
 from PySide6.QtWidgets import QButtonGroup, QHBoxLayout, QLabel, QListView, QListWidget, QPushButton, QVBoxLayout, QWidget
@@ -56,6 +58,7 @@ class Canvas(QWidget):
         self.dev_timer.setInterval(33)
         self.dev_timer.timeout.connect(self._tick)
         self.setMinimumSize(320, 220)
+        self.setMouseTracking(True)
 
     def set_picture(self, pm, rotation=0):
         self.pm, self.rotation = pm, rotation % 360
@@ -146,7 +149,7 @@ class Canvas(QWidget):
         """mood: what the animation shows of the user's choices: expired (years: the prints come up foggy and clear), leak (the first
         print catches a light leak), mono (black and white: a dimmer red), cross (cross-processing: a green developer)."""
         self.dev = {'title': title, 'queue': [], 'cur': None, 't0': 0.0, 'line': [], 'done': 0, 'total': 0, 'mood': dict(mood or {}),
-                    'fast': False, 'started': 0, 'img': None,
+                    'fast': False, 'started': 0, 'img': None, 'rock': 0.0, 'hold': 2.8, 'reveal': None, 'wash_for': None,
                     'note': 'Loading the film into the tank…', 'finish': None, 'finished_at': None, 'start': time.monotonic()}
         self.dev_timer.start()
         self.update()
@@ -162,12 +165,17 @@ class Canvas(QWidget):
             self.dev['done'], self.dev['total'] = done, total
             self.dev['note'] = ''
 
-    def dev_finish(self, callback, text):
-        """Called when the lab job is done: the animation plays out the prints still in the queue, shows `text`, then calls back."""
+    def dev_finish(self, callback, text, reveal=None):
+        """Called when the lab job is done: the animation plays out the prints still in the queue, then lights on and the prints fan out,
+        shows `text` (a mystery roll: its film's name, `reveal`), then calls back."""
         if self.dev is None:
             callback()
             return
         self.dev['finish'], self.dev['end_text'] = callback, text
+        if reveal:
+            self.dev['reveal'] = reveal
+            self.dev['end_text'] = reveal                                 # the film's name takes the place of 'DRY'
+            self.dev['hold'] = 4.2
 
     def dev_cancel(self):
         self.dev = None
@@ -216,6 +224,12 @@ class Canvas(QWidget):
                    anchor='br')
 
     def mouseMoveEvent(self, e):
+        if self.dev is not None:                                          # moving the mouse over the tray rocks it
+            pos = e.position()
+            last = getattr(self, '_last_mouse', None)
+            if last is not None:
+                self.dev['rock'] = min(1.0, self.dev['rock'] + math.hypot(pos.x() - last.x(), pos.y() - last.y()) / 240.0)
+            self._last_mouse = pos
         r = self._cmp_rect
         if self.pm2 is not None and r is not None and e.buttons() & Qt.LeftButton:
             self.split = min(1.0, max(0.0, (e.position().x() - r.left()) / max(1.0, r.width())))
@@ -247,6 +261,7 @@ class Canvas(QWidget):
             self.dev_timer.stop()
             return
         now = time.monotonic()
+        d['rock'] *= 0.94
         if d['cur'] is not None and self._phase(now) >= 1.0:
             d['line'].append(d['cur'])
             d['cur'] = None
@@ -254,10 +269,15 @@ class Canvas(QWidget):
             d['cur'], d['t0'] = d['queue'].pop(0), now
             d['started'] += 1
             d['img'] = None
+            sounds.play('swish', gap=0.25)
+        if d['cur'] is not None and not d['fast'] and self._phase(now) >= 0.86 and d['wash_for'] is not d['cur']:
+            d['wash_for'] = d['cur']                                      # the wash: running water
+            sounds.play('water', gap=1.4)
         if d['finish'] and d['cur'] is None and not d['queue']:
             if d['finished_at'] is None:
                 d['finished_at'] = now
-            elif now - d['finished_at'] > 1.2:
+                sounds.play('bell')
+            elif now - d['finished_at'] > d['hold']:
                 cb = d['finish']
                 self.dev_cancel()
                 cb()
@@ -317,15 +337,17 @@ class Canvas(QWidget):
         ph = self._phase(now)
         stage = max(k for k, (_, at) in enumerate(self.STAGES[:-1]) if ph >= at) if d['cur'] is not None else (4 if d['finish'] else 0)
         lights_on = d['cur'] is not None and ph >= 0.70                  # after the fixer the room light may go on
+        done_at = d['finished_at']
+        lights_all = lights_on or done_at is not None                      # and when everything is dry
         mood = d['mood']
         # the darkroom: black, a red safelight glowing from the top (dimmer for black and white); the room light goes on after the fixer
-        p.fillRect(self.rect(), QColor('#1d1a18' if lights_on else '#0a0808'))
+        p.fillRect(self.rect(), QColor('#1d1a18' if lights_all else '#0a0808'))
         g = QRadialGradient(QPointF(W * 0.5, -H * 0.15), H * 1.1)
-        glow = QColor(170, 20, 18, (70 if mood.get('mono') else 120) if not lights_on else 40)
+        glow = QColor(170, 20, 18, (70 if mood.get('mono') else 120) if not lights_all else 40)
         g.setColorAt(0.0, glow)
         g.setColorAt(1.0, QColor(10, 8, 8, 0))
         p.fillRect(self.rect(), g)
-        if not lights_on:                                                # dust drifting in the safelight beam
+        if not lights_all:                                               # dust drifting in the safelight beam
             p.setPen(Qt.NoPen)
             for i in range(34):
                 x = (i * 97.3 + now * (5 + (i % 4) * 3)) % W
@@ -354,23 +376,42 @@ class Canvas(QWidget):
                 break
             x -= tw + 12
             hung.append((x + 12, tw, pm))
-        for k, (hx, tw, pm) in enumerate(reversed(hung)):
-            p.save()
-            p.translate(hx + tw / 2, ly)
-            p.rotate((-1.5 if k % 2 else 1.5))
-            p.drawPixmap(QRectF(-tw / 2, 4, tw, th), pm, QRectF(0, 0, pm.width(), pm.height()))
-            p.fillRect(QRectF(-tw / 2, 4, tw, th), QColor(150, 20, 15, 40))
-            p.setBrush(QColor('#b88a5a'))
-            p.setPen(Qt.NoPen)
-            p.drawRoundedRect(QRectF(-4, -6, 8, 16), 2, 2)                # the clothespin
-            p.restore()
-            if not d['fast']:                                             # a drop forms at the bottom edge, falls, fades
-                t = (now * 0.45 + k * 0.37) % 1.0
-                if t < 0.55:
+        tray_h = max(80, H - (ly + th + 26) - 56 - 14)
+        tray_cy = ly + th + 26 + tray_h / 2
+        fan = 0.0                                                          # the finale: 0 hanging on the line ... 1 fanned out
+        if done_at is not None and hung:
+            u = max(0.0, min(1.0, (now - done_at - 0.3) / 1.1))
+            fan = u * u * (3 - 2 * u)
+
+        def draw_hung():
+            n = len(hung)
+            for k, (hx, tw, pm) in enumerate(reversed(hung)):
+                mid = (k - (n - 1) / 2)
+                cx0, ang0 = hx + tw / 2, (-1.5 if k % 2 else 1.5)
+                cx1, ang1 = W / 2 + mid * min(46.0, W * 0.55 / max(1, n)), mid * min(7.0, 60.0 / max(1, n))
+                sc = 1 + fan * (min(3.2, tray_h * 0.62 / th) - 1)
+                p.save()
+                p.translate(cx0 + (cx1 - cx0) * fan, ly + (tray_cy - ly) * fan)
+                p.rotate(ang0 + (ang1 - ang0) * fan)
+                w2, h2 = tw * sc, th * sc
+                y2 = 4 * (1 - fan) - h2 / 2 * fan
+                p.drawPixmap(QRectF(-w2 / 2, y2, w2, h2), pm, QRectF(0, 0, pm.width(), pm.height()))
+                p.fillRect(QRectF(-w2 / 2, y2, w2, h2), QColor(150, 20, 15, int(40 * (1 - fan))))
+                if fan < 0.4:
+                    p.setBrush(QColor('#b88a5a'))
                     p.setPen(Qt.NoPen)
-                    p.setBrush(QColor(210, 180, 170, int(190 * (1 - t / 0.55))))
-                    dy = ly + 4 + th + (t ** 2) * 70
-                    p.drawEllipse(QPointF(hx + tw * (0.3 + 0.4 * ((k * 7) % 3) / 2), dy), 1.6, 2.4 + t * 3)
+                    p.drawRoundedRect(QRectF(-4, -6, 8, 16), 2, 2)            # the clothespin
+                p.restore()
+                if fan == 0 and not d['fast']:                            # a drop forms at the bottom edge, falls, fades
+                    t = (now * 0.45 + k * 0.37) % 1.0
+                    if t < 0.55:
+                        p.setPen(Qt.NoPen)
+                        p.setBrush(QColor(210, 180, 170, int(190 * (1 - t / 0.55))))
+                        dy = ly + 4 + th + (t ** 2) * 70
+                        p.drawEllipse(QPointF(hx + tw * (0.3 + 0.4 * ((k * 7) % 3) / 2), dy), 1.6, 2.4 + t * 3)
+
+        if fan <= 0:
+            draw_hung()
         # the tray
         top = ly + th + 26
         bar_h = 56
@@ -406,6 +447,9 @@ class Canvas(QWidget):
             elif ph > 0.94:
                 slide = -((ph - 0.94) / 0.06) * (liquid.width() * 0.6)
             r = QRectF(liquid.center().x() - pw / 2 + slide, liquid.center().y() - phh / 2, pw, phh)
+            rock = d['rock']
+            if rock > 0.01:                                               # the mouse rocks the tray: the print sways in the liquid
+                r.translate(math.sin(now * 9) * rock * 8, math.sin(now * 6.3) * rock * 3)
             p.setBrush(QColor('#f3eee2'))
             p.drawRect(r)                                                 # the paper
             emerge = min(1.0, max(0.0, (ph - 0.06) / 0.50))
@@ -421,20 +465,44 @@ class Canvas(QWidget):
             p.setPen(QPen(QColor(255, 240, 230, 40), 1.5))
             for k in range(4):
                 path = QPainterPath()
-                y0 = liquid.top() + liquid.height() * (0.18 + 0.21 * k) + math.sin(now * 1.6 + k) * 6
+                y0 = liquid.top() + liquid.height() * (0.18 + 0.21 * k) + math.sin(now * (1.6 + 2 * d['rock']) + k) * (6 + 8 * d['rock'])
                 path.moveTo(liquid.left() + 6, y0)
                 for i in range(1, 25):
                     xx = liquid.left() + 6 + i * (liquid.width() - 12) / 24
-                    path.lineTo(xx, y0 + math.sin(now * 2.3 + i * 0.6 + k * 1.3) * 3)
+                    path.lineTo(xx, y0 + math.sin(now * (2.3 + 3 * d['rock']) + i * 0.6 + k * 1.3) * (3 + 10 * d['rock']))
                 p.drawPath(path)
         elif d['note'] or d['finish']:
             p.setPen(QColor('#d9a19a'))
             f2 = QFont(self.font())
             f2.setPointSize(13)
             p.setFont(f2)
+            if d['finish'] and d['reveal']:
+                f2.setPointSize(20)
+                f2.setBold(True)
+                p.setFont(f2)
+                p.setPen(QColor(RED))
             p.drawText(liquid, Qt.AlignCenter, d.get('end_text') if d['finish'] else d['note'])
         if d['cur'] is not None and tray.left() >= 64:                    # the darkroom clock, in the margin beside the tray
             self._clock(p, tray.left() / 2, top + 34, min(26.0, tray.left() / 2 - 8), ph, stage, mood.get('push', 0), now)
+        if fan > 0:                                                        # lights on: the prints leave the line and fan out over the tray
+            p.fillRect(QRectF(0, ly + th + 8, W, tray_h + 40), QColor(0x1d, 0x1a, 0x18, int(255 * min(1.0, fan * 1.6))))
+            draw_hung()
+            big = QFont(self.font())
+            big.setPointSize(13 if not d['reveal'] else 20)
+            big.setBold(True)
+            big.setLetterSpacing(QFont.AbsoluteSpacing, 3)
+            p.setFont(big)
+            p.setPen(QColor(RED) if d['reveal'] else QColor('#e8e4dc'))
+            p.setOpacity(min(1.0, fan * 1.4))
+            label = d.get('end_text') or ''
+            box = QRectF(0, tray_cy + tray_h * 0.34, W, 44)
+            tw_ = QFontMetrics(big).horizontalAdvance(label) + 44
+            p.setPen(Qt.NoPen)
+            p.setBrush(QColor(14, 12, 12, 215))                            # a dark plate: readable over the prints
+            p.drawRoundedRect(QRectF(W / 2 - tw_ / 2, box.top() + 4, tw_, 36), 10, 10)
+            p.setPen(QColor(RED) if d['reveal'] else QColor('#e8e4dc'))
+            p.drawText(box, Qt.AlignCenter, label)
+            p.setOpacity(1.0)
         # the stages and the progress
         y = H - bar_h
         n = len(self.STAGES)
@@ -457,7 +525,8 @@ class Canvas(QWidget):
         if d['cur'] is not None and 0.70 <= ph < 0.80:
             p.fillRect(self.rect(), QColor(255, 250, 240, int(150 * (1 - (ph - 0.70) / 0.10))))
         # a hint that the animation can be sped up
-        hint = ('click: skip the rest' if d['fast'] else 'click: speed up') if not d['finish'] else 'click: skip the rest'
+        hint = (('click: skip the rest' if d['fast'] else 'click: speed up') if not d['finish'] else 'click: skip the rest') + \
+            '   ·   move the mouse over the tray to rock it'
         fh = QFont(self.font())
         fh.setPointSize(8)
         p.setFont(fh)

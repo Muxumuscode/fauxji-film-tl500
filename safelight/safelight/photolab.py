@@ -639,7 +639,8 @@ class PhotoLab(QWidget):
                 self.want_fs = True                                    # the envelope opens: the prints, big (once one is in)
                 self.show_print()
 
-            self.canvas.dev_finish(after, 'YOUR PRINTS ARE BACK  ·  %d PRINTS' % len(labcard['frames']))
+            self.canvas.dev_finish(after, 'YOUR PRINTS ARE BACK  ·  %d PRINTS' % len(labcard['frames']),
+                                   reveal=('YOUR MYSTERY ROLL WAS  %s' % labcard['film'].upper()) if was_secret else None)
 
         m.run(work, done, progress=prog)
 

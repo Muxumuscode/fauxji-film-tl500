@@ -65,7 +65,8 @@ Windows and Linux. Your originals are never changed.
   - lab correction (gentle auto levels), print size (full 3648 px, 2400 px, 1600 px)
   - **Surprise me** lets the lab pick.
 - **Developing is animated** (tongs carry each print in and out, the picture comes up shadows first, the room light flashes on at the fixer, a darkroom clock
-  runs the real step times, expired film is foggy, a light leak glows into the first frame; click to speed up, again to skip) in the big view: under a red safelight each print comes up in the developer tray (the liquid moving over
+  runs the real step times, expired film is foggy, a light leak glows into the first frame; click to speed up, again to skip, move the mouse over the tray to rock it; sounds (a swish, running water, a bell; **♪ Sound** turns them
+  off); at the end the lights come on and the prints fan out; a mystery roll's film name appears in red) in the big view: under a red safelight each print comes up in the developer tray (the liquid moving over
   it), goes through the stop bath, fixer and wash, and is hung on a drying line with a clothespin; a stage bar and the frame counter
   run along the bottom. Click to skip to the end.
 - **Prints and contact sheet.** The prints tab works like the light table: the print big, the prints along the bottom. **Export prints…** copies them anywhere.

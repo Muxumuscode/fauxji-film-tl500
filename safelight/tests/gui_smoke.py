@@ -8,6 +8,7 @@ import time
 
 sys.stdout.reconfigure(errors='replace')                            # (the console may not print every character)
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+os.environ.setdefault('SAJIN_SILENT', '1')                          # no sounds while testing
 if os.name == 'nt':
     os.environ.setdefault('QT_QPA_FONTDIR', os.path.join(os.environ.get('WINDIR', r'C:\Windows'), 'Fonts'))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))

@@ -195,11 +195,12 @@ Also done 13 Nov 2026: tongs carry each print in and lift it out; a darkroom clo
 developer's follows push / pull: 5:30 pulled, 7:00 box speed, 9:00 / 11:00 pushed) with a sweeping hand; drips from the pegged prints;
 steam over the developer and the fixer.
 
-Still in the queue:
-1. Sounds (faucet, tick, swish, done ding), with an off switch. Needs sound files and QtMultimedia in the build.
-2. A mystery roll's film name appears on the drying line (today: the reveal window after the animation).
-3. The payoff: lights on when the last print dries, prints slide off the line and fan out into the contact sheet / full screen.
-4. Later, bigger: a GPU tray with reflections; rocking the tray with the mouse.
+Also done 13 Nov 2026: sounds made in code (`sounds.py`: a swish as a print goes in, running water in the wash, the bell at the end, no
+sound files; the *♪ Sound* button in the header turns them off); the finale (lights on, the prints leave the line and fan out over the
+tray, then the next screen); a mystery roll's film name in big red letters in the finale (before the reveal window); moving the mouse
+over the tray rocks it (bigger waves, the print sways).
+
+Still in the queue: a GPU tray with real reflections (a bigger job: it means moving the animation to a GPU widget).
 
 **Scan authenticity: DONE 13 Nov 2026** (`lab._soften`, `lab._shoulder`, `Recipe.authentic`; unit-tested). The idea was: soften and resample very sharp, high-resolution or
 HDR photos to a film-scan-like effective resolution *before* the grain, add a highlight shoulder and a shorter, lifted tonal range, and
