@@ -17,7 +17,7 @@ thumbnails of the roll or development shown before landing on the next one; no w
 at the top left); grain / halation sliders with no value and deaf to keys and the wheel; the lab panel too tall for small laptop
 screens (it scrolls; the window fits 1240 × 700); the tab names squeezed by a long roll name; exports always starting in the home
 folder; the Mystery reveal on every re-development; the Photo Lab stuck on its animation after an error; broken files stopping a
-whole development; no word about HEIC. Still open: HEIC support (needs the `pillow-heif` package).
+whole development; no word about HEIC (HEIC photos open now: `pillow-heif`, added 13 Nov 2026).
 
 ## What is wrong today (for people without the camera)
 
@@ -183,7 +183,7 @@ opens Load photos with the photos filled in.
 5. Darkroom: frame changes, copy / paste, single prints.
 6. Start screen and the Photo Lab steps.
 
-## Queue (agreed 13 Nov 2026, not started)
+## Queue (agreed 13 Nov 2026: all built except the last line)
 
 **Developing animation: make the fun part cooler.**
 Done 13 Nov 2026 (`viewer.Canvas`): prints come up shadows first, then mid-tones, highlights last; the room light flashes on at the

@@ -443,6 +443,23 @@ class PhonePhotos(unittest.TestCase):
         Image.new('RGB', (80, 40)).save(plain)
         self.assertEqual(lab.load(plain).shape[:2], (40, 80))            # no note (the TL500): as stored
 
+    def test_heic_photos(self):
+        from safelight import card
+        if not card.HEIC_OK:
+            self.skipTest('pillow-heif is not installed')
+        im = Image.new('RGB', (96, 64), (200, 60, 40))
+        ex = im.getexif()
+        ex[0x112] = 6                                                    # a phone's "turn me" note: the HEIC reader applies it
+        p = os.path.join(self.tmp, 'IMG_0001.HEIC')
+        im.save(p, exif=ex.tobytes())
+        self.assertIn('.heic', card.IMAGE_EXT)
+        self.assertEqual(lab.load(p).shape[:2], (96, 64))                # loaded upright (and not turned twice)
+        lib = Library(os.path.join(self.tmp, 'lib'))
+        roll = lib.load_roll(lib.import_files([p], 'PROV', 'iPhone'))
+        self.assertEqual(len(roll.frames), 1)
+        folder, lc = lib.develop(roll, lab.Recipe(border='none'), max_side=64)
+        self.assertEqual(len(lc['frames']), 1)
+
     def test_broken_files_are_left_out(self):
         good = os.path.join(self.tmp, 'a.jpg')
         fixtures.frame(1).save(good)

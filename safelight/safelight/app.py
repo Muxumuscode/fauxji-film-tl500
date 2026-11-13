@@ -356,7 +356,7 @@ class LoadPhotos(QDialog):
 
     def pick_files(self):
         paths, _ = QFileDialog.getOpenFileNames(self, 'Choose photos', self.start_dir,
-                                                'Photos (*.jpg *.jpeg *.png *.tif *.tiff *.webp *.bmp *.JPG *.JPEG *.PNG)')
+                                                card.PHOTO_FILTER)
         if paths:
             self.start_dir = os.path.dirname(paths[0])
             self._set(paths)
@@ -1479,7 +1479,7 @@ class MainWindow(QMainWindow):
         paths = []
         for p in dropped:
             paths += photos_in(p) if os.path.isdir(p) else ([p] if p.lower().endswith(card.IMAGE_EXT) else [])
-        heic = heic_count(dropped)
+        heic = 0 if card.HEIC_OK else heic_count(dropped)             # HEIC opens when pillow-heif is there; else say so
         if not paths:
             self.notify('No photos in what was dropped (JPEG, PNG, TIFF, WebP)' if not heic else
                         'HEIC photos (iPhone) cannot be opened yet: export them as JPEG first', 10000)

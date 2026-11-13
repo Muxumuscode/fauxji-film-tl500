@@ -1,3 +1,4 @@
 PySide6-Essentials==6.11.3
 numpy>=1.26
 Pillow>=10.0
+pillow-heif>=0.18          # HEIC / HEIF photos (the iPhone's); optional at run time: without it the app says to export JPEG

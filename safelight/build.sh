@@ -11,7 +11,7 @@ PY=.venv/bin/python
 "$PY" packaging/make_icon.py build/icon
 "$PY" -m PyInstaller --noconfirm --clean --onefile --windowed --name SajinGenzo \
     --icon "$(pwd)/build/icon/safelight.png" --distpath dist --workpath build/pyinstaller --specpath build \
-    --exclude-module tkinter --exclude-module unittest \
+    --exclude-module tkinter --exclude-module unittest --collect-all pillow_heif \
     "$(pwd)/packaging/launcher.py"
 cp build/icon/safelight.png dist/safelight.png
 cat > dist/sajingenzo.desktop <<EOF

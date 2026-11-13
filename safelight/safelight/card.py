@@ -15,6 +15,14 @@ from . import films
 
 ROLL_RE = re.compile(r'^([A-Z]{4})(\d{3})$')
 IMAGE_EXT = ('.jpg', '.jpeg', '.png', '.tif', '.tiff', '.webp', '.bmp')
+try:                                                  # HEIC / HEIF (the iPhone's photos) when pillow-heif is installed
+    from pillow_heif import register_heif_opener
+    register_heif_opener()
+    HEIC_OK = True
+    IMAGE_EXT += ('.heic', '.heif')
+except Exception:
+    HEIC_OK = False
+PHOTO_FILTER = 'Photos (%s)' % ' '.join('*%s *%s' % (e, e.upper()) for e in IMAGE_EXT)
 RAW_EXT = ('.srw', '.dng')
 FRAMES_PER_ROLL = 36
 

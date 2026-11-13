@@ -38,8 +38,9 @@ Windows and Linux. Your originals are never changed.
   greyed out, because the camera already gave those photos their film's look. A folder of ordinary photos opened with **Open folder…**
   is loaded as your own photos, with the film to choose.
 - **Phone photos come in upright** (the phone's orientation note is followed), broken files are left out, and very large photos
-  are printed at up to 6000 px. HEIC (the iPhone's format) cannot be opened yet: export as JPEG first; the app says so.
-- **Photos from any camera.** Drop photos or a folder on the window, or use **Load photos…**, to turn any photos (JPEG, PNG, TIFF, WebP; any camera or phone) into a roll: choose the
+  are printed at up to 6000 px. iPhone HEIC photos open too (with the `pillow-heif` package, part of the requirements and the build);
+  without it the app says to export them as JPEG.
+- **Photos from any camera.** Drop photos or a folder on the window, or use **Load photos…**, to turn any photos (JPEG, PNG, TIFF, WebP, HEIC; any camera or phone) into a roll: choose the
   photos or a folder, name the roll, pick a film (or **Mystery**). Unlike the FAUXJI rolls, these photos have no film look yet, so the
   lab gives them the film's colour (an approximation of the in-camera looks) and then develops them the same way. The **Film** menu at
   the top of the lab changes a loaded roll's film at any time. So anyone who likes the processing can use the app.
@@ -91,10 +92,10 @@ Windows may warn that the app is from an unknown publisher: More info, Run anywa
 > Not affiliated with Samsung or Fujifilm. Fujifilm's film names (Provia, Velvia, Acros, Classic Chrome ...) are their trademarks; they are
 > used only to say which look each setting imitates.
 
-## Photo Lab and Darkroom (planned)
+## Photo Lab and Darkroom
 
 Two ways of working for people without the FAUXJI camera (a simple lab order, and a darkroom with every setting per frame), with
-versions, a full-screen viewer and your own recipe cards: see [WORKFLOWS.md](WORKFLOWS.md).
+versions, a full-screen viewer and your own recipe cards: the plan, what was built and what is left are in [WORKFLOWS.md](WORKFLOWS.md).
 
 ## Android (planned)
 
@@ -133,7 +134,7 @@ Both scripts run the tests first.
 ## Tests
 
 ```bash
-.venv/Scripts/python -m unittest discover -s tests       # 38 tests (and the GUI smoke test covers both ways in): card scanning, film detection, the lab, B&W, recipe cards, versions, the Darkroom, the library
+.venv/Scripts/python -m unittest discover -s tests       # 45 tests (and the GUI smoke test covers both ways in): card scanning, film detection, the lab, B&W, recipe cards, versions, the Darkroom, the library
 .venv/Scripts/python tests/gui_smoke.py <out dir>         # the whole app headless, with screenshots
 dist/SajinGenzo.exe --selftest <folder> <shot.png>         # a packaged build end to end (exit code 0 = good)
 ```

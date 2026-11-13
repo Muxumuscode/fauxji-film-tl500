@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (QButtonGroup, QCheckBox, QComboBox, QFileDialog, 
                                QToolButton, QVBoxLayout, QWidget)
 
 from . import films, lab, recipes
+from .card import PHOTO_FILTER
 from .library import frame_number
 from .viewer import Canvas, FrameView, FullScreen, filmstrip
 
@@ -368,7 +369,7 @@ class PhotoLab(QWidget):
     def pick_files(self):
         start = self.main.settings.value('photos') or os.path.expanduser('~')
         paths, _ = QFileDialog.getOpenFileNames(self, 'Choose photos', start,
-                                                'Photos (*.jpg *.jpeg *.png *.tif *.tiff *.webp *.bmp *.JPG *.JPEG *.PNG)')
+                                                PHOTO_FILTER)
         if paths:
             self.main.settings.setValue('photos', os.path.dirname(paths[0]))
             self.take_photos(paths)
