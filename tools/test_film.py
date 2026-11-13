@@ -1130,6 +1130,36 @@ if os.path.exists(STOCK_ELF):
             fail('stamp font', hex(base))
 
 
+# 15. the film camera gets P's exposure fixes (tools/film_ae.py): the zoom hand-shake shift is skipped and the flash floor has no zoom shift
+# whenever the film camera is on, whatever mode number the exposure engine keeps; with it off, only for P / A / S (0, 2, 3) as before
+import film_ae as AE
+import fauxji_rot as ROT
+ABLK, ALAB = AE.blocks(V)
+rot_blobs = [(x, c) for x, c in ROT.build()[0]]
+for film_on in (0, 1):
+    for mode in (0, 1, 2, 3, 4, 5, 6, 9, 10, 0xFFFF):
+        want_skip = bool(film_on) or mode in (0, 2, 3)
+        c = CPU(ABLK + [(V, struct.pack('<II', 0, film_on))])
+        seen = []
+        c.stubs[ui.ZOOM_SKIP] = lambda s: (seen.append('skip'), 'stop')[1]
+        c.stubs[ui.ZOOM_BACK] = lambda s: (seen.append('shift'), 'stop')[1]
+        c.run(ALAB['zoom'], lr=mode, ret=0xCAFE0000, limit=100)     # lr = the mode number the exposure engine keeps
+        if seen != (['skip'] if want_skip else ['shift']):
+            fail('zoom shift', film_on, mode, seen)
+        # flash floor: plzoom (patched to go through plfilm first) leaves lr = the zoom shift to add (0 = none)
+        c = CPU(rot_blobs + ABLK + [(V, struct.pack('<II', 0, film_on))])
+        c.set32(ALAB['plzoom'], ui._b(ALAB['plzoom'], ALAB['plfilm']))
+        AEI = 0xC1E00000
+        c.mem[AEI + 0xA], c.mem[AEI + 0xB] = mode & 255, (mode >> 8) & 255
+        c.mem[AEI + 0x12], c.mem[AEI + 0x13] = 16, 0
+        got = []
+        c.stubs[ROT.PLZ_BACK] = lambda s: (got.append(s.r[14]), 'stop')[1]
+        c.r[11] = AEI
+        c.run(ALAB['plzoom'], ret=0xCAFE0000, limit=100)
+        if got != [0 if want_skip else 16]:
+            fail('flash floor zoom shift', film_on, mode, got)
+
+
 # 11. the pointer patches on a real built .elf
 elf_path = r'extracted\tl500_008264_FAUXJI63\EX1-DSP-SR-008264.elf'
 if os.path.exists(elf_path):

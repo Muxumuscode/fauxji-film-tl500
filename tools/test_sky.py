@@ -56,7 +56,7 @@ class CPU:
                 pass
             base=m
             import re
-            mm=re.match(r'^(push|pop|stmdb|ldm|mvn|mov|add|cmp|ldrsh|ldrh|ldrb|ldr|strh|strb|str|tst|umull|orr|sub|and|rsb|lsl|lsr)',m); base=mm.group(1) if mm else None
+            mm=re.match(r'^(push|pop|stmdb|ldm|mvn|mov|add|cmp|ldrsh|ldrh|ldrb|ldr|strh|strb|str|tst|umull|orr|sub|and|rsb|bic|lsl|lsr)',m); base=mm.group(1) if mm else None
             if i.id==ARM_INS_B: base='b'
             if i.id==ARM_INS_BL: base='bl'
             if i.id==ARM_INS_LSL: base='lsl'
@@ -90,6 +90,10 @@ class CPU:
                 elif base=='and': v=s.val(ops[1],pc)&s.val(ops[2],pc)
                 else: v=s.val(ops[1],pc)|s.val(ops[2],pc)
                 s.r[rd]=v
+            elif base=='bic':
+                rd=s.ri(ops[0].reg); res=s.val(ops[1],pc)&~s.val(ops[2],pc)&M32
+                if i.update_flags: s.N=res>>31; s.Z=res==0
+                s.r[rd]=res
             elif base=='tst':
                 res=s.val(ops[0],pc)&s.val(ops[1],pc); s.N=res>>31; s.Z=res==0
             elif base=='cmp':
