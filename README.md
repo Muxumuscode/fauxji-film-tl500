@@ -73,12 +73,14 @@ mode, and the newest icon painting is not yet confirmed on a camera. The full li
 
 ## Sajin Genzō 사진現像: develop your rolls on a computer
 
-[safelight/](safelight/README.md) is the desktop photo lab that goes with the film camera (Windows and Linux): it finds the rolls on the card,
-shows them as negatives on a light table, keeps mystery rolls secret until they are developed, and develops whole rolls like a lab
+**Sajin Genzō now has its own repository: [Muxumuscode/sajin-genzo](https://github.com/Muxumuscode/sajin-genzo)**, because it is a film photo
+lab for *any* photo, not only for this camera. It is the desktop app (Windows and Linux) that goes with the film camera: it finds the rolls on
+the card, shows them as negatives on a light table, keeps mystery rolls secret until they are developed, and develops whole rolls like a lab
 (push / pull, developers, cross-processing, bleach bypass, expired film, grain, halation, light leaks, papers and borders) into prints and a
-contact sheet. You can view any negative large and rotate sideways shots. It also works for photos from any camera or phone (pick a film,
-the lab adds its colour). **Download** SajinGenzo.exe (Windows) from the [Releases page](https://github.com/Muxumuscode/fauxji-film-tl500/releases);
-an Android version is planned ([safelight/ANDROID.md](safelight/ANDROID.md)). Build it with `safelight/build.ps1` (Windows) or `safelight/build.sh` (Linux).
+contact sheet. It also works for photos from any camera or phone: a simple **Photo Lab** (drop off photos, pick a film and a lab) and a
+**Darkroom** with every setting, crop and straighten, your own recipes and an animated developing tray.
+**Download** SajinGenzo.exe (Windows) from its [Releases page](https://github.com/Muxumuscode/sajin-genzo/releases); the source, the plan
+and the Android notes are in that repository.
 
 ## Coming up
 
