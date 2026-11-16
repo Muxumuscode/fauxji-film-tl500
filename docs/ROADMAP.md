@@ -105,7 +105,7 @@ Ideas to make the film camera more fun, roughly by fun-per-effort. Computer-side
   Shutter 3 slot is there).
 
 **Ideas:**
-- [x] **Safelight: a develop app for Windows and Linux** (BUILT 9 Nov 2026, v0.1: safelight/; still to come from this list: dust removal, ~~straighten / crop (BUILT 16 Nov 2026)~~, single prints with a film-holder in the export, the developing animation as frames; working name; "darkroom" is taken, other candidates: Stop Bath, Fixer & Fix, FAUXJI
+- [x] **Safelight: a develop app for Windows and Linux** (BUILT 9 Nov 2026, v0.1; now its own repository, https://github.com/Muxumuscode/sajin-genzo; still to come from this list: dust removal, ~~straighten / crop (BUILT 16 Nov 2026)~~, single prints with a film-holder in the export, the developing animation as frames; working name; "darkroom" is taken, other candidates: Stop Bath, Fixer & Fix, FAUXJI
   Lab. Check the name is free before publishing). The other half of the film camera: the camera shoots, the app develops. Python + Qt
   (PySide6) or a small web UI, one codebase for Windows and Linux, packaged with PyInstaller / AppImage.
   * **Load the card.** Finds `FILMS/` on any mounted card or folder, lists every roll (film, roll number, frames shot, date range), knows the
@@ -124,9 +124,9 @@ Ideas to make the film camera more fun, roughly by fun-per-effort. Computer-side
     that picks the push/pull and paper for you.
 - [x] **Sajin Genzō: Photo Lab and Darkroom** (BUILT 13 Nov 2026): two workflows for photos from any camera, versions with a by-frame
   view, full-screen viewer, recipe cards (including B&W), Authentic scan, HEIC, a richer developing animation with sounds; left: a GPU tray
-  with reflections. Plan and status in [safelight/WORKFLOWS.md](../safelight/WORKFLOWS.md).
+  with reflections. Plan and status in [WORKFLOWS.md](https://github.com/Muxumuscode/sajin-genzo/blob/main/WORKFLOWS.md) (own repository: https://github.com/Muxumuscode/sajin-genzo; v1.0.0 released 16 Nov 2026).
 - [ ] **Sajin Genzō for Android** (planned, not started): a native rewrite with GPU processing; plan, milestones and the store
-  questions (film names) in [safelight/ANDROID.md](../safelight/ANDROID.md).
+  questions (film names) in [ANDROID.md](https://github.com/Muxumuscode/sajin-genzo/blob/main/ANDROID.md).
 - [ ] **Motor drive** (M). In a scene card, Continuous drive works without winding on, as if a motor winder were fitted; bracketing stays off.
   Goes with the burst item above.
 - [ ] **Short rolls** (S). 24 or 12 exposures for some films (e.g. a 24-exposure ACROS), from a per-look table in place of the fixed 36.

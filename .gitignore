@@ -13,3 +13,6 @@ docs/images/film-mode/scene_cards_stock.png
 docs/images/film-mode/scene_tiles.png
 docs/images/film-mode/digits.png
 *_stock.png
+
+# the old safelight/ folder moved to its own repository (https://github.com/Muxumuscode/sajin-genzo); only local build leftovers remain here
+safelight/
