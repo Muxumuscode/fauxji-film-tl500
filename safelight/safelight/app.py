@@ -493,6 +493,8 @@ class MainWindow(QMainWindow):
         self.arrays = {}                # path -> the 1600 px float image, for quick re-renders
         self.print_pending = {}         # print path -> rotation shown on screen but not yet written to the file
         self.print_pix = {}             # print path -> the big picture (QPixmap)
+        self.frame_cache = {}           # (render key, turn, border) -> the framed print preview (QPixmap)
+        self.frame_order = []
         self._render_token = None
         self.rot_timer = QTimer(self)
         self.rot_timer.setSingleShot(True)
@@ -1816,6 +1818,8 @@ class MainWindow(QMainWindow):
         self.dview.set_rotation(new, delta)
         it = self.lighttable.currentItem()
         it.setIcon(strip_icon(to_pixmap(self.neg_thumb(f, new))))
+        if self.dview.mode == 'print':                                  # the framed preview is turned first, then framed: as the print
+            self.update_view()
         self.notify('Frame %d turned to %d°. Saved: it stays turned in the filmstrip, previews, prints and the '
                                      'contact sheet.' % (f.number, new), 5000)
 
@@ -1875,7 +1879,8 @@ class MainWindow(QMainWindow):
         return tuple(sorted(self.recipe().to_dict().items()))
 
     def update_view(self):
-        """Show the selected frame big in the chosen view; renders in the background, cached, always unrotated."""
+        """Show the selected frame big in the chosen view; renders in the background, cached, always unrotated (the print preview is
+        then turned and framed like the print)."""
         f = self.selected_frame()
         if f is None or self.roll is None:
             self.dview.clear('Pick a frame in the filmstrip below')
@@ -1886,13 +1891,15 @@ class MainWindow(QMainWindow):
             eff_recipe = self.recipe()                                  # the panel is this frame's
         crop = getattr(self, 'fcrops', {}).get(f.number) if mode == 'print' else None
         crop_key = (crop['angle'], tuple(crop['box'])) if crop else None
+        # (the border is not in the key: it is put on afterwards, so changing it never re-develops the picture)
         key = (f.path, mode, self.neg_film(f).code if mode == 'negative' else '',
-               (tuple(sorted(eff_recipe.to_dict().items())), real_film.code, crop_key) if mode == 'print' else ())
+               (tuple(sorted((k, v) for k, v in eff_recipe.to_dict().items() if k != 'border')), real_film.code, crop_key)
+               if mode == 'print' else ())
         turn = self.turn(f)
         cap = '%s  ·  frame %d / %d  ·  %s' % (self.roll.code, f.number, len(self.roll.frames),
                                                 f.taken.strftime('%d %b %Y  %H:%M') if f.taken else os.path.basename(f.path))
         if key in self.render_cache:
-            self.dview.show_picture(self.render_cache[key][1], turn, cap)
+            self.show_render(f, key, mode, turn, cap, eff_recipe.border if eff_recipe is not None else None, real_film)
             return
         older = [v for k, v in self.render_cache.items() if k[0] == f.path]
         label = {'negative': 'developing the negative…', 'original': 'loading…', 'print': 'printing a test strip…'}[mode]
@@ -1928,6 +1935,25 @@ class MainWindow(QMainWindow):
                 self.update_view()
 
         self.run(work, done)
+
+    def show_render(self, f, key, mode, turn, cap, border, film):
+        """A finished picture on the light table. The print preview is the print as it will come out: turned, then in its border and
+        frame (white border, instant-print frame, black film edge with the caption), like the real print. The other views are drawn turned
+        by the canvas (instant)."""
+        im, pm = self.render_cache[key]
+        if mode != 'print':
+            self.dview.show_picture(pm, turn, cap)
+            return
+        fk = (key, turn, border)
+        fp = self.frame_cache.get(fk)
+        if fp is None:
+            caption = lab.frame_caption(films.MYSTERY if self.secret() else film, f.number, f.taken)   # (a secret film is not named)
+            fp = to_pixmap(lab.bordered(lab.rotate(im, turn), border, caption))
+            self.frame_cache[fk] = fp
+            self.frame_order.append(fk)
+            while len(self.frame_order) > 24:
+                self.frame_cache.pop(self.frame_order.pop(0), None)
+        self.dview.show_picture(fp, 0, cap, turned=turn)
 
     def _neg_ready(self, item):
         token, k, im = item

@@ -553,6 +553,30 @@ assert fr.number in w.fcrops
 w.set_frame_crop([fr.number], None)
 assert w.library.crops(w.roll_key()) == {} and w.fcrops == {}
 print('crop and straighten: ok')
+# the print preview is the print: turned, then in its border and frame (not the bare picture); a new border is instant
+w.set_recipe(A.lab.Recipe(border='white'))
+wait(lambda: not w.jobs and not w.dview.canvas.loading)
+dev_im = next(v[0] for k, v in w.render_cache.items() if k[0] == fr.path and k[1] == 'print')
+pm0 = w.dview.canvas.pm
+assert pm0.width() > dev_im.width and pm0.height() > dev_im.height, (pm0.size(), dev_im.size)      # the white border is in the preview
+assert w.dview.canvas.rotation == 0                                                           # (turned inside the picture)
+w.c_border.setCurrentIndex(w.c_border.findData('instant'))
+w.recipe_changed()
+pm1 = w.dview.canvas.pm
+assert pm1.height() / pm1.width() > pm0.height() / pm0.width() * 1.05, (pm1.size(), pm0.size())  # the instant frame's wide bottom
+w.c_border.setCurrentIndex(w.c_border.findData('none'))
+w.recipe_changed()
+assert (w.dview.canvas.pm.width(), w.dview.canvas.pm.height()) == (dev_im.width, dev_im.height)  # no border: just the picture
+w.c_border.setCurrentIndex(w.c_border.findData('instant'))
+w.recipe_changed()
+w.rotate_current(90)                                                                          # turned: the frame turns with the picture
+pm2 = w.dview.canvas.pm
+assert w.dview.canvas.rotation == 0 and pm2.height() > pm2.width() * 0.8 and pm2.width() < pm1.height(), (pm2.size(), pm1.size())
+assert 'turned 90' in w.dview.rot_label.text(), w.dview.rot_label.text()
+shot('14_framed_preview.png')
+w.rotate_current(-90)
+w.set_recipe(A.lab.Recipe())
+print('framed preview: ok')
 # the developing animation paints at every moment of every step, with every mood, without a hitch (tongs, clock, steam, drips, fog)
 from safelight import viewer as V                                   # noqa: E402
 cv = V.Canvas()

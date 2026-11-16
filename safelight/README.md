@@ -23,7 +23,7 @@ Windows and Linux. Your originals are never changed.
 - **Light table, Lightroom-style.** The roll runs along the bottom as a filmstrip of developed negatives (orange-masked colour, grey B&W,
   sprocket holes, edge print, frame numbers). Click a frame and it fills the big view above, in the main window. Switch the big view
   between **NEGATIVE**, **ORIGINAL** (as the camera saved it) and **PRINT PREVIEW** (that frame printed with the current lab settings,
-  following every change). Keys: **← →** frame, **Space** next view.
+  following every change, in its border and frame, turned and cropped: exactly the print that will come out). Keys: **← →** frame, **Space** next view.
 - **Full screen.** **⛶ Full screen**, the **F** key or a double-click puts the picture (light table or print) on the whole screen:
   **← →** step, **R / L** rotate, hold **Space** for the original, **I** for film, lab and date, **V** switches the view, **Esc** back.
 - **Crop and straighten.** **✂ Crop** (key **C**, or right-click a frame) opens an editor: a **Straighten** slider (up to 15°, the edges are

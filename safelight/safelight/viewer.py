@@ -765,11 +765,13 @@ class FrameView(QWidget):
         for b in self.mode_buttons.values():
             b.setEnabled(on)
 
-    def show_picture(self, pm, rotation, caption, loading=''):
+    def show_picture(self, pm, rotation, caption, loading='', turned=None):
+        """turned: the frame's turn when the picture is already turned (the framed print preview), for the label above the picture."""
         self.canvas.loading = loading
         self.canvas.caption = caption
         self.canvas.set_picture(pm, rotation)
-        self.rot_label.setText(('turned %d°   ' % (rotation % 360)) if rotation % 360 else '')
+        t = rotation if turned is None else turned
+        self.rot_label.setText(('turned %d°   ' % (t % 360)) if t % 360 else '')
         self.set_enabled(pm is not None)
         if self.full is not None:
             self.full.follow()
