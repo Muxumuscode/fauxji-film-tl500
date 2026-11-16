@@ -7,6 +7,7 @@ import math
 import time
 
 import numpy as np
+from PIL import Image
 
 from . import sounds
 
@@ -296,8 +297,8 @@ class Canvas(QWidget):
     def _prepare(self, pm, first):
         """The current print as arrays, once: its colours, how light each pixel is, and (the first print, with leaks) a light leak."""
         im = pm.toImage().convertToFormat(QImage.Format_RGB888)
-        if im.width() > 560:
-            im = im.scaledToWidth(560, Qt.SmoothTransformation)
+        if im.width() > 440:
+            im = im.scaledToWidth(440, Qt.SmoothTransformation)
         w, h = im.width(), im.height()
         ptr = im.constBits()
         rgb = np.frombuffer(ptr, dtype=np.uint8, count=im.bytesPerLine() * h).reshape(h, im.bytesPerLine())[:, :w * 3].reshape(h, w, 3)
@@ -309,15 +310,16 @@ class Canvas(QWidget):
             ys = np.linspace(0, 1, h, dtype=np.float32)[:, None]
             g = np.clip(1.0 - np.sqrt((xs - 0.0) ** 2 * 1.0 + (ys - 0.25) ** 2 * 1.6) * 1.7, 0, 1) ** 1.6
             leak = g[..., None] * np.array([255.0, 120.0, 40.0], dtype=np.float32)
-        return rgb, light, leak
+        yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)                    # for the ripples (the field itself is made at quarter size)
+        return rgb, light, leak, xx, yy, xx[::4, ::4].copy(), yy[::4, ::4].copy()
 
-    def _emerged(self, emerge):
+    def _emerged(self, emerge, now=0.0, ph=0.5):
         """The print as it looks at this moment in the developer: the darkest tones appear first, then the mid-tones, the highlights
         last (as on real paper); expired film is foggy at first; a light leak glows in late. Returns a QImage."""
         d = self.dev
         if d['img'] is None:
             d['img'] = self._prepare(d['cur'], d['started'] == 1)
-        rgb, light, leak = d['img']
+        rgb, light, leak, xx, yy, xl, yl = d['img']
         a = np.clip((emerge - 0.6 * light) / 0.4, 0, 1)[..., None]
         out = self.PAPER * (1 - a) + rgb * a
         if leak is not None:
@@ -326,8 +328,15 @@ class Canvas(QWidget):
         if years:
             v = min(0.45, years * 0.035) * (1 - 0.75 * emerge)            # fog: it clears as the print comes up
             out = out * (1 - v) + np.array([150.0, 138.0, 128.0], dtype=np.float32) * v
-        out = np.ascontiguousarray(np.clip(out, 0, 255).astype(np.uint8))
+        out = np.clip(out, 0, 255).astype(np.uint8)
+        # the water over the print: a moving ripple field bends the picture (more when the tray is rocked, and a splash as it goes in)
+        amp = 0.9 + 5.5 * d['rock'] + 4.0 * math.exp(-max(0.0, ph - 0.02) * 16.0)
+        dxl = amp * (np.sin(0.05 * xl + 1.7 * now + 0.021 * yl) + 0.55 * np.sin(0.11 * yl - 2.3 * now + 0.03 * xl))
+        dyl = amp * 0.8 * (np.cos(0.043 * yl + 1.9 * now - 0.02 * xl) + 0.5 * np.cos(0.09 * xl + 2.1 * now))
         h, w = out.shape[:2]
+        dx = np.asarray(Image.fromarray(dxl.astype(np.float32), 'F').resize((w, h), Image.BILINEAR))     # smoothed up to full size
+        dy = np.asarray(Image.fromarray(dyl.astype(np.float32), 'F').resize((w, h), Image.BILINEAR))
+        out = np.ascontiguousarray(out[np.clip(yy + dy, 0, h - 1).astype(np.intp), np.clip(xx + dx, 0, w - 1).astype(np.intp)])
         return QImage(out.data, w, h, w * 3, QImage.Format_RGB888).copy()
 
     def _paint_develop(self, p):
@@ -419,6 +428,13 @@ class Canvas(QWidget):
         p.setPen(QPen(QColor('#2b2a2c'), 3))
         p.setBrush(QColor('#151416'))
         p.drawRoundedRect(tray, 14, 14)
+        rim = QLinearGradient(tray.left(), 0, tray.right(), 0)           # the light running along the steel rim
+        rim.setColorAt(0.0, QColor(255, 255, 255, 0))
+        rim.setColorAt(0.25, QColor(255, 235, 230, 70))
+        rim.setColorAt(0.75, QColor(255, 235, 230, 40))
+        rim.setColorAt(1.0, QColor(255, 255, 255, 0))
+        p.setPen(QPen(rim, 2))
+        p.drawLine(QPointF(tray.left() + 16, tray.top() + 1.5), QPointF(tray.right() - 16, tray.top() + 1.5))
         liquid = tray.adjusted(10, 10, -10, -10)
         lg = QLinearGradient(liquid.topLeft(), liquid.bottomRight())
         tint = {0: QColor(40, 30, 20), 1: QColor(30, 30, 34), 2: QColor(26, 34, 30), 3: QColor(22, 30, 40)}.get(stage, QColor(20, 20, 22))
@@ -429,6 +445,8 @@ class Canvas(QWidget):
         p.setPen(Qt.NoPen)
         p.setBrush(lg)
         p.drawRoundedRect(liquid, 8, 8)
+        if fan <= 0 and hung:                                            # the prints on the line, mirrored in the liquid
+            self._reflect(p, hung, ly, th, liquid, now, d['rock'])
         if stage in (0, 2) and not d['fast']:                            # the warm developer and the fixer steam a little
             for i in range(9):
                 t = (now * 0.12 + i * 0.113) % 1.0
@@ -455,7 +473,7 @@ class Canvas(QWidget):
             emerge = min(1.0, max(0.0, (ph - 0.06) / 0.50))
             emerge = emerge * emerge * (3 - 2 * emerge)                   # the picture comes up slowly, then fast
             if emerge > 0:
-                p.drawImage(r, self._emerged(emerge))
+                p.drawImage(r, self._emerged(emerge, now, ph))
             if not lights_on:
                 p.fillRect(r, QColor(170, 20, 15, 70))                    # everything is red under the safelight
             if ph < 0.16 or ph > 0.90:                                    # tongs carry the print in, and lift it out
@@ -482,6 +500,7 @@ class Canvas(QWidget):
                 p.setFont(f2)
                 p.setPen(QColor(RED))
             p.drawText(liquid, Qt.AlignCenter, d.get('end_text') if d['finish'] else d['note'])
+        self._glint(p, liquid, W * 0.5, now, d['rock'], lights_all)       # the lamp, reflected in the moving surface
         if d['cur'] is not None and tray.left() >= 64:                    # the darkroom clock, in the margin beside the tray
             self._clock(p, tray.left() / 2, top + 34, min(26.0, tray.left() / 2 - 8), ph, stage, mood.get('push', 0), now)
         if fan > 0:                                                        # lights on: the prints leave the line and fan out over the tray
@@ -532,6 +551,51 @@ class Canvas(QWidget):
         p.setFont(fh)
         p.setPen(QColor('#6a655e'))
         p.drawText(QRectF(16, H - 20, W - 32, 16), Qt.AlignRight | Qt.AlignVCenter, hint)
+
+    def _reflect(self, p, hung, ly, th, liquid, now, rock):
+        """The hanging prints as the liquid mirrors them: flipped, faint, fading with depth, and shivering with the ripples."""
+        surface = liquid.top() + 2
+        path = QPainterPath()
+        path.addRoundedRect(liquid, 8, 8)
+        n = 9
+        p.save()
+        p.setClipPath(path)
+        for k, (hx, tw, pm) in enumerate(reversed(hung)):
+            cx = hx + tw / 2
+            p.save()
+            p.translate(cx, 2 * surface - (ly + 4))
+            p.scale(1, -1)
+            for s in range(n):                                              # strips: each is shifted by the ripple, more with depth
+                shift = math.sin(now * 2.1 + s * 0.8 + k) * (1.0 + 7.0 * rock) * (1 - s / n) + math.sin(now * 3.3 + s * 1.7) * 0.8
+                p.setOpacity(0.05 + 0.22 * (s / n))
+                p.drawPixmap(QRectF(-tw / 2 + shift, s * th / n, tw, th / n + 1), pm,
+                             QRectF(0, s * pm.height() / n, pm.width(), pm.height() / n + 1))
+            p.restore()
+        p.setOpacity(1.0)
+        p.restore()
+
+    def _glint(self, p, liquid, lamp_x, now, rock, lights_all):
+        """The lamp's reflection: a bright streak on the liquid under the lamp, broken into bands by the ripples (and a faint wide glow),
+        red under the safelight and white when the room light is on. Drawn small and smoothed up: cheap."""
+        gw, gh = max(8, int(liquid.width() / 6)), max(8, int(liquid.height() / 6))
+        xs = np.linspace(0, 1, gw, dtype=np.float32)[None, :]
+        ys = np.linspace(0, 1, gh, dtype=np.float32)[:, None]
+        cx = min(0.9, max(0.1, (lamp_x - liquid.left()) / max(1.0, liquid.width())))
+        dist = xs - cx - 0.012 * (1 + 3 * rock) * np.sin(ys * 24 + now * 2.2)
+        core = np.exp(-(dist / 0.032) ** 2)
+        bands = (0.55 + 0.45 * np.sin(ys * 55 + now * 2.4 + dist * 28 * (1 + rock))) ** 2
+        haze = 0.14 * np.exp(-(dist / 0.26) ** 2)
+        a = np.clip((core * bands * 0.95 + haze) * (1 - ys * 0.55), 0, 1)
+        img = np.empty((gh, gw, 4), dtype=np.uint8)
+        img[..., 0], img[..., 1], img[..., 2] = (255, 245, 232) if lights_all else (255, 105, 92)
+        img[..., 3] = (a * (105 if lights_all else 125)).astype(np.uint8)
+        qi = QImage(img.data, gw, gh, gw * 4, QImage.Format_RGBA8888).copy()
+        path = QPainterPath()
+        path.addRoundedRect(liquid, 8, 8)
+        p.save()
+        p.setClipPath(path)
+        p.drawImage(liquid, qi)
+        p.restore()
 
     @staticmethod
     def _tongs(p, r, ph):

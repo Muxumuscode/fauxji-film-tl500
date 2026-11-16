@@ -208,7 +208,11 @@ sound files; the *♪ Sound* button in the header turns them off); the finale (l
 tray, then the next screen); a mystery roll's film name in big red letters in the finale (before the reveal window); moving the mouse
 over the tray rocks it (bigger waves, the print sways).
 
-Still in the queue: a GPU tray with real reflections (a bigger job: it means moving the animation to a GPU widget).
+Also done 16 Nov 2026: the tray's reflections. Built on the CPU (numpy + QPainter) rather than as an OpenGL shader, which would depend on
+graphics drivers and could not be tested headless: a moving ripple field bends the print under the water (more when the tray is rocked,
+a splash as it goes in), the lamp is reflected as a streak broken into bands by the ripples (red under the safelight, white with the
+room light), the prints on the line are mirrored in the liquid, and the steel rim catches the light. About 30 ms a frame at the window
+size. The queue is empty; a true GPU path (OpenGL / Vulkan shaders) stays an option for a much richer tray.
 
 **Scan authenticity: DONE 13 Nov 2026** (`lab._soften`, `lab._shoulder`, `Recipe.authentic`; unit-tested). The idea was: soften and resample very sharp, high-resolution or
 HDR photos to a film-scan-like effective resolution *before* the grain, add a highlight shoulder and a shorter, lifted tonal range, and
