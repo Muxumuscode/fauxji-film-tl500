@@ -359,6 +359,72 @@ class Versions(unittest.TestCase):
         self.assertEqual(L.chosen_prints(self.rid)[2], os.path.join(f3, 'frame_02.jpg'))
 
 
+class CropStraighten(unittest.TestCase):
+    """Crop and straighten: the geometry, the box mapping for a turned frame, the library, and the prints."""
+
+    def test_straighten_leaves_no_empty_corners(self):
+        a = np.full((200, 300, 3), 0.8, np.float32)
+        self.assertIs(lab.straighten(a, 0), a)
+        for angle in (2, -5, 8, -15):
+            s = lab.straighten(a, angle)
+            self.assertAlmostEqual(float(s.min()), 0.8, places=2)                # no black wedge from the turn
+            self.assertAlmostEqual(s.shape[1] / s.shape[0], 1.5, delta=0.03)      # the same shape as the photo
+            self.assertLess(s.shape[1], 300)                                      # and a little smaller
+        self.assertLess(lab.inscribed_scale(300, 200, 15), lab.inscribed_scale(300, 200, 5))     # the more tilt, the more is trimmed
+
+    def test_the_horizon_is_levelled(self):
+        im = Image.new('RGB', (600, 400), (40, 90, 200))                           # sea ...
+        from PIL import ImageDraw
+        ImageDraw.Draw(im).polygon([(0, 0), (600, 0), (600, 100), (0, 160)], fill=(210, 230, 255))   # ... and a sky tilted ~5.4°
+        a = np.asarray(im, np.float32) / 255
+        s = lab.straighten(a, 5.4)                                                 # tilt clockwise puts it level
+        top, bottom = s[:, 5, 2].argmin(), s[:, -6, 2].argmin()                    # where the sea starts, left and right
+        self.assertLess(abs(int(top) - int(bottom)), 6)
+
+    def test_crop_box_and_turns(self):
+        a = np.arange(200 * 300 * 3, dtype=np.float32).reshape(200, 300, 3) / (200 * 300 * 3)
+        out = lab.apply_crop(a, {'angle': 0, 'box': [0.1, 0.25, 0.6, 0.75]})
+        self.assertEqual(out.shape[:2], (100, 150))
+        self.assertTrue(np.array_equal(out, a[50:150, 30:180]))
+        self.assertEqual(lab.clean_box([0.9, 0.9, 0.1, 0.1]), [0.1, 0.1, 0.9, 0.9])     # put in order
+        for turn in (0, 90, 180, 270):
+            box = [0.1, 0.2, 0.5, 0.9]
+            shown = lab.turn_box(box, turn)
+            back = lab.turn_box(shown, (360 - turn) % 360)
+            self.assertTrue(np.allclose(back, box), turn)                          # drawn on the turned picture, stored upright
+        w, h = 0.5 - 0.1, 0.9 - 0.2
+        shown = lab.turn_box([0.1, 0.2, 0.5, 0.9], 90)
+        self.assertAlmostEqual((shown[2] - shown[0]), h)                          # a turn swaps the box's width and height
+        self.assertAlmostEqual((shown[3] - shown[1]), w)
+
+    def test_library_and_prints(self):
+        tmp = tempfile.mkdtemp()
+        try:
+            lib = Library(os.path.join(tmp, 'lib'))
+            src = os.path.join(tmp, 'p')
+            os.makedirs(src)
+            for k in range(2):
+                fixtures.frame(60 + k).save(os.path.join(src, 'IMG_%d.jpg' % k))
+            rid = lib.import_files([os.path.join(src, n) for n in sorted(os.listdir(src))], 'PROV', 'Crops')
+            self.assertEqual(lib.crops(rid), {})
+            lib.set_crop(rid, 2, {'angle': 40, 'box': [0.0, 0.0, 0.5, 1.0]})
+            self.assertEqual(lib.crops(rid)[2]['angle'], lab.MAX_TILT)             # the tilt is kept within its limit
+            lib.set_crop(rid, 2, {'angle': 0, 'box': [0.1, 0.1, 0.6, 0.9]})
+            lib.set_crop(rid, 1, {'angle': 0, 'box': [0, 0, 1, 1]})                # nothing cropped: not stored
+            self.assertEqual(sorted(lib.crops(rid)), [2])
+            roll = lib.load_roll(rid)
+            folder, lc = lib.develop(roll, lab.Recipe(border='none', leaks=False), max_side=400)
+            sizes = {fr['frame']: Image.open(os.path.join(folder, fr['file'])).size for fr in lc['frames']}
+            self.assertLess(sizes[2][0], sizes[1][0] * 0.6)                        # frame 2 is trimmed: narrower
+            self.assertTrue({fr['frame']: fr.get('cropped', False) for fr in lc['frames']} == {1: False, 2: True})
+            made = lib.print_frames(roll, [2], lab.Recipe(border='none'), max_side=400)
+            self.assertEqual(Image.open(made[0]).size, sizes[2])                  # a single print is cropped the same way
+            lib.set_crop(rid, 2, None)
+            self.assertEqual(lib.crops(rid), {})
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+
 class Sounds(unittest.TestCase):
     def test_sounds_are_made_in_code(self):
         import wave

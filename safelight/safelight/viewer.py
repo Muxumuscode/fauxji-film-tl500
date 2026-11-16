@@ -626,6 +626,7 @@ class FrameView(QWidget):
     rotate = Signal(int)
     mode_changed = Signal(str)
     fullscreen = Signal()
+    crop = Signal()
 
     def __init__(self, modes=None, hint=''):
         super().__init__()
@@ -653,20 +654,25 @@ class FrameView(QWidget):
         self.rot_label = QLabel('')
         self.rot_label.setObjectName('muted')
         bar.addWidget(self.rot_label)
-        self.b_left = QPushButton('⟲  Rotate  L')
-        self.b_right = QPushButton('⟳  Rotate  R')
+        self.b_left = QPushButton('⟲ Rotate L')
+        self.b_right = QPushButton('⟳ Rotate R')
         self.b_left.setToolTip('Turn this frame 90° anticlockwise (key L). It stays turned everywhere: filmstrip, previews, prints, '
                                'contact sheet.')
         self.b_right.setToolTip('Turn this frame 90° clockwise (key R). It stays turned everywhere: filmstrip, previews, prints, '
                                 'contact sheet.')
         self.b_left.clicked.connect(lambda: self.rotate.emit(-90))
         self.b_right.clicked.connect(lambda: self.rotate.emit(90))
-        self.b_full = QPushButton('⛶  Full screen  F')
+        self.b_full = QPushButton('⛶ Full screen F')
         self.b_full.setToolTip('See this picture on the whole screen (key F, or double-click the picture). Esc to come back.')
         self.b_full.clicked.connect(self.fullscreen.emit)
-        bar.addWidget(self.b_left)
-        bar.addWidget(self.b_right)
-        bar.addWidget(self.b_full)
+        self.b_crop = QPushButton('✂ Crop C')
+        self.b_crop.setToolTip('Crop and straighten this frame (key C): level a tilted horizon and trim the picture. It shows in the print '
+                               'preview and in every print; the negative and the original stay whole.')
+        self.b_crop.clicked.connect(self.crop.emit)
+        self.b_crop.setVisible(bool(modes))                              # the light table's big view only
+        for b in (self.b_left, self.b_right, self.b_crop, self.b_full):
+            b.setStyleSheet('padding: 6px 8px')                          # a compact toolbar: it must fit a small laptop screen
+            bar.addWidget(b)
         lay.addLayout(bar)
         self.canvas = Canvas()
         self.canvas.hint = hint
@@ -691,6 +697,7 @@ class FrameView(QWidget):
         self.b_left.setEnabled(on)
         self.b_right.setEnabled(on)
         self.b_full.setEnabled(on)
+        self.b_crop.setEnabled(on)
         for b in self.mode_buttons.values():
             b.setEnabled(on)
 

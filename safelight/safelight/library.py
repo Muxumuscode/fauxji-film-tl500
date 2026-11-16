@@ -5,6 +5,7 @@
   <library>/<roll id>/develop-<time>/     one development: prints (frame_01.jpg ...), contact_sheet.jpg, labcard.json
   <library>/lablog.json                   every development, newest last (the lab log)
   <library>/presets/<name>.json           your own recipe cards
+  <library>/crops.json                    crop and straighten, per roll and frame
   <library>/frame_settings.json           Darkroom: frames with their own film / lab settings, per roll
   <library>/<roll id>/darkroom/           Darkroom: single prints (frame_07-v2.jpg) with what was done (frame_07-v2.json)
   <library>/<roll id>/picks.json          your pick of print for each frame
@@ -149,6 +150,35 @@ class Library:
 
     # ------------------------------------------------------------ rotation (the camera has no orientation sensor: upright shots
     # come out sideways). Kept per roll and frame in <library>/rotations.json, for rolls still on the card too.
+    # ------------------------------------------------------------ crop and straighten, per roll and frame (<library>/crops.json)
+    def crops(self, roll_id):
+        """{frame number: {'angle': degrees clockwise, 'box': [l, t, r, b]}}: frames that are cropped and / or straightened."""
+        d = (self._read(os.path.join(self.root, 'crops.json')) or {}).get(roll_id, {})
+        out = {}
+        for k, v in d.items():
+            if isinstance(v, dict):
+                try:
+                    out[int(k)] = {'angle': max(-lab.MAX_TILT, min(lab.MAX_TILT, float(v.get('angle') or 0))),
+                                   'box': lab.clean_box(v['box']) if v.get('box') else [0.0, 0.0, 1.0, 1.0]}
+                except (TypeError, ValueError):
+                    pass
+        return out
+
+    def set_crop(self, roll_id, frame, crop):
+        """Crop / straighten a frame. crop None (or no tilt and the whole picture): back to uncropped."""
+        path = os.path.join(self.root, 'crops.json')
+        allc = self._read(path) or {}
+        r = allc.setdefault(roll_id, {})
+        full = not crop or (abs(float(crop.get('angle') or 0)) < 0.02 and (not crop.get('box') or list(crop['box']) == [0, 0, 1, 1]))
+        if full:
+            r.pop(str(frame), None)
+        else:
+            r[str(frame)] = {'angle': round(float(crop.get('angle') or 0), 2),
+                             'box': [round(v, 4) for v in lab.clean_box(crop.get('box') or [0, 0, 1, 1])]}
+        if not r:
+            allc.pop(roll_id, None)
+        self._write(path, allc)
+
     def rotations(self, roll_id):
         """{frame number: clockwise degrees (90, 180, 270)}"""
         d = (self._read(os.path.join(self.root, 'rotations.json')) or {}).get(roll_id, {})
@@ -227,12 +257,12 @@ class Library:
         n = len(roll.frames)
         thumbs, done = [], []
         turns = self.rotations(rid)
-        own = self.frame_settings(rid)
+        own, crops = self.frame_settings(rid), self.crops(rid)
         for k, f in enumerate(roll.frames):
             if cancelled():
                 break
             name = 'frame_%02d.jpg' % f.number if f.number < 100 else 'frame_%d.jpg' % f.number
-            im, entry = self._print_frame(roll, f, recipe, own.get(f.number), turns, max_side, os.path.join(out, name))
+            im, entry = self._print_frame(roll, f, recipe, own.get(f.number), turns, max_side, os.path.join(out, name), crops.get(f.number))
             t = im.copy()
             t.thumbnail((600, 600))
             thumbs.append(t)
@@ -264,16 +294,20 @@ class Library:
             film = films.BY_CODE[settings['film']]
         return r, film
 
-    def _print_frame(self, roll, f, recipe, settings, turns, max_side, path):
-        """Print one frame to `path`. Returns (the print, its entry for the lab card)."""
+    def _print_frame(self, roll, f, recipe, settings, turns, max_side, path, crop=None):
+        """Print one frame to `path` (straightened and cropped when it has a crop). Returns (the print, its entry for the lab card)."""
         r, film = self.effective(roll, f, recipe, settings)
         a = lab.load(f.path, max_side or MAX_FULL)
+        if crop:
+            a = lab.apply_crop(a, crop)
         p = lab.develop(a, film, r, frame=f.number, roll_seed=lab._seed(roll.code), emulate=roll.own)
         im = lab.rotate(lab.to_image(p), turns.get(f.number, 0))
         im = lab.bordered(im, r.border, lab.frame_caption(film, f.number, f.taken))
         im.save(path, quality=93, subsampling=0)
         entry = {'frame': f.number, 'file': os.path.basename(path), 'original': os.path.basename(f.path),
                  'rotation': turns.get(f.number, 0), 'taken': f.taken.isoformat() if f.taken else None, 'film': film.name}
+        if crop:
+            entry['cropped'] = True
         if settings:
             d = r.to_dict()
             d.pop('seed', None)
@@ -312,14 +346,14 @@ class Library:
         recipe = lab.Recipe.from_dict(recipe.to_dict())
         if not recipe.seed:
             recipe.seed = lab._seed(roll.code, 'darkroom') & 0x3FFFFFFF
-        own, turns, made = self.frame_settings(rid), self.rotations(rid), []
+        own, turns, made, crops = self.frame_settings(rid), self.rotations(rid), [], self.crops(rid)
         frames = [f for f in roll.frames if f.number in set(numbers)]
         for k, f in enumerate(frames):
             v = 1
             while os.path.exists(os.path.join(out, 'frame_%02d-v%d.jpg' % (f.number, v))):
                 v += 1
             path = os.path.join(out, 'frame_%02d-v%d.jpg' % (f.number, v))
-            im, entry = self._print_frame(roll, f, recipe, own.get(f.number), turns, max_side, path)
+            im, entry = self._print_frame(roll, f, recipe, own.get(f.number), turns, max_side, path, crops.get(f.number))
             r, film = self.effective(roll, f, recipe, own.get(f.number))
             d = r.to_dict()
             d.pop('seed', None)

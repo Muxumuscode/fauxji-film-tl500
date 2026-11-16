@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (QSizePolicy, QApplication, QCheckBox, QComboBox, 
 from . import APP_NAME, APP_NATIVE, __version__, card, films, lab, recipes, sounds
 from .library import DARKROOM, Library, frame_number
 from .photolab import PhotoLab, StartPage
+from .crop import CropDialog
 from .viewer import ElidedLabel, FrameView, FullScreen, filmstrip
 
 RED = '#e0372f'
@@ -54,7 +55,7 @@ QScrollBar::handle { background: #3a3737; border-radius: 4px; min-height: 28px; 
 QScrollBar::handle:hover { background: #5a2b28; }
 QScrollBar::add-line, QScrollBar::sub-line { width: 0; height: 0; }
 QScrollBar::add-page, QScrollBar::sub-page { background: transparent; }
-QPushButton#seg { border-radius: 0; padding: 6px 14px; letter-spacing: 1px; }
+QPushButton#seg { border-radius: 0; padding: 6px 10px; letter-spacing: 1px; }
 QPushButton#seg:checked { background: #3a1d1b; border-color: %(red)s; color: #fff; }
 """ % {'red': RED}
 
@@ -171,6 +172,12 @@ contact sheet. Prints that are already developed can be turned the same way.</p>
 several frames. Right-click a frame to copy its settings and paste them to others (Ctrl+C, Ctrl+V), or to give it the roll's settings
 again. <b>PRINT THIS FRAME</b> prints the selected frames on their own: they show in PRINTS, by frame. <b>Develop roll</b> keeps every
 frame's own settings.</p>
+<h3>Crop and straighten</h3>
+<p><b>✂ Crop</b> (key <b>C</b>, or right-click a frame) opens the editor: the <b>Straighten</b> slider tilts the photo (up to 15°) to level
+a horizon, and the crop box is dragged to trim (drag a corner or an edge; drag inside to move it). <b>Shape</b> keeps the box to a common
+shape (3:2, 4:5, square ...), and <b>⇄</b> turns the shape on its side. A cropped frame has a blue square on the filmstrip; the print
+preview and every print show the crop, while the negative and the original stay whole. The crop is kept with the roll (it survives
+turning the frame, and the Photo Lab prints use it too). Right-click, <b>Remove the crop</b>, to go back.</p>
 <h3>Recipe cards</h3>
 <p>The <b>Recipe</b> menu holds the lab looks (any film), cards for kinds of photography with their film (portrait, landscape, street,
 night, and black and white: Silver gelatin, Dramatic sky, Gritty B&amp;W street, Heirloom), and your own. <b>＋</b> saves the current
@@ -492,6 +499,7 @@ class MainWindow(QMainWindow):
         self.rot_timer.setInterval(700)
         self.rot_timer.timeout.connect(self.write_print_rotations)
         self.busy = False
+        self.fsettings, self.fcrops = {}, {}      # the Darkroom: frames with their own settings / crops (of the selected roll)
         self.jobs = []
         self.setWindowTitle('%s %s' % (APP_NAME, __version__))
         self.setWindowIcon(app_icon())
@@ -663,6 +671,7 @@ class MainWindow(QMainWindow):
                                                            'change')], hint)
         self.dview.rotate.connect(self.rotate_current)
         self.dview.fullscreen.connect(self.open_fullscreen)
+        self.dview.crop.connect(self.open_crop)
         self.dview.mode_changed.connect(lambda m: self.update_view())
         self.dview.clear('Drop photos or a folder here, or  ＋ Load photos…\n(FAUXJI film camera: Open card)')
         self.lighttable = filmstrip(QSize(128, 119), '#efe9dc')
@@ -757,7 +766,7 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.sheet_area, 'CONTACT SHEET')
         ml.addWidget(self.tabs, 1)
         split.addWidget(mid)
-        for keys, fn in ((('R',), lambda: self.rotate_current(90)), (('L',), lambda: self.rotate_current(-90)), (('F',), self.open_fullscreen),
+        for keys, fn in ((('R',), lambda: self.rotate_current(90)), (('L',), lambda: self.rotate_current(-90)), (('F',), self.open_fullscreen), (('C',), self.open_crop),
                          (('Space',), self.switch_view), (('Right',), lambda: self.step(1)), (('Left',), lambda: self.step(-1))):
             for k in keys:
                 sc = QShortcut(QKeySequence(k), mid)
@@ -1698,6 +1707,7 @@ class MainWindow(QMainWindow):
             self.scope = 'roll'
             self._load_panel(self.roll_recipe)
         self.fsettings = self.library.frame_settings(self.roll_key())
+        self.fcrops = self.library.crops(self.roll_key())
         own = bool(getattr(r, 'own', False))
         self.show_film_menu(r)
         # photos from another camera have no negative worth looking at: they open on the print preview. A FAUXJI roll opened after
@@ -1767,6 +1777,13 @@ class MainWindow(QMainWindow):
             x, y = im.width - 2 * r - 8, im.height // 2 - im.height // 3
             d.ellipse((x - 3, y - 3, x + 2 * r + 3, y + 2 * r + 3), fill=(255, 255, 255))
             d.ellipse((x, y, x + 2 * r, y + 2 * r), fill=(224, 55, 47))
+        if f.number in getattr(self, 'fcrops', {}):                    # cropped / straightened: a blue square top left
+            from PIL import ImageDraw
+            d = ImageDraw.Draw(im)
+            r = max(9, im.height // 14)
+            x, y = 10, im.height // 2 - im.height // 3
+            d.rectangle((x - 3, y - 3, x + 2 * r + 3, y + 2 * r + 3), fill=(255, 255, 255))
+            d.rectangle((x, y, x + 2 * r, y + 2 * r), fill=(60, 130, 220))
         return im
 
     def turn(self, f):
@@ -1818,6 +1835,9 @@ class MainWindow(QMainWindow):
         m.addSeparator()
         frames = self.selected_frames()
         n = len(frames)
+        m.addAction('Crop and straighten…        C', self.open_crop).setEnabled(not self.busy)
+        if any(x.number in self.fcrops for x in frames):
+            m.addAction('Remove the crop (the whole photo again)', lambda: self.set_frame_crop([x.number for x in frames], None))
         m.addAction('Print this frame' if n == 1 else 'Print these %d frames' % n, self.print_selected).setEnabled(not self.busy)
         m.addAction('Settings for this frame…' if n == 1 else 'Settings for these %d frames…' % n, lambda: self.set_scope('frame'))
         m.addAction('Copy this frame\'s settings        Ctrl+C', self.copy_settings)
@@ -1828,6 +1848,28 @@ class MainWindow(QMainWindow):
         if any(x.number in self.fsettings for x in frames):
             m.addAction("Use the roll's settings again", lambda: self.clear_frame_settings(frames))
         m.exec(self.lighttable.viewport().mapToGlobal(pos))
+
+    def open_crop(self):
+        """Crop and straighten the selected frame (key C, or the ✂ button, or right-click)."""
+        f = self.selected_frame()
+        if f is None or self.roll is None or self.busy or self.tabs.currentIndex() != 0:
+            return
+        dlg = CropDialog(self, f.path, self.turn(f), self.fcrops.get(f.number), 'frame %d' % f.number)
+        if not dlg.exec():
+            return
+        self.set_frame_crop([f.number], dlg.crop())
+
+    def set_frame_crop(self, nums, crop):
+        """Give frames a crop (None: the whole photo again); the preview and the filmstrip follow."""
+        for n in nums:
+            self.library.set_crop(self.roll_key(), n, crop)
+        self.fcrops = self.library.crops(self.roll_key())
+        self.refresh_marks(nums)
+        if self.dview.mode != 'print':
+            self.dview.set_mode('print', emit=False)
+        self.update_view()
+        self.notify(('%s cropped and straightened: it shows in the print preview and in every print' % self.frames_text(nums))
+                    if crop else '%s back to the whole photo' % self.frames_text(nums), 6000)
 
     def recipe_key(self):
         return tuple(sorted(self.recipe().to_dict().items()))
@@ -1842,8 +1884,10 @@ class MainWindow(QMainWindow):
         eff_recipe, real_film = self.frame_effective(f) if mode == 'print' else (None, None)
         if mode == 'print' and self.scope == 'frame':
             eff_recipe = self.recipe()                                  # the panel is this frame's
+        crop = getattr(self, 'fcrops', {}).get(f.number) if mode == 'print' else None
+        crop_key = (crop['angle'], tuple(crop['box'])) if crop else None
         key = (f.path, mode, self.neg_film(f).code if mode == 'negative' else '',
-               (tuple(sorted(eff_recipe.to_dict().items())), real_film.code) if mode == 'print' else ())
+               (tuple(sorted(eff_recipe.to_dict().items())), real_film.code, crop_key) if mode == 'print' else ())
         turn = self.turn(f)
         cap = '%s  ·  frame %d / %d  ·  %s' % (self.roll.code, f.number, len(self.roll.frames),
                                                 f.taken.strftime('%d %b %Y  %H:%M') if f.taken else os.path.basename(f.path))
@@ -1870,7 +1914,8 @@ class MainWindow(QMainWindow):
             elif mode == 'original':
                 im = lab.to_image(a)
             else:
-                im = lab.to_image(lab.develop(a, real_film, recipe, frame=f.number, emulate=own))
+                src = lab.apply_crop(a, crop) if crop else a
+                im = lab.to_image(lab.develop(src, real_film, recipe, frame=f.number, emulate=own))
             return token, key, im
 
         def done(res):

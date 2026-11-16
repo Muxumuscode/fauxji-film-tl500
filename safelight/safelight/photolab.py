@@ -301,6 +301,10 @@ class PhotoLab(QWidget):
         self.dark_note = QCheckBox('')
         self.dark_note.setVisible(False)
         lay.addWidget(self.dark_note)
+        self.crop_note = QLabel('')
+        self.crop_note.setObjectName('muted')
+        self.crop_note.setVisible(False)
+        lay.addWidget(self.crop_note)
         row, self.btn_send = self._buttons(self.lab_back, self.send, 'Send to the lab', red=True)
         lay.addLayout(row)
         return w
@@ -526,6 +530,9 @@ class PhotoLab(QWidget):
             self.roll.name or self.roll.code, what))
         own = self.main.library.frame_settings(self.rid())
         n = len(own)
+        nc = len(self.main.library.crops(self.rid()))
+        self.crop_note.setVisible(bool(nc))
+        self.crop_note.setText('%d frame%s cropped or straightened in the Darkroom: the prints use the crop.' % (nc, '' if nc == 1 else 's'))
         self.dark_note.setVisible(bool(n))
         self.dark_note.setChecked(False)
         self.dark_note.setText('%d frame%s keep%s the settings given in the Darkroom.  Tick to print every frame the same.'

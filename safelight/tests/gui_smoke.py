@@ -518,6 +518,41 @@ wait(lambda: 'paths' in seen2, 20)
 assert len(seen2['paths']) == 3 and seen2['name'] == 'plainfolder' and w.source_rolls == [], seen2
 assert w.c_film.isVisible()
 print('plain folder: ok')
+# crop and straighten: the editor (tilt, shape, drag the box), the light table (mark, preview), the library, and the print
+w.set_mode('darkroom')
+w.tree.setCurrentItem(w.tree.topLevelItem(w.tree.topLevelItemCount() - 1).child(0))
+wait(lambda: not w.jobs and w.lighttable.count() > 1)
+w.lighttable.setCurrentRow(1)
+wait(lambda: not w.jobs)
+w.dview.set_mode('print', emit=True)
+wait(lambda: not w.jobs and not w.dview.canvas.loading)
+fr = w.selected_frame()
+assert w.dview.b_crop.isVisible() and w.dview.b_crop.isEnabled()
+cd = A.CropDialog(w, fr.path, w.turn(fr), None, 'frame %d' % fr.number)
+cd.show()
+cd.slider.setValue(-40)                                             # tilt 4° the other way
+wait(lambda: not cd.timer.isActive(), 5)
+cd.shape.setCurrentIndex(cd.shape.findText('3:2'))
+cd.pick_shape(cd.shape.currentIndex())
+cd.canvas.box = [0.2, 0.15, 0.2 + 0.5, 0.15 + 0.5 * 0.5 * cd.canvas.pm.width() / cd.canvas.pm.height() / (1.5) * 1.5]
+cd.canvas.box = A.lab.clean_box(cd.canvas.box)
+cd.refresh_info()
+cd.grab().save(os.path.join(out, '13_crop_editor.png'))
+got = cd.crop()
+assert got and abs(got['angle'] + 4.0) < 0.01 and got['box'] != [0.0, 0.0, 1.0, 1.0], got
+cd.reset()
+assert cd.crop() is None                                            # reset: the whole photo
+cd.close()
+A.CropDialog.exec = lambda self: 1
+A.CropDialog.crop = lambda self: {'angle': 3.0, 'box': [0.1, 0.1, 0.8, 0.9]}
+w.open_crop()
+assert w.library.crops(w.roll_key()) == {fr.number: {'angle': 3.0, 'box': [0.1, 0.1, 0.8, 0.9]}}, w.library.crops(w.roll_key())
+wait(lambda: not w.jobs and not w.dview.canvas.loading)
+shot('13b_cropped_light_table.png')
+assert fr.number in w.fcrops
+w.set_frame_crop([fr.number], None)
+assert w.library.crops(w.roll_key()) == {} and w.fcrops == {}
+print('crop and straighten: ok')
 # the developing animation paints at every moment of every step, with every mood, without a hitch (tongs, clock, steam, drips, fog)
 from safelight import viewer as V                                   # noqa: E402
 cv = V.Canvas()

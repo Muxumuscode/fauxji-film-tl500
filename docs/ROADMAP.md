@@ -105,7 +105,7 @@ Ideas to make the film camera more fun, roughly by fun-per-effort. Computer-side
   Shutter 3 slot is there).
 
 **Ideas:**
-- [x] **Safelight: a develop app for Windows and Linux** (BUILT 9 Nov 2026, v0.1: safelight/; still to come from this list: dust removal, straighten / crop, single prints with a film-holder in the export, the developing animation as frames; working name; "darkroom" is taken, other candidates: Stop Bath, Fixer & Fix, FAUXJI
+- [x] **Safelight: a develop app for Windows and Linux** (BUILT 9 Nov 2026, v0.1: safelight/; still to come from this list: dust removal, ~~straighten / crop (BUILT 16 Nov 2026)~~, single prints with a film-holder in the export, the developing animation as frames; working name; "darkroom" is taken, other candidates: Stop Bath, Fixer & Fix, FAUXJI
   Lab. Check the name is free before publishing). The other half of the film camera: the camera shoots, the app develops. Python + Qt
   (PySide6) or a small web UI, one codebase for Windows and Linux, packaged with PyInstaller / AppImage.
   * **Load the card.** Finds `FILMS/` on any mounted card or folder, lists every roll (film, roll number, frames shot, date range), knows the

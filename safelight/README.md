@@ -26,6 +26,11 @@ Windows and Linux. Your originals are never changed.
   following every change). Keys: **← →** frame, **Space** next view.
 - **Full screen.** **⛶ Full screen**, the **F** key or a double-click puts the picture (light table or print) on the whole screen:
   **← →** step, **R / L** rotate, hold **Space** for the original, **I** for film, lab and date, **V** switches the view, **Esc** back.
+- **Crop and straighten.** **✂ Crop** (key **C**, or right-click a frame) opens an editor: a **Straighten** slider (up to 15°, the edges are
+  trimmed so no empty corners show), a **Shape** menu (free, original, square, 3:2, 4:5, 16:9 ... and ⇄ to turn it on its side) and a crop
+  box to drag, with a rule-of-thirds grid. A cropped frame has a blue square on the filmstrip; the print preview and every print (whole
+  rolls, single prints, the Photo Lab) use the crop, while the negative and the original stay whole. It is kept with the roll and
+  survives turning the frame.
 - **Rotate.** The TL500 has no orientation sensor, so upright shots come out sideways. **⟲ Rotate left (L)** / **⟳ Rotate right (R)** sit
   above the picture (or right-click a frame). The turn is instant and shown ("↻ 90°", then a "Rotated 90° · saved" badge); it stays on
   the filmstrip, in previews, every development and the contact sheet. Prints are turned the same way in the PRINTS tab (the file and the
@@ -134,7 +139,7 @@ Both scripts run the tests first.
 ## Tests
 
 ```bash
-.venv/Scripts/python -m unittest discover -s tests       # 45 tests (and the GUI smoke test covers both ways in): card scanning, film detection, the lab, B&W, recipe cards, versions, the Darkroom, the library
+.venv/Scripts/python -m unittest discover -s tests       # 49 tests (and the GUI smoke test covers both ways in): card scanning, film detection, the lab, B&W, recipe cards, versions, the Darkroom, the library
 .venv/Scripts/python tests/gui_smoke.py <out dir>         # the whole app headless, with screenshots
 dist/SajinGenzo.exe --selftest <folder> <shot.png>         # a packaged build end to end (exit code 0 = good)
 ```

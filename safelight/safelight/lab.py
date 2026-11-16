@@ -4,6 +4,7 @@ Everything works on float32 RGB in 0..1 (display-referred, like the camera's JPE
 Nothing here changes an original file.
 """
 import hashlib
+import math
 import random
 from dataclasses import dataclass, asdict
 
@@ -563,5 +564,65 @@ def frame_caption(film, frame_no, taken):
     return ('%s  %02d  %s' % (film.name.upper(), frame_no, d)).strip()
 
 
+# ---------------------------------------------------------------- crop and straighten
+
+MAX_TILT = 15.0                                   # degrees, either way
+
+
+def inscribed_scale(w, h, angle):
+    """How much of the frame is left (as a fraction of each side) when it is turned by `angle` degrees and the biggest rectangle of the
+    same shape with no empty corners is kept."""
+    t = math.radians(abs(angle))
+    r = w / h
+    return 1.0 / (math.cos(t) + math.sin(t) * max(r, 1.0 / r))
+
+
+def straighten(a, angle):
+    """A photo (float array) turned by `angle` degrees clockwise about its centre, trimmed to the biggest rectangle of the same shape
+    without empty corners (so a tilted horizon can be put level)."""
+    if abs(angle) < 0.02:
+        return a
+    h, w = a.shape[:2]
+    im = to_image(a).rotate(-angle, resample=Image.BICUBIC, expand=False)
+    k = inscribed_scale(w, h, angle)
+    iw, ih = w * k, h * k
+    x0, y0 = math.ceil((w - iw) / 2) + 1, math.ceil((h - ih) / 2) + 1      # a pixel in from the exact edge: no half-empty edge pixels
+    x1, y1 = math.floor((w + iw) / 2) - 1, math.floor((h + ih) / 2) - 1
+    return np.asarray(im.crop((x0, y0, max(x1, x0 + 8), max(y1, y0 + 8))), dtype=np.float32) / 255.0
+
+
+def clean_box(box):
+    """A crop box (left, top, right, bottom as fractions 0..1) put in order and kept inside the picture, at least 4 % across."""
+    l, t, r, b = (min(1.0, max(0.0, float(v))) for v in box)
+    l, r = min(l, r), max(l, r)
+    t, b = min(t, b), max(t, b)
+    if r - l < 0.04:
+        l, r = max(0.0, min(l, 0.96)), max(0.04, min(1.0, l + 0.04))
+    if b - t < 0.04:
+        t, b = max(0.0, min(t, 0.96)), max(0.04, min(1.0, t + 0.04))
+    return [l, t, r, b]
+
+
+def apply_crop(a, crop):
+    """The photo straightened and cropped: crop = {'angle': degrees clockwise, 'box': [left, top, right, bottom] as fractions of the
+    straightened picture}. The box is in the picture's own orientation (before any 90-degree turn)."""
+    a = straighten(a, max(-MAX_TILT, min(MAX_TILT, float(crop.get('angle') or 0))))
+    box = crop.get('box')
+    if box and list(box) != [0, 0, 1, 1]:
+        l, t, r, b = clean_box(box)
+        h, w = a.shape[:2]
+        x0, y0 = int(round(l * w)), int(round(t * h))
+        x1, y1 = max(int(round(r * w)), x0 + 8), max(int(round(b * h)), y0 + 8)
+        a = a[y0:y1, x0:x1]
+    return np.ascontiguousarray(a)
+
+
+def turn_box(box, turn):
+    """A crop box as it looks after the picture is turned `turn` degrees clockwise (0, 90, 180, 270). The same call with the opposite turn
+    (360 - turn) brings a box drawn on the turned picture back to the picture's own orientation."""
+    l, t, r, b = box
+    return {0: [l, t, r, b], 90: [1 - b, l, 1 - t, r], 180: [1 - r, 1 - b, 1 - l, 1 - t], 270: [t, 1 - r, b, 1 - l]}[turn % 360]
+
+
 __all__ = ['Recipe', 'surprise', 'load', 'to_image', 'negative', 'develop', 'bordered', 'rotate', 'strip', 'contact_sheet', 'thumb_image',
-           'tank_stages', 'frame_caption', 'DEVELOPERS', 'PROCESSES', 'PAPERS', 'BORDERS', 'PUSH_PULL', 'BW_FILTERS', 'TONES']
+           'tank_stages', 'frame_caption', 'DEVELOPERS', 'PROCESSES', 'PAPERS', 'BORDERS', 'PUSH_PULL', 'BW_FILTERS', 'TONES', 'straighten', 'apply_crop', 'turn_box']

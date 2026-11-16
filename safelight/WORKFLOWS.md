@@ -183,6 +183,14 @@ opens Load photos with the photos filled in.
 5. Darkroom: frame changes, copy / paste, single prints.
 6. Start screen and the Photo Lab steps.
 
+## Crop and straighten (16 Nov 2026)
+
+**Done** (`crop.py`, `lab.straighten / apply_crop / turn_box`, `Library.crops` in `<library>/crops.json`; unit- and GUI-tested). The crop
+is made on the photo in its own orientation (a 90° turn is applied to the print afterwards, as before), so a frame can be turned
+later and keeps its crop; the editor shows the photo as turned and maps the box back. Applies to the print preview, whole-roll
+developments, single prints and the Photo Lab (which says how many frames are cropped). Not in this step: crop in the Photo Lab's own
+steps (it uses the Darkroom's), dust removal (still on the roadmap).
+
 ## Queue (agreed 13 Nov 2026: all built except the last line)
 
 **Developing animation: make the fun part cooler.**
