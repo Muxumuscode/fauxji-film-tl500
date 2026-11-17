@@ -16,7 +16,7 @@ Risk = how likely it is to fight us (unknown code paths, timing, crashes).
 |---|---|
 | 11 film looks, live preview, FILM SIM button with name pop-up | done, on camera |
 | Fuji-style menus, shooting screen, mode dial, pop-ups | done, on camera |
-| Minimum shutter 1/60 with auto ISO in P, A and S (the camera raises ISO, cap 1600, instead of slowing down); auto ISO in M | done, on camera |
+| Minimum shutter 1/30 with auto ISO in P, A and S (the camera raises ISO, cap 800, instead of slowing down; it was 1/60 and 1600 until TL-F66); auto ISO in M | done, on camera |
 | **1/125 problem fixed**: stock raised the minimum shutter to 1/125 and more when zoomed in (the zoom hand-shake shift) and with the flash; skipped for P, A and S since FAUXJI51 | done, verified on camera (FAUXJI54, "it worked great") |
 | **Film camera mode** (`--film` build, latest TL-F65u) | working on camera, open items below |
 | Auto-rotate | researching (see below) |
@@ -31,7 +31,7 @@ Build it with `python tools/build_fauxji.py <stock dir> <out dir> --film` (lates
 FAUXJI63 only in the version label). Notes per build are in docs/FEATURES.md (FILM01 ... FILM23), tests: `python tools/test_film.py`,
 `python tools/test_film_layout.py <SPID.Rom>`.
 
-**Works on the camera (owner-verified):** SCENE is the film camera and behaves like P (1/60 minimum shutter, auto ISO, menus open, macro / flash /
+**Works on the camera (owner-verified):** SCENE is the film camera and behaves like P (1/30 minimum shutter, auto ISO, menus open, macro / flash /
 self-timer keys work); the scene picker is the film picker (12 cards = the 11 looks, PROVIA twice) with cartridge cards and film names; each roll is
 its own folder named after the film (PROV001, ACRO002 ...) under `FILMS/` on the card, counted per film; shots left counts down and the counter is
 right as soon as the dial moves; wind-on lock (front dial right); AE-L starts the next roll when full; "Roll full" text; no playback in SCENE; no

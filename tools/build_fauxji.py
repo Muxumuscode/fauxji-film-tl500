@@ -32,15 +32,15 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 PATCHES = os.path.join(HERE, '..', 'patches')
 
 
-LABEL_AT, LABEL = 0x792493, b'TL-F63\0\0'          # version string the camera shows (8 bytes; stock 'TL500-U'). TL-F63 = FAUXJI63, the
+LABEL_AT, LABEL = 0x792493, b'TL-F66\0\0'          # version string the camera shows (8 bytes; stock 'TL500-U'). TL-F66 = FAUXJI66 (minimum shutter 1/30), the
                                                    # build the plain output is byte-identical to (it said TL-F62 by mistake before)
-KNOWN_LABELS = (b'TL500-U\0', b'TL-F62\0\0', LABEL)  # what the label bytes may hold before it is set (stock, or the patch runs' older label)
+KNOWN_LABELS = (b'TL500-U\0', b'TL-F62\0\0', b'TL-F63\0\0', LABEL)  # what the label bytes may hold before it is set (stock, or the patch runs' older label)
 
 
 DIAG_LABEL = b'TL-D06\0\0'                      # --diag-keys build: key numbers, dial events, file-list finder (tools/diag_probe.py)
 
 
-FILM_LABEL = b'TL-F65u\0'                       # --film build: film camera mode (film_mode), EXIF names (film_exif), ratchet (film_sound), stamp (film_stamp)
+FILM_LABEL = b'TL-F66f\0'                       # --film build: film camera mode (film_mode), EXIF names (film_exif), ratchet (film_sound), stamp (film_stamp)
 
 
 def build_elf(stock, diag_keys=False, film=False):

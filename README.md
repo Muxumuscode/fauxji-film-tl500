@@ -16,7 +16,7 @@ Film camera build (`--film`, see below): **TL-F65u**, same firmware.
 
 ## The main event: fixes that make the camera better to use
 
-- **Shutter that stays usable, with auto ISO.** In P, A and S the camera keeps a minimum shutter of 1/60 s and raises the ISO (up to 1600)
+- **Shutter that stays usable, with auto ISO.** In P, A and S the camera keeps a minimum shutter of 1/30 s and raises the ISO (up to 800)
   instead of slowing down. Stock, it quietly raised the minimum as you zoomed (1/125 s and faster, the zoom hand-shake shift), and the
   flash raised it too: both are gone.
 - **Auto-ISO in manual.** Manual mode gets automatic ISO, so you set shutter and aperture and the camera picks the ISO.
@@ -48,7 +48,7 @@ cartridges. The `--film` build uses them everywhere; the plain build still has t
 Build it with `python tools/build_fauxji.py <stock dir> <out dir> --film` (version label TL-F65u). The SCENE spot on the mode dial becomes a
 film camera:
 
-- It behaves like P: the 1/60 minimum shutter with auto ISO, open menus, and macro, flash and self-timer on the direction keys.
+- It behaves like P: the 1/30 minimum shutter with auto ISO, open menus, and macro, flash and self-timer on the direction keys.
 - The scene picker is a film picker: one cartridge card per look (11 looks), and a twelfth card, **Mystery**: every mystery roll is loaded
   with a surprise look. The camera doesn't show which one (the live view still does, of course); you find out when you develop it.
 - Every roll of 36 is its own folder named after the film (PROV001, ACRO002, MYST001 ...) under `FILMS/` on the card, outside DCIM, so
