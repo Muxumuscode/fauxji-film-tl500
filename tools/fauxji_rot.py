@@ -82,6 +82,16 @@ MASK_SITE, MASK_BACK, GET_SYSVAL = 0xC04CE844, 0xC04CE848, 0xC048F81C
 # camera meter that much darker in every mode while the EV comp scale still shows 0.
 EV_SITE, EV_BACK = 0xC03ECD54, 0xC03ECD58
 AE_BIAS = 5                           # 1/16 EV steps: 5 = -0.3 EV, 8 = -0.5 EV
+# M-mode meter (FAUXJI67). The bias moves the exposure, but the manual meter compares the exposure with the metered value without it,
+# so with auto ISO (or a correct manual exposure) its needle sat at -0.3. Both meter read-outs take the deviation from AE out-info 0xC
+# (0xC03EE5A4, 1/16 EV; the M display bins +-2 as 0, 3-7 as 0.3 ...): in manual mode `mdev` adds AE_BIAS back, so the biased exposure
+# reads 0 and the meter's zero is the new, darker zero. Exposure itself is not touched. Code in dead factory code (0xC042689C.. is called
+# only from 0xC04274B8, which nothing calls; tools/liveness.py), unused by the film build.
+MDEV_AT, MDEV_END = 0xC04268A0, 0xC04268C0
+DEV_GET, IS_MANUAL = 0xC03EE5A4, 0xC03EC7B8      # AE out-info 0xC (exposure minus metered, 1/16 EV); 1 when the AE mode is 4 (M)
+METER_SITES = (0xC03ED778, 0xC03EE5C8)           # `bl DEV_GET` in the two manual-meter read-outs (0xC03ED768, 0xC03EE5C0)
+M_METER_BIAS = True
+
 DISP_SITE, DISP_STOCK = 0xC04C1944, 0xC04BFF98
 # Keeping the indicator on screen. The live-view redraw (DRAW_ICONS 0xC04B7444) walks the current item
 # list (pointer at 0xC09BDAD4; 11 lists at 0xC09BDAD8..0xC09BDE08) and item 44 (the help-text box we use)
@@ -618,6 +628,21 @@ def patch(d):
     for base, blob in blobs:
         d[base - B:base - B + len(blob)] = blob
     _put(d, EV_SITE, 0xE1A0080B, ui._b(EV_SITE, lab['evbias']))
+    if M_METER_BIAS:
+        a = MDEV_AT
+        code = [0xE92D4010,                       # push {r4, lr}
+                ui._b(a + 4, DEV_GET, link=True),  # bl: r0 = exposure minus metered (1/16 EV)
+                0xE1A04000,                       # mov r4,r0
+                ui._b(a + 12, IS_MANUAL, link=True),
+                0xE3500000,                       # cmp r0,#0
+                0x12844000 | AE_BIAS,             # addne r4,r4,#AE_BIAS   (manual: the biased exposure reads 0)
+                0xE1A00004,                       # mov r0,r4
+                0xE8BD8010]                       # pop {r4, pc}
+        blob = struct.pack('<%dI' % len(code), *code)
+        assert a + len(blob) <= MDEV_END
+        d[a - B:a - B + len(blob)] = blob
+        for site in METER_SITES:
+            _put(d, site, ui._b(site, DEV_GET, link=True), ui._b(site, MDEV_AT, link=True))
     _put(d, MASK_SITE, 0xE1A0A001, ui._b(MASK_SITE, lab['unlock']))
     _put(d, PLZ_SITE, PLZ_STOCK, ui._b(PLZ_SITE, lab['plzoom']))
     if MOVIE_HIDE:
