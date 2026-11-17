@@ -82,6 +82,27 @@ contact sheet. It also works for photos from any camera or phone: a simple **Pho
 **Download** SajinGenzo.exe (Windows) from its [Releases page](https://github.com/Muxumuscode/sajin-genzo/releases); the source, the plan
 and the Android notes are in that repository.
 
+## The film looks in DxO PhotoLab (RAW files)
+
+The camera puts its looks into JPEGs only; a RAW stays neutral. To get the same looks on RAW files after noise reduction, the tool writes
+each look as a `.cube` LUT, the standard look-file format. DxO PhotoLab (7 and later) loads them, and DeepPRIME keeps working with one
+applied. Other editors that load 3D `.cube` LUTs work too.
+
+```bash
+python tools/make_luts.py --norm <stock dir>/EX1-DSP-SR-008264.elf luts
+```
+
+- **Two sets.** With `--norm` (recommended) each look first brings DxO's neutral colour down to the camera's PROVIA, which is much less
+  saturated (about 35 % less colour and a slightly gentler tone curve), so the result matches what the camera shows. Without `--norm` the
+  look sits on DxO's richer colour.
+- **In PhotoLab:** open a RAW, Colour tools, LUT, type Custom, Import, pick a file. Leave its colour space on sRGB. Keep the folder where it
+  is: DxO only remembers the path. For a one-click workflow, save a preset per look with the LUT, your noise reduction and sharpening.
+- **Accuracy:** the looks are the camera's own look maths (colour matrix, tone curve, per-colour saturation). Checked against camera JPEGs
+  of the same scene they land closer than plain PROVIA for every look, but not pixel-exact. The `--norm` step was fitted on a single
+  RAW+JPEG pair; fit your own with `tools/fit_dxo_norm.py` (DxO export with no colour changes + the camera's PROVIA JPEG of the same
+  shot) and it writes `tools/dxo_norm.json`.
+- No `.cube` files are shipped: they include tone curves from Samsung's firmware, so you make them from your own copy.
+
 ## Coming up
 
 Next on the list, no promises on order:
@@ -151,6 +172,8 @@ The camera's version screen should now read **TL-F67** (or **TL-F67f** for the f
 - `tools/build_fauxji.py`: the build. `tools/fauxji.py` (looks, exposure), `tools/fauxji_ui.py` (FILM SIM button, pop-ups),
   `tools/fauxji_rot.py` (menu unlock, small hooks; the tilt-tag code is still in it but switched off, the camera has no tilt sensor), `tools/fauxji_layout.py`, `tools/fuji_menu.py`, `tools/fuji_lv.py`,
   `tools/fauxji_playback.py` (interface artwork), `tools/badges.py`, `tools/bootscreen.py`, `tools/sounds.py`.
+- `tools/make_luts.py` writes the looks as `.cube` LUTs (`--check <stock .elf> <photo dir>` compares them with camera JPEGs of one scene);
+  `tools/fit_dxo_norm.py` fits the DxO-to-camera step (`--selftest <photo>` checks the fit on a synthetic pair).
 - `python tools/test_sky.py` is the tiny ARM interpreter the machine-code tests run on (it also checks the tilt-tag code, which is switched off in the current build). `python tools/test_film.py` tests the film camera hooks.
 - [docs/RESEARCH-LOG.md](docs/RESEARCH-LOG.md) is the long, chronological log of how everything was found.
   [docs/FEATURES.md](docs/FEATURES.md) has the status of each feature and where the code lives, and
