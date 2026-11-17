@@ -335,14 +335,14 @@ in the camera; (3) a shot count by file count survives power-off, card swaps and
 
 **FILM28 (`TL-F65t`, 8 Nov 2026, NOT yet flashed): the ratchet fixed, the TL500 boot screen.** Owner (TL-F65r): no wind-on sound, with the sounds on. Cause: `film_sound.RATCHET` misread the stock player 0xC0476F3C. *0xC09B5380 is the volume SETTING (0 = Off .. 3), not a sound object, and 0xC01BC6B8(level) applies that level to the mixer (returns 0), it is not a 'still playing' test; the bytes *0xC09B5018 / *0xC09B501C are an audio route set by the mode code (0xC041C50C, 0xC0482260), used only to pick the output value passed to 0xC01BCA50, and the player plays whatever that value is. RATCHET returned when *0xC09B5018 was 0, which it is in shooting mode. Now it follows the player step by step: silent with the volume Off, else level applied, output value from the route (0 when the flag is clear), block played. Also (from reading 0xC01BCA50): its only stack argument is the sample rate; r2 is the stereo flag. Boot screen (TL-F65s): the original text ('original' taglines) with the model TL500, redrawn (`bootscreen.render_tl500`, lens aperture, red light leak; preview docs/images/film-mode/boot_tl500.jpg). Tests: `python tools/test_film.py` (bad 0, ratchet cases rewritten).
 
-**FAUXJI67 (`TL-F67` plain, `TL-F67f` with `--film`, 16 Nov 2026, built, NOT yet flashed): the manual meter is zeroed on the -0.3 EV bias.**
+**FAUXJI67 (`TL-F67` plain, `TL-F67f` with `--film`, 16 Nov 2026, flashed, owner: the M meter reads 0 now): the manual meter is zeroed on the -0.3 EV bias.**
 Owner: in M the meter needle sat at -0.3 for a correct exposure. The bias (AE_BIAS, through AeSystemEVCSetToAeEVCShift) moves the exposure in
 every mode, but the manual meter reads AE out-info 0xC (exposure minus metered, 1/16 EV, via 0xC03EE5A4) without it. `mdev` (0xC04268A0, dead
 factory code) adds AE_BIAS back when the AE mode is M (0xC03EC7B8) for both meter read-outs (calls at 0xC03ED778 and 0xC03EE5C8), so the
 darker exposure reads 0 in M, with auto ISO and with manual ISO. Exposure is unchanged. FAUXJI66's photos SAM_0912-0917 confirmed 1/30
 with ISO up to 3200 and that f/2.4 in A only happens fully zoomed in (15.6 mm). Test: python tools/test_meter.py <built .elf>.
 
-**FAUXJI66 (`TL-F66` plain, `TL-F66f` with `--film`, 16 Nov 2026, built, NOT yet flashed): minimum shutter 1/60 -> 1/30, ISO ramps up to 3200.** Owner: ISO 1600 is horrible
+**FAUXJI66 (`TL-F66` plain, `TL-F66f` with `--film`, 16 Nov 2026, flashed and confirmed: 1/30 holds, ISO reaches 3200): minimum shutter 1/60 -> 1/30, ISO ramps up to 3200.** Owner: ISO 1600 is horrible
 on this camera, so the floor drops one stop. It lives in one place, the program line `PL_Capt_Program` (0xC094AA18, patch runs in
 patches/fauxji_elf_runs.json): rows 0-5 now hold Tv 80 (1/32); rows 1-5 drop Sv one stop (ISO 400 / 200 / 100 / 100 / 100) so they keep
 its exposure (Ev = Tv + Av - Sv), rows 6-7 stay 1/64 at ISO 100. The flash floor is the flagged row 3 (now 1/32), the zoom-shift skips (P/A/S,

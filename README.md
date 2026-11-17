@@ -10,9 +10,9 @@ Nothing of Samsung's is included in this repository.
 > trademarks. They are used here only to say which look each setting imitates.
 > **Flash at your own risk.** See [Safety](#safety) first. You are changing the software of a camera that is out of production.
 
-Current version: **TL-F63**, built on firmware **008264** only.
+Current version: **TL-F67**, built on firmware **008264** only.
 
-Film camera build (`--film`, see below): **TL-F65u**, same firmware.
+Film camera build (`--film`, see below): **TL-F67f**, same firmware.
 
 ## The main event: fixes that make the camera better to use
 
@@ -21,7 +21,7 @@ Film camera build (`--film`, see below): **TL-F65u**, same firmware.
   flash raised it too: both are gone.
 - **Auto-ISO in manual.** Manual mode gets automatic ISO, so you set shutter and aperture and the camera picks the ISO.
 - **Highlight-friendly metering.** Metering is biased -0.3 EV in every mode, so skies and lamps blow out less. The exposure scale
-  still reads 0.
+  still reads 0, and so does the manual-mode meter: the darker exposure is the new zero.
 - **Menus open in P, A, S and M.** In those modes every menu option is available. Stock, some were greyed out depending on the mode.
 - **Clear shooting screen.** The film-name pop-up box sits in the top-left corner, sized to fit "Classic Chrome" on one line, and
   stays out of the way in movie mode, where that corner shows the recording timer.
@@ -45,7 +45,7 @@ cartridges. The `--film` build uses them everywhere; the plain build still has t
 
 ## Film camera mode (new in v0.3, experimental)
 
-Build it with `python tools/build_fauxji.py <stock dir> <out dir> --film` (version label TL-F65u). The SCENE spot on the mode dial becomes a
+Build it with `python tools/build_fauxji.py <stock dir> <out dir> --film` (version label TL-F67f). The SCENE spot on the mode dial becomes a
 film camera:
 
 - It behaves like P: the 1/30 minimum shutter with auto ISO, open menus, and macro, flash and self-timer on the direction keys.
@@ -133,7 +133,7 @@ The bootloader files (`ONBL1.bin`, `ONBL2.bin`) and `FWUP` are copied unchanged.
    `DSC: FULL <current> -> <new>`). Start the update as Samsung's own firmware instructions for the TL500 describe.
 3. Do not switch the camera off or remove the battery until it finishes. Remove the card afterwards.
 
-The camera's version screen should now read **TL-F63** (builds made before 8 Nov 2026 said TL-F62 for the same firmware).
+The camera's version screen should now read **TL-F67** (or **TL-F67f** for the film camera build).
 
 ## Safety
 
