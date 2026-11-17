@@ -16,7 +16,7 @@ Film camera build (`--film`, see below): **TL-F65u**, same firmware.
 
 ## The main event: fixes that make the camera better to use
 
-- **Shutter that stays usable, with auto ISO.** In P, A and S the camera keeps a minimum shutter of 1/30 s and raises the ISO (up to 800)
+- **Shutter that stays usable, with auto ISO.** In P, A and S the camera keeps a minimum shutter of 1/30 s and raises the ISO as far as it needs (up to 3200)
   instead of slowing down. Stock, it quietly raised the minimum as you zoomed (1/125 s and faster, the zoom hand-shake shift), and the
   flash raised it too: both are gone.
 - **Auto-ISO in manual.** Manual mode gets automatic ISO, so you set shutter and aperture and the camera picks the ISO.
